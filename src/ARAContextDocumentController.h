@@ -9,6 +9,7 @@ class SmartVoicingARADocumentController final : public juce::ARADocumentControll
 public:
     SmartVoicingARADocumentController(const ARA::PlugIn::PlugInEntry* entry,
                                       const ARA::ARADocumentControllerHostInstance* instance);
+    ~SmartVoicingARADocumentController() override;
 
 protected:
     bool doRestoreObjectsFromStream(juce::ARAInputStream& input,
