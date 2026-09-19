@@ -1,0 +1,39 @@
+name: Windows Build
+
+on:
+  push:
+    branches:
+      - main
+      - stage-0-project-skeleton
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.0a"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build --config Release --target SmartVoicing_VST3 --parallel 2
+
+      - name: Prepare versioned package
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $PWD "package"
+          $versionFolder = Join-Path $packageRoot $env:SMART_VOICING_PACKAGE_NAME
+          New-Item -ItemType Directory -Force -Path $versionFolder | Out-Null
+          Copy-Item -Recurse -Force "build/SmartVoicing_artefacts/Release/VST3/Smart Voicing.vst3" $versionFolder
+
+      - name: Upload VST3 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smart-Voicing-0.0a-Windows
+          path: "package/Smart Voicing 0.0a"
