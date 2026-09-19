@@ -1,9 +1,31 @@
 #include "ARAContextDocumentController.h"
 #include "ARAContextDebugState.h"
+#include "SharedHarmonicContext.h"
 
 #if JucePlugin_Enable_ARA
 
 #include <ARA_Library/PlugIn/ARAPlug.h>
+
+namespace
+{
+void publishSharedSnapshot(const ARAContextDebugSnapshot& snapshot)
+{
+    SharedHarmonicContextSnapshot shared;
+    shared.connected = snapshot.hostContentAccessAvailable && snapshot.musicalContextCount > 0;
+    shared.hostContentAccessAvailable = snapshot.hostContentAccessAvailable;
+    shared.musicalContextCount = snapshot.musicalContextCount;
+    shared.keySignaturesAvailable = snapshot.keySignaturesAvailable;
+    shared.keySignatureEventCount = snapshot.keySignatureEventCount;
+    shared.sheetChordsAvailable = snapshot.sheetChordsAvailable;
+    shared.sheetChordEventCount = snapshot.sheetChordEventCount;
+    shared.tempoEntriesAvailable = snapshot.tempoEntriesAvailable;
+    shared.tempoEntryEventCount = snapshot.tempoEntryEventCount;
+    shared.barSignaturesAvailable = snapshot.barSignaturesAvailable;
+    shared.barSignatureEventCount = snapshot.barSignatureEventCount;
+
+    SharedHarmonicContextBridge::instance().publish(shared);
+}
+}
 
 SmartVoicingARADocumentController::SmartVoicingARADocumentController(
     const ARA::PlugIn::PlugInEntry* entry,
@@ -15,7 +37,9 @@ SmartVoicingARADocumentController::SmartVoicingARADocumentController(
 
 SmartVoicingARADocumentController::~SmartVoicingARADocumentController()
 {
-    ARAContextDebugState::instance().removeSource(this);
+    auto& state = ARAContextDebugState::instance();
+    state.removeSource(this);
+    publishSharedSnapshot(state.getSnapshot());
 }
 
 bool SmartVoicingARADocumentController::doRestoreObjectsFromStream(
@@ -77,7 +101,9 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
     auto* document = getDocument();
     if (document == nullptr)
     {
-        ARAContextDebugState::instance().publishSnapshot(this, snapshot);
+        auto& state = ARAContextDebugState::instance();
+        state.publishSnapshot(this, snapshot);
+        publishSharedSnapshot(state.getSnapshot());
         return;
     }
 
@@ -103,7 +129,9 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
         snapshot.barSignatureEventCount += barReader.getEventCount();
     }
 
-    ARAContextDebugState::instance().publishSnapshot(this, snapshot);
+    auto& state = ARAContextDebugState::instance();
+    state.publishSnapshot(this, snapshot);
+    publishSharedSnapshot(state.getSnapshot());
 }
 
 #endif
