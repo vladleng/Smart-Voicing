@@ -39,9 +39,20 @@ The first debug plug-in should only display context/capability information. No h
 
 ## Current Studio Pro finding
 
-Studio Pro exposes ARA Key Signatures, Sheet Chords, Tempo Entries and Bar Signatures when Smart Voicing is loaded as an ARA/Event FX instance. The same VST3 can also be declared as an Instrument and still receives an ARA binding, but Studio Pro does not create a Musical Context for the Instrument instance itself.
+Studio Pro exposes ARA Key Signatures, Sheet Chords, Tempo Entries and Bar Signatures when the plug-in is loaded as an ARA/Event FX instance. An Instrument instance can receive an ARA binding, but Studio Pro does not attach a Musical Context to that Instrument instance.
 
-The current 0.0b experiment therefore keeps a single `Smart Voicing.vst3` binary and tests a lightweight **process-local shared ARA context bridge**: an Event FX instance receives the host ARA context and an Instrument instance reads the shared snapshot from the same loaded module.
+For version **0.0c** the project therefore uses two lightweight components in one package:
+
+```text
+Smart Voicing 0.0c/
+├── Smart Voicing.vst3
+└── Smart Voicing ARA.vst3
+```
+
+- `Smart Voicing.vst3` — Instrument / MIDI engine.
+- `Smart Voicing ARA.vst3` — ARA/Event FX context reader.
+
+On Windows the 0.0c proof uses a tiny named shared-memory bridge between the two VST3 modules. `Smart Voicing ARA` publishes a compact context snapshot and the Instrument reads it without file I/O or host polling from the audio thread.
 
 ## Performance / design principles
 
