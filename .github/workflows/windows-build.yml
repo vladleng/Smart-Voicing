@@ -36,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Smart-Voicing-0.0b-Windows
-          path: "package/Smart Voicing 0.0b"
+          path: "package"
