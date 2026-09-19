@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - stage-0-project-skeleton
+      - stage-1-ara-context
   pull_request:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.0a"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.0b"
 
     steps:
       - name: Checkout
@@ -35,5 +35,5 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.0a-Windows
-          path: "package/Smart Voicing 0.0a"
+          name: Smart-Voicing-0.0b-Windows
+          path: "package/Smart Voicing 0.0b"
