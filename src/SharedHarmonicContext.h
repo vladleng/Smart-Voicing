@@ -110,6 +110,9 @@ public:
 
         for (int attempt = 0; attempt < 8; ++attempt)
         {
+            // InterlockedCompareExchange64 is an atomic read implemented as a
+            // read-modify-write operation. Therefore the mapped view must be
+            // writable even though the Instrument never changes the payload.
             const auto before = static_cast<std::uint64_t>(
                 InterlockedCompareExchange64(&block->sequence, 0, 0));
 
@@ -220,7 +223,11 @@ private:
         block = static_cast<SharedBlock*>(
             MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedBlock)));
         if (block == nullptr)
+        {
+            CloseHandle(mapping);
+            mapping = nullptr;
             return false;
+        }
 
         writeMutex = CreateMutexW(nullptr, FALSE, mutexName);
         writer = true;
@@ -232,13 +239,24 @@ private:
         if (block != nullptr)
             return true;
 
-        mapping = OpenFileMappingW(FILE_MAP_READ, FALSE, mappingName);
+        // Important: InterlockedCompareExchange64 used by read() performs an
+        // atomic read-modify-write, so FILE_MAP_READ is not sufficient and may
+        // cause an access violation in the host. Map the tiny block writable.
+        mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, mappingName);
         if (mapping == nullptr)
             return false;
 
         block = static_cast<SharedBlock*>(
-            MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, sizeof(SharedBlock)));
-        return block != nullptr;
+            MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedBlock)));
+
+        if (block == nullptr)
+        {
+            CloseHandle(mapping);
+            mapping = nullptr;
+            return false;
+        }
+
+        return true;
     }
 
     HANDLE mapping = nullptr;
