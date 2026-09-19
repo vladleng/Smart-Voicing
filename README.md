@@ -35,8 +35,6 @@ The first milestone is an **ARA Context Proof of Concept** that answers:
 5. Can ARA coexist cleanly with real-time MIDI processing?
 6. Which capabilities vary by host?
 
-The first debug plug-in should only display context/capability information. No harmonization yet.
-
 ## Current Studio Pro finding
 
 Studio Pro exposes ARA Key Signatures, Sheet Chords, Tempo Entries and Bar Signatures when the plug-in is loaded as an ARA/Event FX instance. An Instrument instance can receive an ARA binding, but Studio Pro does not attach a Musical Context to that Instrument instance.
@@ -53,6 +51,8 @@ Smart Voicing 0.0c/
 - `Smart Voicing ARA.vst3` — ARA/Event FX context reader.
 
 On Windows the 0.0c proof uses a tiny named shared-memory bridge between the two VST3 modules. `Smart Voicing ARA` publishes a compact context snapshot and the Instrument reads it without file I/O or host polling from the audio thread.
+
+The first 0.0c bridge test only transfers ARA availability and event counts. Actual chord/key values are the next step after this transport is proven.
 
 ## Performance / design principles
 
@@ -115,7 +115,7 @@ Divisimate and Scaler are useful references, but Smart Voicing is not intended t
 
 ## Status
 
-Pre-alpha / architecture and feasibility phase.
+Pre-alpha / architecture and feasibility phase. Current working build: **0.0c**.
 
 See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the full concept and roadmap.
 
