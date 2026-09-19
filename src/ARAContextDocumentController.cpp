@@ -13,6 +13,11 @@ SmartVoicingARADocumentController::SmartVoicingARADocumentController(
     refreshDebugSnapshot();
 }
 
+SmartVoicingARADocumentController::~SmartVoicingARADocumentController()
+{
+    ARAContextDebugState::instance().removeSource(this);
+}
+
 bool SmartVoicingARADocumentController::doRestoreObjectsFromStream(
     juce::ARAInputStream& input,
     const juce::ARARestoreObjectsFilter* filter)
@@ -72,7 +77,7 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
     auto* document = getDocument();
     if (document == nullptr)
     {
-        ARAContextDebugState::instance().setSnapshot(snapshot);
+        ARAContextDebugState::instance().publishSnapshot(this, snapshot);
         return;
     }
 
@@ -98,7 +103,7 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
         snapshot.barSignatureEventCount += barReader.getEventCount();
     }
 
-    ARAContextDebugState::instance().setSnapshot(snapshot);
+    ARAContextDebugState::instance().publishSnapshot(this, snapshot);
 }
 
 #endif
