@@ -15,7 +15,7 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.0b - Shared ARA Bridge Test", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing ARA 0.0c", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -24,7 +24,7 @@ SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingA
     statusLabel.setFont(juce::FontOptions(15.0f));
     addAndMakeVisible(statusLabel);
 
-    setSize(600, 470);
+    setSize(590, 430);
     refreshDebugText();
     startTimerHz(4);
 }
@@ -57,15 +57,13 @@ void SmartVoicingAudioProcessorEditor::refreshDebugText()
     const auto snapshot = ARAContextDebugState::instance().getSnapshot();
 
     juce::String text;
-    text << "VST3 role: Instrument + Fx\n";
-    text << "MIDI input: YES\n";
-    text << "MIDI output: YES\n\n";
+    text << "Role: ARA / Event FX context reader\n";
+    text << "Audio: pass-through\n\n";
 
-    text << "Local ARA instance bound: " << (processor.isARABoundForDebug() ? "YES" : "NO") << "\n";
-    text << "Registered ARA controllers: " << snapshot.registeredControllerCount << "\n";
-    text << "Shared ARA context: " << (snapshot.sharedContextAvailable ? "YES" : "NO") << "\n";
-    text << "Best musical contexts: " << snapshot.musicalContextCount << "\n";
-    text << "Host content access: " << (snapshot.hostContentAccessAvailable ? "YES" : "NO") << "\n\n";
+    text << "ARA instance bound: " << (processor.isARABoundForDebug() ? "YES" : "NO") << "\n";
+    text << "ARA controllers: " << snapshot.registeredControllerCount << "\n";
+    text << "Host content access: " << (snapshot.hostContentAccessAvailable ? "YES" : "NO") << "\n";
+    text << "Musical contexts: " << snapshot.musicalContextCount << "\n\n";
 
     text << "Key Signatures: "
          << availabilityText(snapshot.keySignaturesAvailable, snapshot.keySignatureEventCount) << "\n";
