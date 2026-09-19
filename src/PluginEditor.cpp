@@ -15,7 +15,7 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.0b - ARA Context Test", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.0b - Instrument + ARA Test", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -24,7 +24,7 @@ SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingA
     statusLabel.setFont(juce::FontOptions(15.0f));
     addAndMakeVisible(statusLabel);
 
-    setSize(560, 390);
+    setSize(580, 430);
     refreshDebugText();
     startTimerHz(4);
 }
@@ -57,6 +57,10 @@ void SmartVoicingAudioProcessorEditor::refreshDebugText()
     const auto snapshot = ARAContextDebugState::instance().getSnapshot();
 
     juce::String text;
+    text << "VST3 role: Instrument + Fx\n";
+    text << "MIDI input: YES\n";
+    text << "MIDI output: YES\n\n";
+
     text << "ARA extension built: YES\n";
     text << "ARA instance bound: " << (processor.isARABoundForDebug() ? "YES" : "NO") << "\n";
     text << "ARA document controller: " << (snapshot.documentControllerCreated ? "YES" : "NO") << "\n";
