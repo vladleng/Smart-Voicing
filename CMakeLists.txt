@@ -38,9 +38,9 @@ endif()
 juce_set_ara_sdk_path("${ara_sdk_SOURCE_DIR}")
 
 juce_add_plugin(SmartVoicing
-    COMPANY_NAME "Moon River"
-    BUNDLE_ID "com.moonriver.smartvoicing"
-    PLUGIN_MANUFACTURER_CODE MnRv
+    COMPANY_NAME "Moon River Studio"
+    BUNDLE_ID "com.moonriverstudio.smartvoicing"
+    PLUGIN_MANUFACTURER_CODE MNRV
     PLUGIN_CODE SmVo
     FORMATS VST3
     PRODUCT_NAME "Smart Voicing"
@@ -68,6 +68,12 @@ target_compile_definitions(SmartVoicing
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
 )
+
+# Исходники храним в UTF-8. На MSVC явно включаем UTF-8 для корректного
+# отображения кириллицы в интерфейсе плагина.
+if(MSVC)
+    target_compile_options(SmartVoicing PRIVATE /utf-8)
+endif()
 
 target_link_libraries(SmartVoicing
     PRIVATE
