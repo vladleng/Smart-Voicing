@@ -1,8 +1,12 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <atomic>
 
 class SmartVoicingAudioProcessor final : public juce::AudioProcessor
+#if JucePlugin_Enable_ARA
+                                      , public juce::AudioProcessorARAExtension
+#endif
 {
 public:
     SmartVoicingAudioProcessor();
@@ -33,6 +37,19 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    bool isARABoundForDebug() const noexcept { return araBound.load(std::memory_order_relaxed); }
+    double getLastPositionSecondsForDebug() const noexcept { return lastPositionSeconds.load(std::memory_order_relaxed); }
+    double getLastPpqPositionForDebug() const noexcept { return lastPpqPosition.load(std::memory_order_relaxed); }
+
+protected:
+#if JucePlugin_Enable_ARA
+    void didBindToARA() noexcept override;
+#endif
+
 private:
+    std::atomic<bool> araBound { false };
+    std::atomic<double> lastPositionSeconds { -1.0 };
+    std::atomic<double> lastPpqPosition { -1.0 };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SmartVoicingAudioProcessor)
 };
