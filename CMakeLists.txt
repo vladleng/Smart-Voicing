@@ -40,7 +40,8 @@ juce_add_plugin(SmartVoicing
     PLUGIN_CODE SmVo
     FORMATS VST3
     PRODUCT_NAME "Smart Voicing"
-    IS_SYNTH FALSE
+    IS_SYNTH TRUE
+    VST3_CATEGORIES Instrument Fx
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
     IS_MIDI_EFFECT FALSE
