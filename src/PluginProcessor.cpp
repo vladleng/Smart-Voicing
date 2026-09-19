@@ -8,7 +8,10 @@
 SmartVoicingAudioProcessor::SmartVoicingAudioProcessor()
     : juce::AudioProcessor(
           BusesProperties()
-              .withInput("Input", juce::AudioChannelSet::stereo(), true)
+              // For the Instrument experiment the audio input is optional and disabled by default.
+              // This keeps the normal instrument use-case clean while still leaving an input bus
+              // available for hosts that may require it for ARA/Event FX binding.
+              .withInput("Input", juce::AudioChannelSet::stereo(), false)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
 }
@@ -26,11 +29,14 @@ bool SmartVoicingAudioProcessor::isBusesLayoutSupported(const BusesLayout& layou
     const auto& input = layouts.getMainInputChannelSet();
     const auto& output = layouts.getMainOutputChannelSet();
 
-    if (input != output)
+    const auto outputSupported = output == juce::AudioChannelSet::mono()
+                              || output == juce::AudioChannelSet::stereo();
+
+    if (! outputSupported)
         return false;
 
-    return output == juce::AudioChannelSet::mono()
-        || output == juce::AudioChannelSet::stereo();
+    // Instrument slot: no main audio input. Event/FX use: matching mono/stereo input is accepted.
+    return input.isDisabled() || input == output;
 }
 
 void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -50,8 +56,8 @@ void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Smart Voicing 0.0b is an ARA context proof of concept only.
-    // Audio and MIDI still pass through unchanged.
+    // Smart Voicing 0.0b is still a routing/ARA proof of concept.
+    // MIDI is intentionally left unchanged. No sound generation is implemented yet.
     juce::ignoreUnused(buffer, midiMessages);
 }
 
