@@ -1,58 +1,58 @@
 # Smart Voicing
 
-Smart Voicing is an experimental MIDI harmonization and voice-allocation plug-in project.
+Experimental MIDI harmonization and voice-allocation plug-in by **Moon River Studio**.
 
-The long-term goal is to let a musician work directly from the harmonic context of a DAW project: set the chord progression and key in the DAW, arm several instrument tracks, choose a voicing preset, press Record, and play either a melody or chords while Smart Voicing generates separate musical voices for the destination instruments.
+Smart Voicing is intended to turn DAW harmonic context (Chord / Key / timeline) plus incoming MIDI into musically useful multi-voice MIDI output for brass, reeds and other ensemble instruments.
 
 ## Core idea
 
-Smart Voicing should not be tied to one DAW. The architecture is intended to be host-agnostic, with ARA 2 used as one possible source of harmonic context.
-
-Conceptually:
+The target workflow is:
 
 ```text
-DAW harmonic context
-  +
-MIDI input
-  +
-voicing / voice-leading rules
-  +
-instrument ranges
-  ↓
-independent musical voices
+DAW Chord + Key context
+        +
+Incoming MIDI
+        +
+Voicing preset
+        ↓
+Smart Voicing
+        ↓
+Independent generated voices / MIDI channels
 ```
 
-The DAW remains the source of truth for project harmony whenever the host exposes the required information.
+The plug-in should remain host-agnostic. ARA 2 is treated as one possible source of harmonic context, not as the musical engine itself.
 
-## Current development focus
+## First milestone
 
 The first milestone is **not** four-part voicing.
 
-The project starts with an **ARA Context Proof of Concept** whose only purpose is to verify what harmonic data a host actually exposes to a third-party plug-in.
+The first milestone is an **ARA Context Proof of Concept** that answers:
 
-Initial questions:
+1. Is ARA available in the host?
+2. Can the host expose Key Signature / tonal-context data?
+3. Can the host expose Sheet Chord data?
+4. Can Smart Voicing follow timeline changes?
+5. Can ARA coexist cleanly with real-time MIDI processing?
+6. Which capabilities vary by host?
 
-- Can the plug-in detect ARA availability?
-- Can it read key-signature / tonal-context data?
-- Can it read chord data such as ARA sheet chords?
-- Can it follow changes across the project timeline?
-- Can this coexist cleanly with real-time MIDI processing?
-- Which capabilities vary from host to host?
+The first debug plug-in should only display context/capability information. No harmonization yet.
 
-Only after this works reliably should the voicing engine be built on top.
+## Current Studio Pro finding
 
-## Design principles
+Studio Pro exposes ARA Key Signatures, Sheet Chords, Tempo Entries and Bar Signatures when Smart Voicing is loaded as an ARA/Event FX instance. The same VST3 can also be declared as an Instrument and still receives an ARA binding, but Studio Pro does not create a Musical Context for the Instrument instance itself.
 
-- Host-agnostic core
-- Capability-based host integration
-- ARA 2 as a context provider, not as a DAW-specific dependency
-- Minimal CPU and memory overhead
-- Real-time safe MIDI processing
-- No heavyweight standalone host as a requirement
-- Clear separation between harmonic context, voicing logic, MIDI I/O, and UI
-- Graceful fallback when a host does not expose chord or key information
+The current 0.0b experiment therefore keeps a single `Smart Voicing.vst3` binary and tests a lightweight **process-local shared ARA context bridge**: an Event FX instance receives the host ARA context and an Instrument instance reads the shared snapshot from the same loaded module.
 
-## Planned context sources
+## Performance / design principles
+
+- Keep UI minimal.
+- Keep MIDI processing real-time safe.
+- Avoid unnecessary polling and background work.
+- Keep musical logic independent from JUCE, ARA and any specific DAW.
+- Prefer capability detection over host-name checks.
+- Cache host context away from the audio thread and expose immutable/lightweight state to real-time processing.
+
+## Planned context-provider abstraction
 
 ```text
 IHarmonicContextProvider
@@ -61,58 +61,55 @@ IHarmonicContextProvider
 └── ManualContextProvider
 ```
 
-The voicing engine should consume a neutral harmonic context structure and should not need to know whether that context came from ARA, incoming MIDI, or manual settings.
+Conceptually:
 
-## Planned user workflow
+```cpp
+struct HarmonicContext
+{
+    KeySignature key;
+    ChordSymbol chord;
+    double timelinePosition;
+    bool hasKey;
+    bool hasChord;
+};
+```
 
-Target workflow:
+## Planned musical modes
 
-1. Create or edit the chord progression in the DAW.
-2. Set the project key / tonal context in the DAW.
-3. Load Smart Voicing.
-4. Choose a voicing mode or preset.
-5. Arm the destination instrument tracks.
-6. Press Record.
-7. Play a melody or chord input.
-8. Smart Voicing distributes / generates the required voices in real time.
-9. Edit the resulting instrument parts individually.
+- Direct 4 Voice
+- Melody Harmonize
+- Chord redistribution / revoicing
+- Context-aware voicing
 
-## Planned voicing features
+Initial useful voicing rules after the ARA proof:
 
-Later stages may include:
-
-- Direct note distribution
-- Melody harmonization
-- Close voicing
+- Close
 - Drop 2
+- Guide Tones
+- Custom
+
+Later:
+
 - Drop 3
-- Spread voicing
-- Guide-tone voicing
-- Root omission
-- Context-aware tensions
-- Voice leading
-- Instrument ranges
-- Octave displacement
-- User presets
+- Drop 2+4
+- Spread
+- Unison
+- instrument-aware ranges
+- voice leading
+- root omission / tension policies
 
 ## Reference products
 
-The project is conceptually adjacent to tools such as Divisimate and Scaler, but the intended distinction is simple:
+Divisimate and Scaler are useful references, but Smart Voicing is not intended to clone either product. Its differentiator is using the DAW's own harmonic context when the host exposes it.
 
-> Smart Voicing should use the harmonic context of the DAW itself whenever the host exposes it, instead of requiring a second independent chord timeline inside the plug-in.
+## Status
+
+Pre-alpha / architecture and feasibility phase.
+
+See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the full concept and roadmap.
 
 ## Язык ведения проекта
 
 Все этапы разработки, GitHub Issues, задачи, подзадачи, roadmap и пояснения к ним создаются **на русском языке**, чтобы их было удобно отслеживать и корректировать вручную.
 
 Английский используется только там, где это уместно технически: имена классов и методов, API, названия форматов, термины SDK и код.
-
-## Documentation
-
-See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the current product concept, architecture, technical hypotheses, and roadmap.
-
-## Status
-
-**Pre-alpha / architecture and feasibility stage.**
-
-The immediate next step is an ARA 2 context-reading prototype with minimal UI and no voicing engine yet.
