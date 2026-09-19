@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <mutex>
+#include <unordered_map>
 
 struct ARAContextDebugSnapshot
 {
@@ -20,6 +21,9 @@ struct ARAContextDebugSnapshot
 
     bool barSignaturesAvailable = false;
     int barSignatureEventCount = 0;
+
+    int registeredControllerCount = 0;
+    bool sharedContextAvailable = false;
 };
 
 class ARAContextDebugState final
@@ -31,21 +35,64 @@ public:
         return state;
     }
 
-    void setSnapshot(const ARAContextDebugSnapshot& newSnapshot)
+    void publishSnapshot(const void* source, const ARAContextDebugSnapshot& newSnapshot)
     {
         const std::scoped_lock lock(mutex);
-        snapshot = newSnapshot;
+        snapshots[source] = newSnapshot;
+    }
+
+    void removeSource(const void* source)
+    {
+        const std::scoped_lock lock(mutex);
+        snapshots.erase(source);
     }
 
     ARAContextDebugSnapshot getSnapshot() const
     {
         const std::scoped_lock lock(mutex);
-        return snapshot;
+
+        ARAContextDebugSnapshot best;
+        best.registeredControllerCount = static_cast<int>(snapshots.size());
+
+        int bestScore = -1;
+        for (const auto& [source, candidate] : snapshots)
+        {
+            juce::ignoreUnused(source);
+
+            const auto contentTypes = static_cast<int>(candidate.keySignaturesAvailable)
+                                    + static_cast<int>(candidate.sheetChordsAvailable)
+                                    + static_cast<int>(candidate.tempoEntriesAvailable)
+                                    + static_cast<int>(candidate.barSignaturesAvailable);
+
+            const auto eventCount = candidate.keySignatureEventCount
+                                  + candidate.sheetChordEventCount
+                                  + candidate.tempoEntryEventCount
+                                  + candidate.barSignatureEventCount;
+
+            const auto score = candidate.musicalContextCount * 10000
+                             + contentTypes * 1000
+                             + eventCount * 10
+                             + static_cast<int>(candidate.hostContentAccessAvailable);
+
+            if (score > bestScore)
+            {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+
+        best.registeredControllerCount = static_cast<int>(snapshots.size());
+        best.sharedContextAvailable = best.musicalContextCount > 0
+                                   && (best.keySignaturesAvailable
+                                       || best.sheetChordsAvailable
+                                       || best.tempoEntriesAvailable
+                                       || best.barSignaturesAvailable);
+        return best;
     }
 
 private:
     ARAContextDebugState() = default;
 
     mutable std::mutex mutex;
-    ARAContextDebugSnapshot snapshot;
+    std::unordered_map<const void*, ARAContextDebugSnapshot> snapshots;
 };
