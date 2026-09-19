@@ -8,10 +8,7 @@
 SmartVoicingAudioProcessor::SmartVoicingAudioProcessor()
     : juce::AudioProcessor(
           BusesProperties()
-              // For the Instrument experiment the audio input is optional and disabled by default.
-              // This keeps the normal instrument use-case clean while still leaving an input bus
-              // available for hosts that may require it for ARA/Event FX binding.
-              .withInput("Input", juce::AudioChannelSet::stereo(), false)
+              .withInput("Input", juce::AudioChannelSet::stereo(), true)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
 }
@@ -29,14 +26,11 @@ bool SmartVoicingAudioProcessor::isBusesLayoutSupported(const BusesLayout& layou
     const auto& input = layouts.getMainInputChannelSet();
     const auto& output = layouts.getMainOutputChannelSet();
 
-    const auto outputSupported = output == juce::AudioChannelSet::mono()
-                              || output == juce::AudioChannelSet::stereo();
-
-    if (! outputSupported)
+    if (input != output)
         return false;
 
-    // Instrument slot: no main audio input. Event/FX use: matching mono/stereo input is accepted.
-    return input.isDisabled() || input == output;
+    return output == juce::AudioChannelSet::mono()
+        || output == juce::AudioChannelSet::stereo();
 }
 
 void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -56,8 +50,8 @@ void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Smart Voicing 0.0b is still a routing/ARA proof of concept.
-    // MIDI is intentionally left unchanged. No sound generation is implemented yet.
+    // Smart Voicing ARA 0.0c is a context reader only.
+    // Audio passes through unchanged and MIDI is not used.
     juce::ignoreUnused(buffer, midiMessages);
 }
 
@@ -68,7 +62,7 @@ juce::AudioProcessorEditor* SmartVoicingAudioProcessor::createEditor()
 
 void SmartVoicingAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    static constexpr char state[] = "SmartVoicingStateV1";
+    static constexpr char state[] = "SmartVoicingARAStateV1";
     destData.replaceAll(state, sizeof(state));
 }
 
