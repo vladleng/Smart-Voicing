@@ -101,6 +101,12 @@ The project is conceptually adjacent to tools such as Divisimate and Scaler, but
 
 > Smart Voicing should use the harmonic context of the DAW itself whenever the host exposes it, instead of requiring a second independent chord timeline inside the plug-in.
 
+## Язык ведения проекта
+
+Все этапы разработки, GitHub Issues, задачи, подзадачи, roadmap и пояснения к ним создаются **на русском языке**, чтобы их было удобно отслеживать и корректировать вручную.
+
+Английский используется только там, где это уместно технически: имена классов и методов, API, названия форматов, термины SDK и код.
+
 ## Documentation
 
 See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the current product concept, architecture, technical hypotheses, and roadmap.
