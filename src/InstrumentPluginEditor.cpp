@@ -39,6 +39,20 @@ juce::String channelsText(std::uint32_t mask)
     return result;
 }
 
+juce::String counterText(std::uint32_t value)
+{
+    return juce::String(static_cast<juce::int64>(value));
+}
+
+juce::String noteText(int note)
+{
+    if (note < 0)
+        return juce::String::fromUTF8("—");
+
+    const auto name = juce::MidiMessage::getMidiNoteName(note, true, true, 3);
+    return name + " (" + juce::String(note) + ")";
+}
+
 juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeSnapshot& snapshot)
 {
     using Type = SmartVoicingInstrumentProcessor::MidiProbeEventType;
@@ -80,7 +94,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.1a - MIDI Router Probe", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.1b - Direct 4 Voice Router", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -102,7 +116,8 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     positionLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(positionLabel);
 
-    midiProbeTitleLabel.setText("MIDI Router 0.1a | transparent pass-through", juce::dontSendNotification);
+    midiProbeTitleLabel.setText("MIDI Router 0.1b | Direct 4 Voice | V1->Ch1 ... V4->Ch4",
+                                juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     addAndMakeVisible(midiProbeTitleLabel);
@@ -123,7 +138,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     debugLabel.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(debugLabel);
 
-    setSize(860, 860);
+    setSize(900, 920);
     refreshContextMonitor();
     startTimerHz(8);
 }
@@ -145,7 +160,7 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.drawRoundedRectangle(contextArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(54);
-    auto midiArea = area.removeFromTop(150);
+    auto midiArea = area.removeFromTop(205);
     g.drawRoundedRectangle(midiArea.toFloat(), 8.0f, 1.0f);
 }
 
@@ -167,7 +182,7 @@ void SmartVoicingInstrumentEditor::resized()
     area.removeFromTop(12);
 
     midiProbeTitleLabel.setBounds(area.removeFromTop(30).reduced(12, 0));
-    midiProbeLabel.setBounds(area.removeFromTop(78).reduced(12, 0));
+    midiProbeLabel.setBounds(area.removeFromTop(132).reduced(12, 0));
     auto buttonRow = area.removeFromTop(32).reduced(12, 0);
     resetMidiStatsButton.setBounds(buttonRow.removeFromLeft(180));
 
@@ -258,20 +273,27 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     const auto midiProbe = processor.getMidiProbeSnapshot();
     juce::String midiText;
-    midiText << "Pass-through: ACTIVE | events in/out: " << midiProbe.totalEvents << " / " << midiProbe.totalEvents
-             << " | channels seen: " << channelsText(midiProbe.channelMask) << "\n";
-    midiText << "Note On: " << midiProbe.noteOnEvents
-             << " | Note Off: " << midiProbe.noteOffEvents
-             << " | CC: " << midiProbe.controllerEvents
-             << " | Pitch Bend: " << midiProbe.pitchBendEvents
-             << " | Other: " << midiProbe.otherEvents << "\n";
-    midiText << "Last: " << lastMidiEventText(midiProbe)
-             << " | MIDI rev: " << midiProbe.revision;
+    midiText << "Router: ACTIVE | events in/out: " << counterText(midiProbe.totalInputEvents)
+             << " / " << counterText(midiProbe.totalOutputEvents)
+             << " | input channels seen: " << channelsText(midiProbe.channelMask)
+             << " | held: " << midiProbe.heldNoteCount << "\n";
+    midiText << "V1/Ch1: " << noteText(midiProbe.voiceNotes[0])
+             << " | V2/Ch2: " << noteText(midiProbe.voiceNotes[1]) << "\n";
+    midiText << "V3/Ch3: " << noteText(midiProbe.voiceNotes[2])
+             << " | V4/Ch4: " << noteText(midiProbe.voiceNotes[3]) << "\n";
+    midiText << "Note On: " << counterText(midiProbe.noteOnEvents)
+             << " | Note Off: " << counterText(midiProbe.noteOffEvents)
+             << " | CC: " << counterText(midiProbe.controllerEvents)
+             << " | Pitch Bend: " << counterText(midiProbe.pitchBendEvents)
+             << " | Other: " << counterText(midiProbe.otherEvents) << "\n";
+    midiText << "Last input: " << lastMidiEventText(midiProbe)
+             << " | MIDI rev: " << counterText(midiProbe.revision);
     midiProbeLabel.setText(midiText, juce::dontSendNotification);
 
     juce::String debugText;
     debugText << "Техническая диагностика\n";
-    debugText << "MIDI input/output: YES / YES | routing model under test: 1 VST3 Event Out -> MIDI channels 1-4\n";
+    debugText << "MIDI input/output: YES / YES | Direct 4 Voice: highest->Ch1, next->Ch2, next->Ch3, next->Ch4\n";
+    debugText << "Channel messages: broadcast to Ch1-4 | >4 held notes: top four routed\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
     debugText << "Key Signatures: "
