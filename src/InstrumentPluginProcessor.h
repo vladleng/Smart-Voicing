@@ -117,6 +117,7 @@ private:
     std::array<int, 128> noteVoiceOwners {};
     std::array<int, 4> activeVoiceNotes { -1, -1, -1, -1 };
     std::array<bool, 4> voiceNoteOnActive { false, false, false, false };
+    std::array<bool, 4> voiceReleasedUnderSustain { false, false, false, false };
     int heldDistinctNoteCount = 0;
     bool sustainDown = false;
     bool stableOwnership = false;
