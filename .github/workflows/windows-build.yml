@@ -4,15 +4,14 @@ on:
   push:
     branches:
       - main
-      - stage-0-project-skeleton
-  pull_request:
+      - stage-1-ara-context
 
 jobs:
   build:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.0a"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.1"
 
     steps:
       - name: Checkout
@@ -22,7 +21,7 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
-        run: cmake --build build --config Release --target SmartVoicing_VST3 --parallel 2
+        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 --parallel 2
 
       - name: Prepare versioned package
         shell: pwsh
@@ -31,9 +30,10 @@ jobs:
           $versionFolder = Join-Path $packageRoot $env:SMART_VOICING_PACKAGE_NAME
           New-Item -ItemType Directory -Force -Path $versionFolder | Out-Null
           Copy-Item -Recurse -Force "build/SmartVoicing_artefacts/Release/VST3/Smart Voicing.vst3" $versionFolder
+          Copy-Item -Recurse -Force "build/SmartVoicingARA_artefacts/Release/VST3/Smart Voicing ARA.vst3" $versionFolder
 
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.0a-Windows
-          path: "package/Smart Voicing 0.0a"
+          name: Smart-Voicing-0.1-Windows
+          path: "package"

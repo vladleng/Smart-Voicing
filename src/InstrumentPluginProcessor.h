@@ -3,18 +3,14 @@
 #include <JuceHeader.h>
 #include <atomic>
 
-class SmartVoicingAudioProcessor final : public juce::AudioProcessor
-#if JucePlugin_Enable_ARA
-                                      , public juce::AudioProcessorARAExtension
-#endif
+class SmartVoicingInstrumentProcessor final : public juce::AudioProcessor
 {
 public:
-    SmartVoicingAudioProcessor();
-    ~SmartVoicingAudioProcessor() override = default;
+    SmartVoicingInstrumentProcessor();
+    ~SmartVoicingInstrumentProcessor() override = default;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
-
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -22,9 +18,8 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
-
-    bool acceptsMidi() const override { return false; }
-    bool producesMidi() const override { return false; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
@@ -37,28 +32,12 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    bool isARABoundForDebug() const noexcept { return araBound.load(std::memory_order_relaxed); }
     double getLastPositionSecondsForDebug() const noexcept { return lastPositionSeconds.load(std::memory_order_relaxed); }
     double getLastPpqPositionForDebug() const noexcept { return lastPpqPosition.load(std::memory_order_relaxed); }
 
-protected:
-#if JucePlugin_Enable_ARA
-    void didBindToARA() noexcept override;
-#endif
-
 private:
-    std::atomic<bool> araBound { false };
     std::atomic<double> lastPositionSeconds { -1.0 };
     std::atomic<double> lastPpqPosition { -1.0 };
 
-    // Audio-thread-only cache used to suppress identical transport snapshots.
-    // The shared transport revision therefore represents actual transport
-    // changes instead of processBlock call count.
-    bool hasPublishedTransport = false;
-    bool lastPublishedTransportAvailable = false;
-    bool lastPublishedTransportPlaying = false;
-    double lastPublishedTransportSeconds = -1.0;
-    double lastPublishedTransportPpq = -1.0;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SmartVoicingAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SmartVoicingInstrumentProcessor)
 };

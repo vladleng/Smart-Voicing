@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.0.1
-    DESCRIPTION "Smart Voicing — ARA-aware MIDI harmonizer and voice allocator"
+    VERSION 0.1.0
+    DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -11,7 +11,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-# JUCE: фиксируем стабильную версию, чтобы сборки были воспроизводимыми.
 FetchContent_Declare(
     JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
@@ -20,9 +19,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JUCE)
 
-# ARA SDK: официальный публичный release Celemony.
-# На Этапе 0 SDK подключается к сборочной системе, а сам ARA Document Controller
-# будет реализован на Этапе 1 (ARA Context Proof of Concept).
 FetchContent_Declare(
     ARA_SDK
     GIT_REPOSITORY https://github.com/Celemony/ARA_SDK.git
@@ -37,6 +33,10 @@ endif()
 
 juce_set_ara_sdk_path("${ara_sdk_SOURCE_DIR}")
 
+# -----------------------------------------------------------------------------
+# Main plug-in: Instrument / MIDI engine.
+# It deliberately does not request ARA from the host. Harmonic context is read
+# from the lightweight bridge published by Smart Voicing ARA.
 juce_add_plugin(SmartVoicing
     COMPANY_NAME "Moon River Studio"
     BUNDLE_ID "com.moonriverstudio.smartvoicing"
@@ -44,10 +44,12 @@ juce_add_plugin(SmartVoicing
     PLUGIN_CODE SmVo
     FORMATS VST3
     PRODUCT_NAME "Smart Voicing"
-    IS_SYNTH FALSE
+    IS_SYNTH TRUE
+    VST3_CATEGORIES Instrument
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
     IS_MIDI_EFFECT FALSE
+    IS_ARA_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
@@ -56,30 +58,67 @@ juce_generate_juce_header(SmartVoicing)
 
 target_sources(SmartVoicing
     PRIVATE
+        src/SharedHarmonicContext.h
+        src/HarmonicContextDebugText.h
+        src/InstrumentPluginProcessor.cpp
+        src/InstrumentPluginProcessor.h
+        src/InstrumentPluginEditor.cpp
+        src/InstrumentPluginEditor.h
+)
+
+# -----------------------------------------------------------------------------
+# Helper plug-in: ARA / Event FX context reader.
+# It passes audio through unchanged and only publishes DAW harmonic context.
+juce_add_plugin(SmartVoicingARA
+    COMPANY_NAME "Moon River Studio"
+    BUNDLE_ID "com.moonriverstudio.smartvoicingara"
+    PLUGIN_MANUFACTURER_CODE MNRV
+    PLUGIN_CODE SmAr
+    FORMATS VST3
+    PRODUCT_NAME "Smart Voicing ARA"
+    IS_SYNTH FALSE
+    VST3_CATEGORIES Fx
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    IS_ARA_EFFECT TRUE
+    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    COPY_PLUGIN_AFTER_BUILD FALSE
+)
+
+juce_generate_juce_header(SmartVoicingARA)
+
+target_sources(SmartVoicingARA
+    PRIVATE
+        src/SharedHarmonicContext.h
+        src/HarmonicContextDebugText.h
+        src/ARAContextDebugState.h
+        src/ARAContextDocumentController.cpp
+        src/ARAContextDocumentController.h
         src/PluginProcessor.cpp
         src/PluginProcessor.h
         src/PluginEditor.cpp
         src/PluginEditor.h
 )
 
-target_compile_definitions(SmartVoicing
-    PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0
-)
+foreach(target SmartVoicing SmartVoicingARA)
+    target_compile_definitions(${target}
+        PUBLIC
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0
+            JUCE_VST3_CAN_REPLACE_VST2=0
+    )
 
-# Исходники храним в UTF-8. На MSVC явно включаем UTF-8 для корректного
-# отображения кириллицы в интерфейсе плагина.
-if(MSVC)
-    target_compile_options(SmartVoicing PRIVATE /utf-8)
-endif()
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /utf-8)
+    endif()
 
-target_link_libraries(SmartVoicing
-    PRIVATE
-        juce::juce_audio_utils
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags
-)
+    target_link_libraries(${target}
+        PRIVATE
+            juce::juce_audio_utils
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags
+    )
+endforeach()

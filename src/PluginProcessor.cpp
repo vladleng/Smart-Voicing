@@ -1,5 +1,22 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "SharedHarmonicContext.h"
+
+#if JucePlugin_Enable_ARA
+#include "ARAContextDocumentController.h"
+#endif
+
+#include <cmath>
+
+namespace
+{
+constexpr double transportComparisonEpsilon = 1.0e-9;
+
+bool transportValueChanged(double current, double previous) noexcept
+{
+    return std::abs(current - previous) > transportComparisonEpsilon;
+}
+}
 
 SmartVoicingAudioProcessor::SmartVoicingAudioProcessor()
     : juce::AudioProcessor(
@@ -7,6 +24,9 @@ SmartVoicingAudioProcessor::SmartVoicingAudioProcessor()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    // Prepare the shared writer outside processBlock so transport publication
+    // stays allocation-free and lock-free in the audio callback.
+    SharedHarmonicContextBridge::instance().prepareWriter();
 }
 
 void SmartVoicingAudioProcessor::prepareToPlay(double, int)
@@ -34,8 +54,59 @@ void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 {
     juce::ScopedNoDenormals noDenormals;
 
-    // Этап 0: никакого DSP и никакой MIDI-трансформации.
-    // Аудио и MIDI проходят через плагин без изменений.
+    double seconds = -1.0;
+    double ppq = -1.0;
+    bool playing = false;
+    bool transportAvailable = false;
+
+    if (auto* hostPlayHead = getPlayHead())
+    {
+        if (const auto position = hostPlayHead->getPosition())
+        {
+            if (const auto timeInSeconds = position->getTimeInSeconds())
+            {
+                seconds = *timeInSeconds;
+                transportAvailable = true;
+            }
+
+            if (const auto ppqPosition = position->getPpqPosition())
+            {
+                ppq = *ppqPosition;
+                transportAvailable = true;
+            }
+
+            playing = position->getIsPlaying();
+        }
+    }
+
+    lastPositionSeconds.store(seconds, std::memory_order_relaxed);
+    lastPpqPosition.store(ppq, std::memory_order_relaxed);
+
+    const auto transportChanged = ! hasPublishedTransport
+                               || transportAvailable != lastPublishedTransportAvailable
+                               || playing != lastPublishedTransportPlaying
+                               || transportValueChanged(seconds, lastPublishedTransportSeconds)
+                               || transportValueChanged(ppq, lastPublishedTransportPpq);
+
+    // 0.0f: publish only semantic transport changes. Studio Pro may keep
+    // calling processBlock while stopped; identical STOP snapshots must not
+    // increment Transport revision or touch shared memory unnecessarily.
+    if (transportChanged)
+    {
+        SharedHarmonicContextBridge::instance().publishTransport(transportAvailable,
+                                                                 seconds,
+                                                                 ppq,
+                                                                 playing);
+
+        hasPublishedTransport = true;
+        lastPublishedTransportAvailable = transportAvailable;
+        lastPublishedTransportPlaying = playing;
+        lastPublishedTransportSeconds = seconds;
+        lastPublishedTransportPpq = ppq;
+    }
+
+    // Smart Voicing ARA 0.0f is a context reader only.
+    // Audio passes through unchanged and MIDI is not used.
     juce::ignoreUnused(buffer, midiMessages);
 }
 
@@ -46,7 +117,7 @@ juce::AudioProcessorEditor* SmartVoicingAudioProcessor::createEditor()
 
 void SmartVoicingAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    static constexpr char state[] = "SmartVoicingStateV1";
+    static constexpr char state[] = "SmartVoicingARAStateV1";
     destData.replaceAll(state, sizeof(state));
 }
 
@@ -54,7 +125,22 @@ void SmartVoicingAudioProcessor::setStateInformation(const void*, int)
 {
 }
 
+#if JucePlugin_Enable_ARA
+void SmartVoicingAudioProcessor::didBindToARA() noexcept
+{
+    juce::AudioProcessorARAExtension::didBindToARA();
+    araBound.store(true, std::memory_order_relaxed);
+}
+#endif
+
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new SmartVoicingAudioProcessor();
 }
+
+#if JucePlugin_Enable_ARA
+const ARA::ARAFactory* JUCE_CALLTYPE createARAFactory()
+{
+    return juce::ARADocumentControllerSpecialisation::createARAFactory<SmartVoicingARADocumentController>();
+}
+#endif
