@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "ARAContextProvider.h"
+#include "LiveReharmonizer.h"
 
 #include <array>
 #include <atomic>
@@ -45,6 +46,7 @@ public:
         std::uint32_t pitchBendEvents = 0;
         std::uint32_t otherEvents = 0;
         std::uint32_t channelMask = 0;
+        std::uint32_t reharmonizationCount = 0;
         MidiProbeEventType lastEventType = MidiProbeEventType::none;
         DistributionMode distributionMode = DistributionMode::topDown;
         HarmonyMode harmonyMode = HarmonyMode::directRouter;
@@ -53,6 +55,7 @@ public:
         int lastData2 = 0;
         int heldNoteCount = 0;
         int ignoredExtraNoteCount = 0;
+        double lastReharmonizationPpq = -1.0;
         bool sustainDown = false;
         bool stableOwnership = false;
         std::array<int, 4> voiceNotes { -1, -1, -1, -1 };
@@ -111,6 +114,7 @@ private:
 
     void processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages);
     void startMelodyVoicing(int melodyNote, int velocity, int samplePosition);
+    void refreshMelodyHarmonyFromContext(int samplePosition);
     void stopMelodyVoicing(int samplePosition);
 
     void applyVoiceState(int samplePosition);
@@ -150,6 +154,8 @@ private:
     std::atomic<std::uint32_t> midiPitchBendEvents { 0 };
     std::atomic<std::uint32_t> midiOtherEvents { 0 };
     std::atomic<std::uint32_t> midiChannelMask { 0 };
+    std::atomic<std::uint32_t> reharmonizationCountForUi { 0 };
+    std::atomic<double> lastReharmonizationPpqForUi { -1.0 };
     std::atomic<int> lastMidiEventType { static_cast<int>(MidiProbeEventType::none) };
     std::atomic<int> lastMidiChannel { 0 };
     std::atomic<int> lastMidiData1 { 0 };
@@ -177,11 +183,13 @@ private:
 
     int heldDistinctNoteCount = 0;
     int activeMelodyInputNote = -1;
+    int activeMelodyVelocity = 0;
     bool sustainDown = false;
     bool stableOwnership = false;
     bool pendingChordFrame = false;
     DistributionMode activeDistributionMode = DistributionMode::topDown;
     HarmonyMode activeHarmonyMode = HarmonyMode::directRouter;
+    smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
 
     double currentSampleRate = 44100.0;
     std::int64_t processedSampleCounter = 0;
