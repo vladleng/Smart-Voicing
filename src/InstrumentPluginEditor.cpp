@@ -94,7 +94,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.1c - Stable Voice + Sustain", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.1d - Voice Stack + Legato", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -116,7 +116,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     positionLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(positionLabel);
 
-    midiProbeTitleLabel.setText("MIDI Router 0.1c | Stable Voice Ownership | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Router 0.1d | Voice Stack / Legato | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -279,10 +279,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     midiText << "events in/out: " << counterText(midiProbe.totalInputEvents)
              << " / " << counterText(midiProbe.totalOutputEvents)
              << " | input channels seen: " << channelsText(midiProbe.channelMask) << "\n";
-    midiText << "V1/Ch1: " << noteText(midiProbe.voiceNotes[0])
-             << " | V2/Ch2: " << noteText(midiProbe.voiceNotes[1]) << "\n";
-    midiText << "V3/Ch3: " << noteText(midiProbe.voiceNotes[2])
-             << " | V4/Ch4: " << noteText(midiProbe.voiceNotes[3]) << "\n";
+    midiText << "V1/Ch1: " << noteText(midiProbe.voiceNotes[0]) << " [stack " << midiProbe.voiceStackDepths[0] << "]"
+             << " | V2/Ch2: " << noteText(midiProbe.voiceNotes[1]) << " [stack " << midiProbe.voiceStackDepths[1] << "]\n";
+    midiText << "V3/Ch3: " << noteText(midiProbe.voiceNotes[2]) << " [stack " << midiProbe.voiceStackDepths[2] << "]"
+             << " | V4/Ch4: " << noteText(midiProbe.voiceNotes[3]) << " [stack " << midiProbe.voiceStackDepths[3] << "]\n";
     midiText << "Note On: " << counterText(midiProbe.noteOnEvents)
              << " | Note Off: " << counterText(midiProbe.noteOffEvents)
              << " | CC: " << counterText(midiProbe.controllerEvents)
@@ -294,10 +294,11 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << "Техническая диагностика\n";
-    debugText << "MIDI input/output: YES / YES | 0.1c Stable Voice Ownership + sustain-aware state\n";
-    debugText << "Bootstrap: pitch ranking | locked voices keep Ch1-4 identity while edited\n";
-    debugText << "CC64: Note Off deferred by router until pedal-up; Voice slot stays reserved\n";
-    debugText << "Channel messages: broadcast to Ch1-4 | extra notes do not steal locked voices\n";
+    debugText << "MIDI input/output: YES / YES | 0.1d Voice Stack + legato continuation\n";
+    debugText << "Stable Voice: overlap Note On stays on the same Ch1-4; nearest Voice resolves single-note continuation\n";
+    debugText << "CC64: released notes stay below current note in Voice Stack until pedal-up\n";
+    debugText << "Chord morph: new chord may enter while Sustain is DOWN; held new notes survive pedal-up\n";
+    debugText << "Channel messages: broadcast to Ch1-4 | fixed arrays, no locks/heap work in router state\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
     debugText << "Key Signatures: "
