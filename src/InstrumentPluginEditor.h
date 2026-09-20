@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ARAContextProvider.h"
 #include "InstrumentPluginProcessor.h"
 
 class SmartVoicingInstrumentEditor final : public juce::AudioProcessorEditor,
@@ -18,6 +19,7 @@ private:
     void refreshContextMonitor();
 
     SmartVoicingInstrumentProcessor& processor;
+    smartvoicing::harmony::ARAContextProvider harmonicContextProvider;
 
     juce::Label titleLabel;
     juce::Label bridgeLabel;
