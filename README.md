@@ -1,8 +1,8 @@
 # Smart Voicing
 
-**Smart Voicing** — экспериментальный MIDI-плагин Moon River Studio для гармонизации и распределения независимых голосов с использованием гармонического контекста самой DAW.
+**Smart Voicing** — MIDI-плагин Moon River Studio для распределения независимых голосов и дальнейшей гармонизации с использованием гармонического контекста DAW.
 
-Главная идея:
+Главная схема:
 
 ```text
 Chord Track + Key + transport
@@ -18,40 +18,40 @@ Voice 1 / Voice 2 / Voice 3 / Voice 4
 отдельные instrument tracks
 ```
 
-DAW остаётся **источником гармонической истины**. Smart Voicing не должен требовать отдельную копию Chord Track / Key Track внутри плагина.
+DAW остаётся **источником гармонической истины**. Smart Voicing не требует отдельной копии Chord Track / Key Track внутри плагина.
 
 ## Текущий статус
 
-Проект находится на стадии **pre-alpha**.
+**Smart Voicing 0.2 — завершённый Этап 2: MIDI Router.**
 
-Последняя завершённая версия: **Smart Voicing 0.1**.  
-Текущая подтверждённая рабочая версия: **Smart Voicing 0.1e**.  
-**Этап 1 — ARA Context Proof of Concept завершён.**  
-**Текущий этап: Этап 2 — MIDI Router.**  
-**Следующая итерация: 0.1f — Router Hardening → 0.2.**
+Завершено:
 
-## Подтверждено в Studio Pro
+- Этап 0 — каркас и базовая VST3-сборка;
+- Этап 1 — ARA Context Proof of Concept → `0.1`;
+- Этап 2 — рабочий четырёхголосный MIDI Router → `0.2`.
 
-- `Smart Voicing ARA` как ARA/Event FX получает Musical Context проекта;
-- доступны Key Signatures, Sheet Chords, Tempo Entries и Bar Signatures;
-- изменения Chord / Key / Time Signature приходят live без Reload;
-- Audio Event служит ARA-якорем и не ограничивает диапазон считывания контекста;
-- основной Instrument получает карты и transport через shared-memory bridge;
-- Context Monitor показывает текущие Chord / Key / Time Signature / Tempo;
-- MIDI output Smart Voicing можно использовать как источник downstream Instrument Tracks;
-- Studio Pro предоставляет MIDI Input 1–16;
-- Voice 1–4 реально разведены по MIDI Channels/Input 1–4 на четыре отдельных SWAM-инструмента;
+Следующий этап: **Этап 3 — Chord-aware Harmonizer + Harmonic Context**, рабочие версии `0.2a ...`, финал этапа `0.3`.
+
+## Что подтверждено в Studio Pro
+
+- `Smart Voicing ARA` как ARA/Event FX получает Key Signatures, Sheet Chords, Tempo Entries и Bar Signatures;
+- изменения Chord / Key / Time Signature приходят live;
+- Audio Event является ARA-якорем, но не ограничивает диапазон Musical Context;
+- основной Instrument получает harmonic context и transport через shared-memory bridge;
+- MIDI output Smart Voicing используется как источник downstream Instrument Tracks;
+- Voice 1–4 разведены через MIDI Channels/Input 1–4 на четыре отдельных SWAM-инструмента;
 - CC / automation / Pitch Bend проходят downstream;
-- Voice Stack, legato/portamento gesture и смена аккордов под Sustain подтверждены практическим тестом;
-- три Distribution Modes работают: `Сверху вниз`, `Снизу вверх`, `Заполнить 4 голоса`;
+- routed MIDI записывается на отдельные downstream-дорожки;
+- Voice Stack, legato/portamento gesture и Sustain Chord Morph работают в реальной игре;
+- три Distribution Modes работают корректно;
 - Gesture Classifier разделяет Chord Gesture и Voice Gesture;
-- routed MIDI записывается на downstream-дорожки;
+- 5+ нот аккордового жеста не создают пятый независимый Voice;
 - ARA Context и MIDI Router работают параллельно.
 
-## Пакет
+## Пакет 0.2
 
 ```text
-Smart Voicing <version>/
+Smart Voicing 0.2/
 ├── Smart Voicing.vst3
 └── Smart Voicing ARA.vst3
 ```
@@ -62,27 +62,35 @@ Smart Voicing <version>/
 
 - принимает и выдаёт MIDI;
 - получает harmonic-context snapshot от ARA-компонента;
-- содержит Context Monitor и MIDI Router;
-- далее получит harmonizer, voicing и voice leading.
+- содержит Context Monitor и завершённый MIDI Router;
+- станет точкой интеграции Chord-aware Harmonizer на Этапе 3.
 
 ### Smart Voicing ARA.vst3
 
 Служебный ARA/Event FX reader:
 
-- устанавливается на любой Audio Event;
+- устанавливается на Audio Event;
 - пропускает аудио без изменений;
 - читает Musical Context через ARA;
 - публикует harmonic context и transport для основного Instrument.
 
-## Shared bridge
+## Этап 1 — ARA Context
 
-Текущий Windows-прототип использует named shared memory без файлового I/O.
+Финальная версия: **0.1**.
 
-Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transport публикуется только при фактическом изменении и остаётся real-time safe: без mutex, allocation и файлового I/O в audio callback.
+Архитектура:
 
-## Boundary semantics
+```text
+Studio Pro Chord / Key / Tempo / Signature
+        ↓ ARA
+Smart Voicing ARA
+        ↓ shared context + transport
+Smart Voicing Instrument
+```
 
-Для Chord / Key / Time Signature:
+Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transport обновляется change-driven и не использует mutex / file I/O в audio callback.
+
+Boundary semantics для Chord / Key / Time Signature:
 
 ```text
 до границы    → предыдущий контекст
@@ -90,49 +98,40 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 после границы → новый контекст
 ```
 
-Для компенсации floating-point расхождения host transport и ARA positions используется `boundary tolerance = 0.0001 PPQ`.
+Используется tolerance `0.0001 PPQ`.
 
 ## Этап 2 — MIDI Router
 
-Цель этапа — получить стабильные независимые Voice 1–4, пригодные для последующего harmonizer engine.
+Финальная версия: **0.2**.
 
 ### 0.1a — MIDI Router Probe
 
-- transparent MIDI pass-through;
-- Note On / Note Off / CC / Pitch Bend diagnostics;
-- подтверждение downstream routing в Studio Pro.
-
-Тест: [`docs/TEST-0.1a.md`](docs/TEST-0.1a.md).
+- pass-through и MIDI diagnostics;
+- подтверждение downstream routing.
 
 ### 0.1b — Direct 4 Voice Router
 
-- Voice 1 → Ch1, Voice 2 → Ch2, Voice 3 → Ch3, Voice 4 → Ch4;
-- channel MIDI messages broadcast на Ch1–4;
-- подтверждено реальное разделение четырёх SWAM-инструментов.
-
-Тест: [`docs/TEST-0.1b.md`](docs/TEST-0.1b.md).
+- Voice 1 → Ch1;
+- Voice 2 → Ch2;
+- Voice 3 → Ch3;
+- Voice 4 → Ch4.
 
 ### 0.1c — Stable Voice Ownership + Sustain
 
-- Voice slots сохраняют channel identity;
+- Voice сохраняет channel identity;
 - движение одного голоса не пересортировывает соседние Voice;
-- Router учитывает CC64 во внутреннем ownership state.
-
-Тест: [`docs/TEST-0.1c.md`](docs/TEST-0.1c.md).
+- базовая sustain-aware модель.
 
 ### 0.1d — Voice Stack / Legato + Sustain Chord Morph
 
-- каждый Voice имеет собственный fixed Voice Stack;
-- overlap `Note On` остаётся на том же Voice/channel и даёт mono-инструментам legato/portamento cue;
-- Sustain не замораживает voicing: следующий аккорд можно сыграть до pedal-up;
-- pedal-up удаляет только физически отпущенные старые ноты;
-- четыре Voice сохраняют устойчивую идентичность.
-
-Тест: [`docs/TEST-0.1d.md`](docs/TEST-0.1d.md).
+- у каждого Voice собственный фиксированный note stack;
+- overlap `Note On` на том же Voice/channel даёт mono-инструментам legato/portamento cue;
+- новый аккорд может быть сыгран при pedal-down;
+- pedal-up удаляет старые отпущенные ноты, сохраняя физически зажатый новый аккорд.
 
 ### 0.1e — Distribution Modes + Gesture Classifier
 
-Добавлены три базовых режима распределения:
+Режимы:
 
 ```text
 1. Сверху вниз
@@ -149,56 +148,53 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 4 ноты → по одной ноте на V1–V4
 ```
 
-Ownership-модель использует `note → Voice mask`, поэтому одна физическая нота может управлять несколькими Voice одновременно.
+Ownership использует `note → Voice mask`, поэтому одна входная нота может управлять несколькими Voice.
 
 Gesture Classifier различает:
 
-- **Chord Gesture** — короткая группа нот: максимум четырёхголосный frame;
-- **Voice Gesture** — более поздняя отдельная нота: continuation ближайшего Voice с same-channel legato/portamento;
-- **Sustain Chord Morph** — новый chord gesture может заменить текущий frame при pedal-down.
+- **Chord Gesture** — короткая группа нот, максимум четыре независимых Voice;
+- **Voice Gesture** — отдельная поздняя нота, continuation ближайшего Voice с same-channel legato;
+- **Sustain Chord Morph** — новый chord frame может войти при удержанной педали.
 
-Пятая и последующие chord-notes не создают пятого самостоятельного Voice. Тонкие настройки classifier, включая окно около 45 ms, считаются tuning и будут корректироваться по реальной игре.
+Порог classifier около 45 ms считается tuning-параметром и будет меняться только по реальным сценариям игры.
 
-Тест: [`docs/TEST-0.1e.md`](docs/TEST-0.1e.md).
+### 0.2 — завершение Этапа 2
 
-### 0.1f — Router Hardening
+0.2 фиксирует текущий рабочий Router как базовую платформу для следующих этапов. Новых музыкальных функций относительно подтверждённой 0.1e не добавляется.
 
-Последняя инженерная итерация перед 0.2. Новых музыкальных функций не планируется:
+Отдельная кнопка `Panic / All Notes Off`, расширенные transport regression tests и финальная эксплуатационная полировка сознательно перенесены ближе к релизному этапу, чтобы не задерживать разработку harmonizer engine. Текущий MIDI path уже обрабатывает стандартные CC120/123.
 
-- host-agnostic `VoiceOutput` abstraction;
-- явный Panic / All Notes Off и безопасный reset;
-- stop / restart / seek / reactivation tests;
-- Save / Close / Reopen state test;
-- длительный stress test 4–6 нот + legato + Sustain + mode switching;
-- финальный regression test ARA + Router.
-
-Текущие задачи: [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
+Контрольный документ: [`docs/TEST-0.2.md`](docs/TEST-0.2.md).
 
 ## Архитектурные принципы
 
-- musical core не зависит от конкретной DAW;
+- musical core не должен зависеть от конкретной DAW;
 - host capabilities определяются по возможностям, а не имени приложения;
-- ARA-контекст кэшируется вне real-time audio thread;
+- ARA context кэшируется вне real-time audio thread;
 - MIDI processing остаётся real-time safe;
-- CPU и память используются экономно;
-- UI остаётся диагностическим до стабилизации engine;
-- итог Smart Voicing — редактируемый MIDI-скелет, а не автоматически законченная аранжировка.
+- Router state использует фиксированные структуры без mutex/file I/O;
+- итог Smart Voicing — редактируемый MIDI-скелет.
 
-Планируемый слой harmonic context:
+На Этапе 3 вводится нейтральный слой:
 
 ```text
 IHarmonicContextProvider
-├── ARAContextProvider
-├── MidiContextProvider
-└── ManualContextProvider
+        ↓
+HarmonicContext / ChordContext
+        ↓
+Chord-aware Harmonizer
+        ↓
+Voice 1–4
+        ↓
+существующий Router / Voice Stack
 ```
 
 ## Актуальный Roadmap
 
 - **Этап 0** — каркас проекта и базовая сборка. ✅
 - **Этап 1** — ARA Context Proof of Concept. ✅ → `0.1`
-- **Этап 2** — MIDI Router. 🚧 → `0.1a ... 0.1f → 0.2`
-- **Этап 3** — Chord-aware Harmonizer + Harmonic Context abstraction. → `0.2a ... 0.3`
+- **Этап 2** — MIDI Router. ✅ → `0.2`
+- **Этап 3** — Chord-aware Harmonizer + Harmonic Context. 🚧 следующий → `0.2a ... 0.3`
 - **Этап 4** — Key-aware Engine и гармонические функции. → `0.3a ... 0.4`
 - **Этап 5** — Jazz Voicing Engine. → `0.4a ... 0.5`
 - **Этап 6** — Voice Leading. → `0.5a ... 0.6`
@@ -206,21 +202,24 @@ IHarmonicContextProvider
 - **Этап 8** — Presets и Performance Configurations. → `0.7a ... 0.8`
 - **Этап 9** — Host Compatibility и fallback-провайдеры. → `0.8a ... 0.9`
 - **Этап 10** — Recording / Capture результатов в DAW. → `0.9a ... 0.10`
-- **Этап 11** — Оптимизация, стабильность и финальный UI. → `1.0`
+- **Этап 11** — Оптимизация, стабильность, Panic и финальный UI. → `0.10a ... 1.0`
 
-Актуальные Issues: #17, #3, #8, #9, #10, #11, #12, #4, #13, #14. Старые #5, #6 и #7 закрыты как поглощённые новой структурой roadmap.
+Актуальные Issues: #3, #8, #9, #10, #11, #12, #4, #13, #14. Этап 2 отслеживался в #17 и закрывается выпуском 0.2.
 
 ## Версионирование
 
-Рабочие версии этапа используют буквенные суффиксы:
-
 ```text
-0.1a → 0.1b → 0.1c → 0.1d → 0.1e → 0.1f → 0.2
-0.2a → 0.2b → ... → 0.3
+0.1 → завершённый Этап 1
+0.1a ... 0.1e → разработка Этапа 2
+0.2 → завершённый Этап 2
+0.2a ... → разработка Этапа 3
+0.3 → завершённый Этап 3
 ```
 
-Внутренний CMake version остаётся числовым (`0.1e` → `0.1.5`). Подробно: [`docs/VERSIONING.md`](docs/VERSIONING.md).
+Внутренний CMake version для 0.2: `0.2.0`.
+
+Подробно: [`docs/VERSIONING.md`](docs/VERSIONING.md).
 
 ## Язык проекта
 
-README, концепция, задачи, Issues, roadmap и пояснения ведутся на русском языке. Английский используется для API, SDK, идентификаторов, кода и общепринятых технических терминов.
+README, концепция, Issues, roadmap и пояснения ведутся на русском языке. Английский используется для API, SDK, идентификаторов, кода и общепринятых технических терминов.
