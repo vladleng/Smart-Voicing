@@ -19,7 +19,7 @@ void copyARAName(const char* source, char (&destination)[size]) noexcept
     if (source == nullptr || size == 0)
         return;
 
-    const auto bytesToCopy = std::min<std::size_t>(std::strlen(source), size - 1);
+    const auto bytesToCopy = (std::min<std::size_t>)(std::strlen(source), size - 1);
     std::memcpy(destination, source, bytesToCopy);
     destination[bytesToCopy] = '\0';
 }
@@ -177,8 +177,8 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
         snapshot.keySignatureEventCount = keyReader.getEventCount();
         shared.keySignaturesAvailable = snapshot.keySignaturesAvailable;
         shared.keySignatureEventCount = snapshot.keySignatureEventCount;
-        shared.keySignatureStoredCount = std::min(snapshot.keySignatureEventCount,
-                                                  kSmartVoicingMaxKeyEvents);
+        shared.keySignatureStoredCount = (std::min)(snapshot.keySignatureEventCount,
+                                                    kSmartVoicingMaxKeyEvents);
 
         for (int i = 0; i < shared.keySignatureStoredCount; ++i)
         {
@@ -194,8 +194,8 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
         snapshot.sheetChordEventCount = chordReader.getEventCount();
         shared.sheetChordsAvailable = snapshot.sheetChordsAvailable;
         shared.sheetChordEventCount = snapshot.sheetChordEventCount;
-        shared.sheetChordStoredCount = std::min(snapshot.sheetChordEventCount,
-                                                kSmartVoicingMaxChordEvents);
+        shared.sheetChordStoredCount = (std::min)(snapshot.sheetChordEventCount,
+                                                  kSmartVoicingMaxChordEvents);
 
         for (int i = 0; i < shared.sheetChordStoredCount; ++i)
         {
@@ -212,8 +212,8 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
         snapshot.tempoEntryEventCount = tempoReader.getEventCount();
         shared.tempoEntriesAvailable = snapshot.tempoEntriesAvailable;
         shared.tempoEntryEventCount = snapshot.tempoEntryEventCount;
-        shared.tempoEntryStoredCount = std::min(snapshot.tempoEntryEventCount,
-                                                kSmartVoicingMaxTempoEvents);
+        shared.tempoEntryStoredCount = (std::min)(snapshot.tempoEntryEventCount,
+                                                  kSmartVoicingMaxTempoEvents);
 
         for (int i = 0; i < shared.tempoEntryStoredCount; ++i)
         {
@@ -226,8 +226,8 @@ void SmartVoicingARADocumentController::refreshDebugSnapshot()
         snapshot.barSignatureEventCount = barReader.getEventCount();
         shared.barSignaturesAvailable = snapshot.barSignaturesAvailable;
         shared.barSignatureEventCount = snapshot.barSignatureEventCount;
-        shared.barSignatureStoredCount = std::min(snapshot.barSignatureEventCount,
-                                                  kSmartVoicingMaxBarEvents);
+        shared.barSignatureStoredCount = (std::min)(snapshot.barSignatureEventCount,
+                                                    kSmartVoicingMaxBarEvents);
 
         for (int i = 0; i < shared.barSignatureStoredCount; ++i)
         {
