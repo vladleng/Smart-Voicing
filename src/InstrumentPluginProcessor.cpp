@@ -2,6 +2,7 @@
 #include "InstrumentPluginEditor.h"
 #include "ChordModel.h"
 #include "CloseVoicingHarmonizer.h"
+#include "LiveReharmonizer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -70,6 +71,8 @@ SmartVoicingInstrumentProcessor::SmartVoicingInstrumentProcessor()
 
     for (auto& depth : voiceStackDepthsForUi)
         depth.store(0, std::memory_order_relaxed);
+
+    activeMelodyVoicing.clear();
 }
 
 void SmartVoicingInstrumentProcessor::prepareToPlay(double sampleRate, int)
@@ -228,6 +231,11 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 
 void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages)
 {
+    // 0.2d: even if the performer sends no new MIDI event, the held melody must
+    // continue following Chord Track. Recalculate at the block boundary and emit
+    // changes only when V2..V4 actually differ from the sounding voicing.
+    refreshMelodyHarmonyFromContext(0);
+
     for (const auto metadata : midiMessages)
     {
         recordMidiInputEventForProbe(metadata);
@@ -256,8 +264,8 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
         bool newSustainState = false;
         if (getSustainState(metadata, newSustainState))
         {
-            // 0.2c forwards Sustain to every output Voice but does not yet use it
-            // to retain generated Voice stacks. Full Sustain integration is 0.2e.
+            // 0.2d still forwards Sustain to every output Voice. Full sustain-aware
+            // ownership of generated Voice stacks remains the dedicated 0.2e task.
             sustainDown = newSustainState;
             sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
             routeNonNoteEvent(metadata);
@@ -281,8 +289,8 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     if (melodyNote < 0 || melodyNote >= midiNoteCount)
         return;
 
-    // 0.2c is intentionally monophonic at the input. A new melody Note On owns
-    // the four generated Voices immediately; voice-leading/overlap comes later.
+    // Stage 3 remains intentionally monophonic at the Melody Harmonize input.
+    // A new melody Note On owns the four generated Voices immediately.
     stopMelodyVoicing(samplePosition);
 
     const auto ppq = lastPpqPosition.load(std::memory_order_relaxed);
@@ -291,6 +299,7 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
         : harmonicContextProvider.currentContext();
     const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
     const auto voicing = smartvoicing::harmony::buildCloseVoicing(melodyNote, chord);
+    const auto routedVelocity = juce::jlimit(1, 127, velocity);
 
     for (int voice = 0; voice < voiceCount; ++voice)
     {
@@ -299,16 +308,64 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
             continue;
 
         heldNoteVelocities[static_cast<std::size_t>(slot.midiNote)] =
-            static_cast<std::uint8_t>(juce::jlimit(1, 127, velocity));
+            static_cast<std::uint8_t>(routedVelocity);
         pushNoteToVoice(voice, slot.midiNote, samplePosition);
     }
 
     activeMelodyInputNote = melodyNote;
+    activeMelodyVelocity = routedVelocity;
+    activeMelodyVoicing = voicing;
     heldDistinctNoteCount = 1;
     stableOwnership = getActiveVoiceCount() > 0;
     heldNoteCountForUi.store(1, std::memory_order_relaxed);
     stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
     ignoredExtraNoteCountForUi.store(0, std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyFromContext(int samplePosition)
+{
+    if (activeMelodyInputNote < 0 || activeMelodyInputNote >= midiNoteCount)
+        return;
+
+    const auto ppq = lastPpqPosition.load(std::memory_order_relaxed);
+    const auto context = ppq >= 0.0
+        ? harmonicContextProvider.contextAt(ppq)
+        : harmonicContextProvider.currentContext();
+    const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
+    const auto desired = smartvoicing::harmony::buildCloseVoicing(activeMelodyInputNote, chord);
+    const auto plan = smartvoicing::harmony::planLowerVoiceReharmonization(activeMelodyVoicing, desired);
+
+    if (! plan.lowerVoicesChanged)
+        return;
+
+    // Remove old generated notes before starting replacements. V1 is never part
+    // of this plan, so the performer-owned melody remains sounding continuously.
+    for (int voice = 1; voice < voiceCount; ++voice)
+    {
+        const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+        if (transition.noteOff)
+            clearVoiceStack(voice, samplePosition);
+    }
+
+    for (int voice = 1; voice < voiceCount; ++voice)
+    {
+        const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+        if (! transition.noteOn
+            || transition.newNote < 0
+            || transition.newNote >= midiNoteCount)
+            continue;
+
+        heldNoteVelocities[static_cast<std::size_t>(transition.newNote)] =
+            static_cast<std::uint8_t>((std::max)(1, activeMelodyVelocity));
+        pushNoteToVoice(voice, transition.newNote, samplePosition);
+    }
+
+    activeMelodyVoicing = desired;
+    stableOwnership = getActiveVoiceCount() > 0;
+    stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
+    reharmonizationCountForUi.fetch_add(1, std::memory_order_relaxed);
+    lastReharmonizationPpqForUi.store(ppq, std::memory_order_relaxed);
+    midiRevision.fetch_add(1, std::memory_order_release);
 }
 
 void SmartVoicingInstrumentProcessor::stopMelodyVoicing(int samplePosition)
@@ -317,6 +374,8 @@ void SmartVoicingInstrumentProcessor::stopMelodyVoicing(int samplePosition)
         clearVoiceStack(voice, samplePosition);
 
     activeMelodyInputNote = -1;
+    activeMelodyVelocity = 0;
+    activeMelodyVoicing.clear();
     heldDistinctNoteCount = 0;
     stableOwnership = false;
     chordFrameNotes.fill(-1);
@@ -944,6 +1003,8 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
 
     heldDistinctNoteCount = 0;
     activeMelodyInputNote = -1;
+    activeMelodyVelocity = 0;
+    activeMelodyVoicing.clear();
     sustainDown = false;
     stableOwnership = false;
     pendingChordFrame = false;
@@ -1056,6 +1117,8 @@ SmartVoicingInstrumentProcessor::MidiProbeSnapshot SmartVoicingInstrumentProcess
     snapshot.pitchBendEvents = midiPitchBendEvents.load(std::memory_order_relaxed);
     snapshot.otherEvents = midiOtherEvents.load(std::memory_order_relaxed);
     snapshot.channelMask = midiChannelMask.load(std::memory_order_relaxed);
+    snapshot.reharmonizationCount = reharmonizationCountForUi.load(std::memory_order_relaxed);
+    snapshot.lastReharmonizationPpq = lastReharmonizationPpqForUi.load(std::memory_order_relaxed);
     snapshot.lastEventType = static_cast<MidiProbeEventType>(lastMidiEventType.load(std::memory_order_relaxed));
     snapshot.lastChannel = lastMidiChannel.load(std::memory_order_relaxed);
     snapshot.lastData1 = lastMidiData1.load(std::memory_order_relaxed);
@@ -1087,6 +1150,8 @@ void SmartVoicingInstrumentProcessor::resetMidiProbeStatistics() noexcept
     midiPitchBendEvents.store(0, std::memory_order_relaxed);
     midiOtherEvents.store(0, std::memory_order_relaxed);
     midiChannelMask.store(0, std::memory_order_relaxed);
+    reharmonizationCountForUi.store(0, std::memory_order_relaxed);
+    lastReharmonizationPpqForUi.store(-1.0, std::memory_order_relaxed);
     lastMidiEventType.store(static_cast<int>(MidiProbeEventType::none), std::memory_order_relaxed);
     lastMidiChannel.store(0, std::memory_order_relaxed);
     lastMidiData1.store(0, std::memory_order_relaxed);
