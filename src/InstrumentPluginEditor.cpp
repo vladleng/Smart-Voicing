@@ -66,6 +66,17 @@ juce::String distributionModeText(SmartVoicingInstrumentProcessor::DistributionM
     }
 }
 
+juce::String harmonyModeText(SmartVoicingInstrumentProcessor::HarmonyMode mode)
+{
+    using Mode = SmartVoicingInstrumentProcessor::HarmonyMode;
+    switch (mode)
+    {
+        case Mode::directRouter:    return "Direct Router";
+        case Mode::melodyHarmonize: return "Melody Harmonize";
+        default:                    return "?";
+    }
+}
+
 juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeSnapshot& snapshot)
 {
     using Type = SmartVoicingInstrumentProcessor::MidiProbeEventType;
@@ -107,7 +118,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.2b - Chord Model",
+    titleLabel.setText("Smart Voicing 0.2c - Melody Harmonize MVP",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -130,6 +141,23 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     positionLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(positionLabel);
 
+    harmonyModeLabel.setText(juce::String::fromUTF8("Режим:"), juce::dontSendNotification);
+    harmonyModeLabel.setJustificationType(juce::Justification::centredLeft);
+    harmonyModeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    addAndMakeVisible(harmonyModeLabel);
+
+    harmonyModeBox.addItem("Direct Router", 1);
+    harmonyModeBox.addItem("Melody Harmonize", 2);
+    harmonyModeBox.setSelectedId(static_cast<int>(processor.getHarmonyMode()) + 1,
+                                 juce::dontSendNotification);
+    harmonyModeBox.onChange = [this]
+    {
+        const auto value = juce::jlimit(0, 1, harmonyModeBox.getSelectedId() - 1);
+        processor.setHarmonyMode(static_cast<SmartVoicingInstrumentProcessor::HarmonyMode>(value));
+        refreshContextMonitor();
+    };
+    addAndMakeVisible(harmonyModeBox);
+
     distributionModeLabel.setText(juce::String::fromUTF8("Распределение:"), juce::dontSendNotification);
     distributionModeLabel.setJustificationType(juce::Justification::centredLeft);
     distributionModeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
@@ -148,7 +176,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Router 0.2 | unchanged base | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.2c | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -170,7 +198,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     debugLabel.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(debugLabel);
 
-    setSize(900, 985);
+    setSize(900, 1045);
     refreshContextMonitor();
     startTimerHz(8);
 }
@@ -192,7 +220,7 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.drawRoundedRectangle(contextArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(52);
-    auto modeArea = area.removeFromTop(42);
+    auto modeArea = area.removeFromTop(92);
     g.drawRoundedRectangle(modeArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(12);
@@ -217,9 +245,13 @@ void SmartVoicingInstrumentEditor::resized()
     positionLabel.setBounds(area.removeFromTop(30));
     area.removeFromTop(12);
 
-    auto modeRow = area.removeFromTop(42).reduced(12, 4);
-    distributionModeLabel.setBounds(modeRow.removeFromLeft(130));
-    distributionModeBox.setBounds(modeRow.removeFromLeft(280));
+    auto harmonyRow = area.removeFromTop(42).reduced(12, 4);
+    harmonyModeLabel.setBounds(harmonyRow.removeFromLeft(130));
+    harmonyModeBox.setBounds(harmonyRow.removeFromLeft(280));
+
+    auto distributionRow = area.removeFromTop(42).reduced(12, 4);
+    distributionModeLabel.setBounds(distributionRow.removeFromLeft(130));
+    distributionModeBox.setBounds(distributionRow.removeFromLeft(280));
 
     area.removeFromTop(12);
     midiProbeTitleLabel.setBounds(area.removeFromTop(30).reduced(12, 0));
@@ -327,13 +359,26 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     positionLabel.setText(positionText, juce::dontSendNotification);
 
     const auto midiProbe = processor.getMidiProbeSnapshot();
-    const auto desiredSelectedId = static_cast<int>(midiProbe.distributionMode) + 1;
-    if (distributionModeBox.getSelectedId() != desiredSelectedId)
-        distributionModeBox.setSelectedId(desiredSelectedId, juce::dontSendNotification);
+
+    const auto desiredHarmonyId = static_cast<int>(midiProbe.harmonyMode) + 1;
+    if (harmonyModeBox.getSelectedId() != desiredHarmonyId)
+        harmonyModeBox.setSelectedId(desiredHarmonyId, juce::dontSendNotification);
+
+    const auto desiredDistributionId = static_cast<int>(midiProbe.distributionMode) + 1;
+    if (distributionModeBox.getSelectedId() != desiredDistributionId)
+        distributionModeBox.setSelectedId(desiredDistributionId, juce::dontSendNotification);
+
+    const auto directRouter = midiProbe.harmonyMode == SmartVoicingInstrumentProcessor::HarmonyMode::directRouter;
+    distributionModeBox.setEnabled(directRouter);
+    distributionModeLabel.setEnabled(directRouter);
 
     juce::String midiText;
-    midiText << "Router: ACTIVE | distribution: " << distributionModeText(midiProbe.distributionMode)
-             << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
+    midiText << "Mode: " << harmonyModeText(midiProbe.harmonyMode);
+    if (directRouter)
+        midiText << " | distribution: " << distributionModeText(midiProbe.distributionMode);
+    else
+        midiText << " | Close voicing from current Chord Track";
+    midiText << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
     midiText << "sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
              << " | keys held: " << midiProbe.heldNoteCount
              << " | extra chord notes ignored: " << midiProbe.ignoredExtraNoteCount << "\n";
@@ -355,7 +400,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 3 / 0.2b: ARAContextProvider -> HarmonicContext -> NormalizedChord\n";
+    debugText << "Stage 3 / 0.2c: ARAContextProvider -> NormalizedChord -> CloseVoicingHarmonizer -> VoiceOutput[4]\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -381,10 +426,11 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << " | slash " << (normalizedChord.slashBass ? "YES" : "NO")
               << " | ext flags " << normalizedChord.extensions
               << " | alt flags " << normalizedChord.alterations << "\n";
-    debugText << "Host chord text: " << hostChord << " | normalized symbol is authoritative for 0.2b\n";
-
-    debugText << "VoiceOutput[4]: prepared; MIDI harmonizer not active in 0.2b\n";
-    debugText << "MIDI input/output: YES / YES | 0.2 Router path unchanged\n";
+    debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
+    debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
+              << " | Melody note is authoritative | lower voices from current chord\n";
+    debugText << "0.2c limits: no live held-note reharmonization yet; full Sustain/VoiceStack integration comes in 0.2e\n";
+    debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
     debugText << "Key Signatures: "
