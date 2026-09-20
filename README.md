@@ -6,8 +6,6 @@
 
 ## Основная идея
 
-Целевой рабочий процесс:
-
 ```text
 Chord Track + Key в DAW
         +
@@ -24,36 +22,38 @@ Smart Voicing
 
 Главный принцип: **DAW остаётся источником гармонической истины**. Если хост уже содержит Chord Track и Key Track, пользователь не должен создавать вторую независимую гармоническую карту внутри Smart Voicing.
 
-Музыкальное ядро при этом должно оставаться независимым от конкретной DAW. ARA 2 рассматривается как один из способов получения гармонического контекста, а не как часть самого алгоритма гармонизации.
+Музыкальное ядро при этом должно оставаться независимым от конкретной DAW. ARA 2 используется как один из способов получения гармонического контекста, а не как часть самого алгоритма гармонизации.
 
 ## Текущий статус
 
-Проект находится на стадии **pre-alpha / архитектурного прототипа**.
+Проект находится на стадии **pre-alpha**.
 
-Текущая рабочая версия: **Smart Voicing 0.0g**.  
-Текущий этап: **Этап 1 — ARA Context Proof of Concept**.
+Текущая завершённая версия: **Smart Voicing 0.1**.  
+**Этап 1 — ARA Context Proof of Concept завершён.**  
+Следующий этап: **Этап 2 — MIDI Router**.
 
-Полный тест 0.0f в Studio Pro пройден успешно: transport, live updates Chord / Key / Time Signature, несколько смен контекста, одновременные изменения, короткий ARA-якорь и сохранение/повторное открытие проекта работают. Остался один микробаг на точной визуальной границе нового аккорда — его исправляет и диагностирует 0.0g.
+Версия 0.1 фиксирует полностью проверенный ARA-контекст и двухкомпонентную архитектуру после последовательных рабочих сборок 0.0b–0.0g.
 
-Уже подтверждено:
+Подтверждено в Fender Studio / Studio Pro:
 
-- ARA/Event FX получает `Musical Context` проекта;
+- `Smart Voicing ARA` как ARA/Event FX получает `Musical Context` проекта;
 - доступны `Key Signatures`, `Sheet Chords`, `Tempo Entries` и `Bar Signatures`;
 - Instrument role не получает `Musical Context` напрямую;
-- изменения Chord Track, Key Track и Bar / Time Signature приходят без Reload;
+- изменения Chord Track, Key Track и Bar / Time Signature приходят live без Reload;
 - длина Audio Event с ARA-компонентом не ограничивает считываемый диапазон — Event используется как **ARA-якорь**;
 - реальные карты Chord / Key / Tempo / Time Signature считываются с позициями на таймлайне;
 - основной Instrument получает эти карты через shared-memory bridge;
 - Context Monitor показывает текущий аккорд, тональность, размер, темп и позицию;
-- `Transport revision` в STOP остаётся стабильным и меняется только при фактическом изменении транспорта;
-- сохранение и повторное открытие проекта успешно проверено.
+- transport publication работает change-driven: в STOP revision остаётся стабильным;
+- сохранение и повторное открытие проекта проверено;
+- границы Chord / Key / Time Signature обрабатываются как start-inclusive с малым floating-point tolerance, поэтому визуальная граница в Studio Pro соответствует новому событию.
 
-## Архитектура 0.0g
+## Архитектура 0.1
 
-Из-за поведения Studio Pro прототип разделён на два лёгких VST3-компонента:
+Пакет состоит из двух лёгких VST3-компонентов:
 
 ```text
-Smart Voicing 0.0g/
+Smart Voicing 0.1/
 ├── Smart Voicing.vst3
 └── Smart Voicing ARA.vst3
 ```
@@ -66,7 +66,8 @@ Smart Voicing 0.0g/
 - принимает и выдаёт MIDI;
 - получает harmonic-context snapshot от `Smart Voicing ARA`;
 - содержит Context Monitor;
-- в следующих этапах получит MIDI Router, harmonizer, voicing и voice leading.
+- на Этапе 2 получает MIDI Router;
+- далее получит harmonizer, voicing и voice leading.
 
 ### Smart Voicing ARA.vst3
 
@@ -86,13 +87,13 @@ Studio Pro Chord / Key / Tempo / Signature
 Smart Voicing ARA
         ↓ shared context + transport
 Smart Voicing Instrument
-        ↓ MIDI processing
+        ↓ MIDI Router / дальнейшая обработка
 Destination instruments
 ```
 
 ## Shared bridge
 
-Текущий Windows PoC использует named shared-memory bridge без файлового I/O.
+Текущий Windows-прототип использует named shared memory без файлового I/O.
 
 Bridge ABI v3 разделяет:
 
@@ -100,25 +101,11 @@ Bridge ABI v3 разделяет:
 - transport position + transport revision;
 - отдельные seqlock-счётчики для безопасного lock-free чтения.
 
-Начиная с 0.0f transport publication работает change-driven:
+Транспорт публикуется только при фактическом изменении PPQ / seconds / PLAY-STOP и остаётся real-time safe: без mutex, allocation и файлового I/O в audio callback.
 
-- одинаковый transport snapshot повторно не публикуется;
-- `Transport revision` не растёт из-за повторных вызовов `processBlock()` в STOP;
-- revision меняется только при фактическом изменении PPQ / seconds / PLAY-STOP;
-- публикация остаётся real-time safe: без mutex, allocation и файлового I/O в audio callback.
+## Boundary semantics
 
-## Что исправляет 0.0g
-
-Во время полного теста 0.0f обнаружен небольшой boundary-баг: Studio Pro иногда визуально ставит курсор точно на начало нового аккорда, но transport PPQ и ARA event position могут отличаться на микроскопическую величину floating-point. В результате при почти одинаковых значениях, например около `PPQ 12.0`, мог выбираться предыдущий аккорд.
-
-В 0.0g:
-
-- для start-inclusive Chord / Key / Time Signature введён единый `boundary tolerance = 0.0001 PPQ`;
-- Context Monitor показывает PPQ с повышенной точностью;
-- добавлена строка `Boundary diag` с точной позицией курсора, ближайшим chord event и delta;
-- позиции harmonic maps в debug UI выводятся с большей точностью.
-
-Ожидаемое правило:
+Для Chord / Key / Time Signature действует единое правило:
 
 ```text
 до границы    → предыдущий контекст
@@ -126,9 +113,7 @@ Bridge ABI v3 разделяет:
 после границы → новый контекст
 ```
 
-Контрольный тест: [`docs/TEST-0.0g.md`](docs/TEST-0.0g.md).
-
-После успешного контрольного теста границ можно готовить **0.1**, закрывать Этап 1 и переходить к MIDI Router.
+Для компенсации микроскопического floating-point расхождения между host transport и ARA event position используется небольшой `boundary tolerance = 0.0001 PPQ`.
 
 ## Принципы архитектуры
 
@@ -136,7 +121,6 @@ Bridge ABI v3 разделяет:
 - хостовые возможности определяются через capability detection, а не по имени DAW;
 - ARA-контекст кэшируется вне real-time audio thread;
 - MIDI-обработка должна быть real-time safe;
-- transport-публикация из audio thread не использует mutex, allocation или файловый I/O;
 - UI остаётся минимальным;
 - CPU и память используются максимально экономно;
 - никаких тяжёлых фоновых процессов без необходимости;
@@ -151,49 +135,29 @@ IHarmonicContextProvider
 └── ManualContextProvider
 ```
 
-## Планируемые музыкальные режимы
+## Следующий этап: MIDI Router
 
-После завершения ARA Proof of Concept:
+Этап 2 должен превратить основной `Smart Voicing` из Context Monitor в первый реально работающий MIDI-маршрутизатор.
 
-- Direct 4 Voice;
-- Melody Harmonize;
-- Chord redistribution / revoicing;
-- Context-aware voicing.
-
-Первый практический набор voicing:
-
-- Close;
-- Drop 2;
-- Guide Tones;
-- Custom.
-
-Позже:
-
-- Drop 3;
-- Drop 2+4;
-- Spread;
-- Unison;
-- instrument-aware ranges;
-- voice leading;
-- root omission;
-- tension policies.
-
-Первый основной сценарий — квартет:
+Базовая цель:
 
 ```text
-Voice 1 → Trumpet
-Voice 2 → Tenor Sax
-Voice 3 → Trombone
-Voice 4 → Baritone Sax
+MIDI input
+   ↓
+Smart Voicing
+   ↓
+Voice 1 / Voice 2 / Voice 3 / Voice 4
+   ↓
+отдельные целевые инструменты / дорожки
 ```
 
-Но этот состав не должен быть жёстко зашит в движок.
+На этом этапе гармонизация ещё не нужна. Сначала требуется надёжно определить модель распределения и маршрутизации независимых MIDI-голосов в Studio Pro и сделать её пригодной для дальнейшего harmonizer engine.
 
 ## Roadmap
 
-- **Этап 0** — каркас проекта и базовая сборка.
-- **Этап 1** — ARA Context Proof of Concept.
-- **Этап 2** — MIDI Router.
+- **Этап 0** — каркас проекта и базовая сборка. ✅
+- **Этап 1** — ARA Context Proof of Concept. ✅ → `0.1`
+- **Этап 2** — MIDI Router. ← текущий следующий этап
 - **Этап 3** — Chord-aware harmonizer.
 - **Этап 4** — Key-aware engine.
 - **Этап 5** — Jazz voicing.
