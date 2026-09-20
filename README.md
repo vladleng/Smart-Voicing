@@ -25,7 +25,7 @@ DAW остаётся **источником гармонической исти�
 Проект находится на стадии **pre-alpha**.
 
 Последняя завершённая версия: **Smart Voicing 0.1**.  
-Текущая рабочая версия: **Smart Voicing 0.1d**.  
+Текущая рабочая версия: **Smart Voicing 0.1e**.  
 **Этап 1 — ARA Context Proof of Concept завершён.**  
 **Текущий этап: Этап 2 — MIDI Router.**
 
@@ -41,6 +41,7 @@ DAW остаётся **источником гармонической исти�
 - Studio Pro предоставляет MIDI Input 1–16;
 - Voice 1–4 реально разведены по MIDI Channels/Input 1–4 на четыре отдельных SWAM-инструмента;
 - CC / automation / Pitch Bend проходят downstream;
+- Voice Stack, legato/portamento gesture и смена аккордов под Sustain подтверждены практическим тестом;
 - ARA Context и MIDI Router работают параллельно.
 
 ## Пакет
@@ -112,38 +113,56 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 
 - Voice slots сохраняют channel identity;
 - движение одного голоса больше не пересортировывает соседние Voice;
-- Router учитывает CC64 во внутреннем ownership state;
-- выявлено ограничение: Sustain слишком жёстко удерживал старый voicing и блокировал новый аккорд до pedal-up;
-- выявлена необходимость настоящего overlap-legato внутри каждого Voice.
+- Router учитывает CC64 во внутреннем ownership state.
 
 Тест: [`docs/TEST-0.1c.md`](docs/TEST-0.1c.md).
 
 ### 0.1d — Voice Stack / Legato + Sustain Chord Morph
 
-У каждого Voice появился собственный фиксированный note stack.
-
-```text
-Voice 1 / Ch1
-├── previous held/sustain note
-└── current top note
-```
-
-Основные правила:
-
-- overlap `Note On` отправляется на тот же Voice/channel **до** `Note Off` предыдущей ноты;
-- для mono/physical-model destination instruments это является стандартным MIDI cue для legato / portamento;
-- если верхняя overlap-нота отпущена, предыдущая физически удерживаемая нота остаётся в downstream mono stack;
-- Sustain больше не замораживает Voice slots: следующий аккорд можно сыграть при pedal-down;
-- старые sustain-held ноты остаются ниже нового аккорда до pedal-up;
-- при pedal-up удаляются только ноты, клавиши которых уже отпущены;
-- новый физически удерживаемый аккорд продолжает звучать;
-- repeat sustain-held note остаётся на том же Voice/channel;
-- single/few-note continuation выбирает ближайший Voice;
-- chord-sized continuation сохраняет вертикальный порядок Voice 1→4;
-- Router Monitor показывает текущую ноту и `[stack N]` каждого Voice;
-- router state использует фиксированные массивы без heap allocation и mutex.
+- каждый Voice имеет фиксированный note stack;
+- overlap `Note On` остаётся на том же Voice/channel и даёт mono-инструментам legato/portamento cue;
+- Sustain не замораживает voicing: следующий аккорд можно сыграть до pedal-up;
+- pedal-up удаляет только физически отпущенные старые ноты;
+- четыре Voice сохраняют устойчивую идентичность.
 
 Тест: [`docs/TEST-0.1d.md`](docs/TEST-0.1d.md).
+
+### 0.1e — Distribution Modes + Gesture Classifier
+
+Добавлены три базовых режима распределения:
+
+```text
+1. Сверху вниз
+2. Снизу вверх
+3. Заполнить 4 голоса
+```
+
+Правила первых двух режимов:
+
+- `Сверху вниз`: при 1–4 нотах заполняются V1, V2, V3, V4 сверху вниз;
+- `Снизу вверх`: при 1–4 нотах заполняются V4, V3, V2, V1 снизу вверх;
+- при chord gesture из 5+ нот в output остаются максимум четыре независимых Voice.
+
+`Заполнить 4 голоса`:
+
+```text
+1 нота → V1=V2=V3=V4
+2 ноты → V1=V2=верхняя, V3=V4=нижняя
+3 ноты → V1=верхняя, V2=средняя, V3=V4=нижняя
+4 ноты → по одной ноте на V1–V4
+```
+
+Внутренняя ownership-модель использует `note → Voice mask`, поэтому одна физическая нота может корректно управлять несколькими Voice одновременно.
+
+Gesture Classifier различает:
+
+- **Chord Gesture** — короткая группа нот (окно около 45 ms): формируется максимум четырёхголосный frame; пятая и последующие chord-notes не превращаются в дополнительную ноту внутри одного Voice;
+- **Voice Gesture** — более поздняя отдельная нота: трактуется как continuation ближайшего Voice и сохраняет same-channel legato/portamento behaviour;
+- **Sustain Chord Morph** — новый chord gesture может заменить текущий frame при pedal-down, старые sustain-held ноты остаются только как внутренний stack до pedal-up.
+
+Выбранный режим сохраняется в plugin state и восстанавливается при повторном открытии проекта.
+
+Тест: [`docs/TEST-0.1e.md`](docs/TEST-0.1e.md).
 
 Текущие задачи: [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
 
@@ -182,10 +201,10 @@ IHarmonicContextProvider
 Рабочие версии этапа используют буквенные суффиксы:
 
 ```text
-0.1a → 0.1b → 0.1c → 0.1d → ... → 0.2
+0.1a → 0.1b → 0.1c → 0.1d → 0.1e → ... → 0.2
 ```
 
-Внутренний CMake version остаётся числовым (`0.1d` → `0.1.4`). Подробно: [`docs/VERSIONING.md`](docs/VERSIONING.md).
+Внутренний CMake version остаётся числовым (`0.1e` → `0.1.5`). Подробно: [`docs/VERSIONING.md`](docs/VERSIONING.md).
 
 ## Язык проекта
 
