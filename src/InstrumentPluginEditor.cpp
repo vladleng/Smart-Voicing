@@ -251,8 +251,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
     const auto normalizedChord = smartvoicing::harmony::normalizeChord(neutralContext.chord);
+    const auto normalizedSymbol = smartvoicing::harmony::normalizedChordSymbol(normalizedChord);
 
     juce::String chord = "n/a";
+    juce::String hostChord = "n/a";
     juce::String key = "n/a";
     juce::String timeSignature = "n/a";
     juce::String tempo = "n/a";
@@ -270,7 +272,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
                                                                        ppq);
 
         if (chordIndex >= 0)
-            chord = smartvoicing::debug::chordText(context.sheetChords[chordIndex]);
+            hostChord = smartvoicing::debug::chordText(context.sheetChords[chordIndex]);
 
         if (keyIndex >= 0)
             key = smartvoicing::debug::keyText(context.keySignatures[keyIndex]);
@@ -285,6 +287,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
         if (bpm > 0.0)
             tempo = juce::String(bpm, 2) + " BPM";
     }
+
+    chord = normalizedChord.valid
+        ? juce::String::fromUTF8(normalizedSymbol.c_str())
+        : hostChord;
 
     chordLabel.setText(juce::String::fromUTF8("Аккорд: ") + chord,
                        juce::dontSendNotification);
@@ -368,12 +374,14 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     }
 
     debugText << "Chord model: " << (normalizedChord.valid ? "VALID" : "N/A")
+              << " | symbol " << normalizedSymbol
               << " | quality " << smartvoicing::harmony::chordQualityName(normalizedChord.quality)
               << " | root PC " << normalizedChord.rootPitchClass
               << " | bass PC " << normalizedChord.bassPitchClass
               << " | slash " << (normalizedChord.slashBass ? "YES" : "NO")
               << " | ext flags " << normalizedChord.extensions
               << " | alt flags " << normalizedChord.alterations << "\n";
+    debugText << "Host chord text: " << hostChord << " | normalized symbol is authoritative for 0.2b\n";
 
     debugText << "VoiceOutput[4]: prepared; MIDI harmonizer not active in 0.2b\n";
     debugText << "MIDI input/output: YES / YES | 0.2 Router path unchanged\n";
