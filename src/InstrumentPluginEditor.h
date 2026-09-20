@@ -28,6 +28,8 @@ private:
     juce::Label timeSignatureLabel;
     juce::Label tempoLabel;
     juce::Label positionLabel;
+    juce::Label harmonyModeLabel;
+    juce::ComboBox harmonyModeBox;
     juce::Label distributionModeLabel;
     juce::ComboBox distributionModeBox;
     juce::Label midiProbeTitleLabel;
