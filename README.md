@@ -211,9 +211,9 @@ JUCE VST3 wrapper в текущей архитектуре предоставл�
 **Sustain-aware state**:
 
 - `CC64 down` блокирует voice ownership;
-- физический Note Off всё равно отправляется downstream-инструменту, но Voice slot остаётся зарезервированным до `CC64 up`;
-- поэтому при отпускании клавиш под педалью остальные голоса не «съезжают» вниз;
-- повторное нажатие sustain-held ноты использует тот же Voice/channel;
+- Router откладывает downstream `Note Off` отпущенной клавиши до `CC64 up`, поэтому удержание не зависит от того, реализует ли destination-инструмент собственную логику Sustain;
+- при отпускании клавиш под педалью все Voice slots сохраняются и не «съезжают» вниз;
+- повторное нажатие sustain-held ноты переатакует тот же Voice/channel;
 - Router Monitor показывает `RANKING/STABLE`, состояние Sustain и физически удерживаемые клавиши отдельно от Voice slots.
 
 Контрольный тест: [`docs/TEST-0.1c.md`](docs/TEST-0.1c.md).
