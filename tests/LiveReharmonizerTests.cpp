@@ -148,6 +148,27 @@ void testSequenceCanBeAppliedWithoutStaleVoices()
     expectNoTransition(plan, 2, "shared D4 stays sounding");
     expectTransition(plan, 3, 60, 59, "C4 -> B3 replacement");
 }
+
+void testSampleAccurateBoundaryScheduling()
+{
+    constexpr double sampleRate = 48000.0;
+    constexpr int blockSamples = 256;
+
+    expect(sampleOffsetFromTimelineSeconds(10.0, 10.005, sampleRate, blockSamples) == 240,
+           "5 ms timeline delta at 48 kHz must land at sample 240");
+
+    expect(sampleOffsetFromPpq(4.0, 4.01, 120.0, sampleRate, blockSamples) == 240,
+           "0.01 quarter at 120 BPM / 48 kHz must land at sample 240");
+
+    expect(sampleOffsetFromTimelineSeconds(10.0,
+                                           10.0 + static_cast<double>(blockSamples) / sampleRate,
+                                           sampleRate,
+                                           blockSamples) == -1,
+           "event exactly at next block start must belong to next block");
+
+    expect(sampleOffsetFromPpq(4.0, 3.99, 120.0, sampleRate, blockSamples) == -1,
+           "past PPQ boundary must not be scheduled in current block");
+}
 }
 
 int main()
@@ -157,6 +178,7 @@ int main()
     testNoChordFallbackClearsOnlyLowerVoices();
     testChordReturnsAfterFallback();
     testSequenceCanBeAppliedWithoutStaleVoices();
+    testSampleAccurateBoundaryScheduling();
 
     if (failures != 0)
     {

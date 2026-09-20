@@ -25,4 +25,18 @@ struct ReharmonizationPlan
 // V1, while only generated V2..V4 may be replaced by a Chord Track change.
 ReharmonizationPlan planLowerVoiceReharmonization(const VoiceOutput& current,
                                                   const VoiceOutput& desired) noexcept;
+
+// Timeline helpers for scheduling a known future Chord Track boundary inside
+// the current audio block. Values outside the block return -1 instead of being
+// clamped, so the next block owns that event. They do not add lookahead/latency.
+int sampleOffsetFromTimelineSeconds(double blockStartSeconds,
+                                    double eventSeconds,
+                                    double sampleRate,
+                                    int blockSamples) noexcept;
+
+int sampleOffsetFromPpq(double blockStartPpq,
+                        double eventPpq,
+                        double bpm,
+                        double sampleRate,
+                        int blockSamples) noexcept;
 }

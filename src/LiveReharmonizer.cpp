@@ -1,5 +1,7 @@
 #include "LiveReharmonizer.h"
 
+#include <cmath>
+
 namespace smartvoicing::harmony
 {
 namespace
@@ -7,6 +9,18 @@ namespace
 int slotNote(const VoiceSlot& slot) noexcept
 {
     return slot.active ? slot.midiNote : -1;
+}
+
+int roundedSampleOffset(double exactSamples, int blockSamples) noexcept
+{
+    if (! std::isfinite(exactSamples) || blockSamples <= 0)
+        return -1;
+
+    const auto offset = static_cast<long long>(std::llround(exactSamples));
+    if (offset < 0 || offset >= blockSamples)
+        return -1;
+
+    return static_cast<int>(offset);
 }
 }
 
@@ -35,5 +49,31 @@ ReharmonizationPlan planLowerVoiceReharmonization(const VoiceOutput& current,
     }
 
     return plan;
+}
+
+int sampleOffsetFromTimelineSeconds(double blockStartSeconds,
+                                    double eventSeconds,
+                                    double sampleRate,
+                                    int blockSamples) noexcept
+{
+    if (blockStartSeconds < 0.0 || eventSeconds < 0.0 || sampleRate <= 0.0)
+        return -1;
+
+    return roundedSampleOffset((eventSeconds - blockStartSeconds) * sampleRate,
+                               blockSamples);
+}
+
+int sampleOffsetFromPpq(double blockStartPpq,
+                        double eventPpq,
+                        double bpm,
+                        double sampleRate,
+                        int blockSamples) noexcept
+{
+    if (blockStartPpq < 0.0 || eventPpq < 0.0 || bpm <= 0.0 || sampleRate <= 0.0)
+        return -1;
+
+    const auto secondsPerQuarter = 60.0 / bpm;
+    return roundedSampleOffset((eventPpq - blockStartPpq) * secondsPerQuarter * sampleRate,
+                               blockSamples);
 }
 }

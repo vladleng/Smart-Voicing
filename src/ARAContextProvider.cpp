@@ -3,11 +3,14 @@
 #include "SharedHarmonicContext.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace smartvoicing::harmony
 {
 namespace
 {
+constexpr double kTimelineEpsilon = 1.0e-12;
+
 IntervalMask copyIntervals(const std::uint8_t (&source)[kPitchClassCount]) noexcept
 {
     IntervalMask result;
@@ -69,6 +72,70 @@ HarmonicContext makeContext(const SharedHarmonicContextSnapshot& shared, double 
 
     return result;
 }
+
+double quarterToTime(const SharedHarmonicContextSnapshot& shared, double ppq) noexcept
+{
+    const auto count = shared.tempoEntryStoredCount;
+    if (! shared.tempoEntriesAvailable || count <= 0 || ppq < 0.0)
+        return -1.0;
+
+    if (count == 1)
+    {
+        const auto& point = shared.tempoEntries[0];
+        return std::abs(ppq - point.quarterPosition) <= smartvoicing::debug::kBoundaryTolerancePpq
+            ? point.timePosition
+            : -1.0;
+    }
+
+    int right = 1;
+    while (right < count && shared.tempoEntries[right].quarterPosition < ppq)
+        ++right;
+
+    if (right >= count)
+        right = count - 1;
+
+    const auto left = right - 1;
+    const auto& a = shared.tempoEntries[left];
+    const auto& b = shared.tempoEntries[right];
+    const auto deltaQuarter = b.quarterPosition - a.quarterPosition;
+    if (std::abs(deltaQuarter) <= kTimelineEpsilon)
+        return -1.0;
+
+    const auto alpha = (ppq - a.quarterPosition) / deltaQuarter;
+    return a.timePosition + alpha * (b.timePosition - a.timePosition);
+}
+
+double timeToQuarter(const SharedHarmonicContextSnapshot& shared, double seconds) noexcept
+{
+    const auto count = shared.tempoEntryStoredCount;
+    if (! shared.tempoEntriesAvailable || count <= 0 || seconds < 0.0)
+        return -1.0;
+
+    if (count == 1)
+    {
+        const auto& point = shared.tempoEntries[0];
+        return std::abs(seconds - point.timePosition) <= 1.0e-9
+            ? point.quarterPosition
+            : -1.0;
+    }
+
+    int right = 1;
+    while (right < count && shared.tempoEntries[right].timePosition < seconds)
+        ++right;
+
+    if (right >= count)
+        right = count - 1;
+
+    const auto left = right - 1;
+    const auto& a = shared.tempoEntries[left];
+    const auto& b = shared.tempoEntries[right];
+    const auto deltaTime = b.timePosition - a.timePosition;
+    if (std::abs(deltaTime) <= kTimelineEpsilon)
+        return -1.0;
+
+    const auto alpha = (seconds - a.timePosition) / deltaTime;
+    return a.quarterPosition + alpha * (b.quarterPosition - a.quarterPosition);
+}
 }
 
 HarmonicContext ARAContextProvider::currentContext() noexcept
@@ -82,5 +149,32 @@ HarmonicContext ARAContextProvider::contextAt(double ppq) noexcept
 {
     const auto shared = SharedHarmonicContextBridge::instance().read();
     return makeContext(shared, ppq);
+}
+
+double ARAContextProvider::nextChordStartAfter(double ppq) noexcept
+{
+    const auto shared = SharedHarmonicContextBridge::instance().read();
+    if (! shared.sheetChordsAvailable || shared.sheetChordStoredCount <= 0 || ppq < 0.0)
+        return -1.0;
+
+    const auto threshold = ppq + smartvoicing::debug::kBoundaryTolerancePpq;
+    for (int index = 0; index < shared.sheetChordStoredCount; ++index)
+    {
+        const auto position = shared.sheetChords[index].position;
+        if (position > threshold)
+            return position;
+    }
+
+    return -1.0;
+}
+
+double ARAContextProvider::secondsAtPpq(double ppq) noexcept
+{
+    return quarterToTime(SharedHarmonicContextBridge::instance().read(), ppq);
+}
+
+double ARAContextProvider::ppqAtSeconds(double seconds) noexcept
+{
+    return timeToQuarter(SharedHarmonicContextBridge::instance().read(), seconds);
 }
 }

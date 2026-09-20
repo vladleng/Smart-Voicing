@@ -6,7 +6,7 @@
 
 - `LiveReharmonizer` — host-neutral план перехода между текущим и новым `VoiceOutput[4]`;
 - V1 исключён из chord-driven transition и остаётся под управлением сыгранной melody note;
-- V2–V4 пересчитываются из текущего `NormalizedChord` в каждом audio block при активной melody note;
+- V2–V4 пересчитываются из текущего `NormalizedChord` при активной melody note;
 - если конкретный Voice сохраняет ту же ноту, Note Off / Note On не создаются;
 - изменившиеся нижние голоса сначала получают Note Off старой ноты, затем Note On новой;
 - `(no chord)` оставляет только V1 и выключает V2–V4;
@@ -25,91 +25,72 @@ V2–V4 = заново рассчитанный базовый Close voicing и�
 
 При смене Chord Track V1 не меняется. V2–V4 перестраиваются только если реально изменился их целевой MIDI voicing.
 
-Пример:
+## Исправление точности chord boundary
 
-```text
-Удерживаем G4
+Первый Studio Pro тест показал небольшой сдвиг записанных V2–V4 вправо относительно границ Chord Track. Причина: исходная 0.2d проверяла новый chord только на границе очередного audio block и посылала transition с `samplePosition = 0` следующего блока.
 
-Cmaj7 → Fmaj7 → Dm7 → G7
+Исправление оставляет reported plugin latency равной **0 samples** и не использует lookahead. Поскольку ARA заранее предоставляет карту Chord Track, Smart Voicing теперь:
 
-V1 всё время = G4
-V2–V4 автоматически перестраиваются на каждой границе аккорда
-```
+1. получает PPQ начала текущего audio block;
+2. заранее находит все chord boundaries, попадающие внутрь этого блока;
+3. преобразует PPQ границы в точный sample offset через ARA tempo timeline; если timeline conversion недоступен — использует текущий BPM как fallback;
+4. вставляет Note Off / Note On V2–V4 именно на этот `samplePosition` внутри `juce::MidiBuffer`;
+5. обрабатывает входные MIDI-события и chord boundaries хронологически, чтобы Note On/Off внутри того же блока не конфликтовали с будущей reharmonization.
 
-Общие тоны, которые остаются в том же Voice, не retrigger-ятся. Например при переходе `Dm7 → G7` для текущего базового Close voicing F4 и D4 могут остаться звучать, а изменится только нижний Voice.
-
-## Текущая точность границы
-
-В 0.2d Chord context проверяется на границе каждого audio block. Поэтому фактическая MIDI-замена происходит на первом block после входа transport в новый аккорд. При обычном buffer size это небольшая block-latency; sample-accurate расчёт chord boundary внутри блока в эту итерацию не входит.
-
-## Что сознательно не входит в 0.2d
-
-- полноценный voice leading между соседними voicings;
-- Drop 2 / Drop 3 и другие jazz voicings;
-- instrument ranges;
-- автоматический выбор scale/mode;
-- полноценная Sustain Chord Morph / Voice Stack интеграция для сгенерированной гармонии — это 0.2e;
-- финальная transport regression / Panic / UI hardening.
-
-То есть в 0.2d каждый новый аккорд пока пересчитывается тем же базовым Close Harmonizer, что появился в 0.2c. Цель версии — доказать сам механизм live reharmonization по Chord Track.
+То есть исправление не задерживает сыгранную melody note и не добавляет PDC/processing latency. Меняется только точность timestamp сгенерированных MIDI-событий.
 
 ## Автоматические тесты
 
-Windows Build #212 завершён успешно. CI подтвердил:
+Windows Build #212 подтвердил базовую 0.2d до исправления:
 
-1. повторный расчёт того же аккорда не создаёт лишних transition events;
-2. удержанная melody note / V1 не получает chord-driven Note Off / Note On;
-3. `Cmaj7 → Fmaj7` заменяет только V2–V4;
-4. `(no chord)` выключает только нижние голоса;
-5. возвращение валидного аккорда снова включает нижние голоса;
-6. последовательность `Cmaj7 → Fmaj7 → Dm7 → G7` не требует retrigger общих тонов в тех же Voice slots;
-7. тесты 0.2b и 0.2c продолжают проходить.
+- `SmartVoicingCoreTests` — passed;
+- `SmartVoicingHarmonizerTests` — passed;
+- `SmartVoicingLiveReharmonizerTests` — passed.
 
-`SmartVoicingCoreTests`, `SmartVoicingHarmonizerTests` и `SmartVoicingLiveReharmonizerTests` — 100% passed. Артефакт: `Smart-Voicing-0.2d-Windows`.
+Для sample-accurate исправления добавлены тесты расчёта позиции внутри блока:
+
+- 5 ms при 48 kHz → sample 240;
+- 0.01 quarter при 120 BPM / 48 kHz → sample 240;
+- event ровно на старте следующего блока не должен попадать в текущий блок;
+- прошедшая PPQ boundary не должна планироваться повторно.
+
+После нового коммита требуется новый Windows CI.
 
 ## Ручной тест в Studio Pro
 
 Контрольный сценарий:
 
-1. Установить `Smart Voicing 0.2d` и `Smart Voicing ARA` из одного пакета.
+1. Установить актуальный `Smart Voicing 0.2d` и `Smart Voicing ARA` из одного пакета.
 2. Выбрать `Melody Harmonize`.
 3. Создать последовательность Chord Track.
 4. Нажать и удерживать одну melody note.
-5. Запустить playback через последовательность.
+5. Записать V1–V4 на отдельные MIDI-дорожки через несколько смен аккордов.
 6. Проверить:
-   - V1 / Ch1 остаётся неизменной melody note;
-   - V2–V4 меняются при переходах между аккордами;
+   - V1 остаётся непрерывной melody note;
+   - V2–V4 перестраиваются точно на вертикальных границах Chord Track, без block-latency вправо;
    - не требуется повторно нажимать melody note;
-   - счётчик `reharmonizations` увеличивается при реальном изменении нижних Voice;
    - нет зависших старых нот;
-   - после отпускания melody note все сгенерированные голоса корректно выключаются.
-7. Добавить участок `(no chord)`: V1 должен остаться, V2–V4 выключиться; на следующем валидном аккорде V2–V4 должны появиться снова.
-8. Коротко проверить `Direct Router`, чтобы убедиться, что новая логика не вмешалась в режим 0.2.
+   - сам Smart Voicing не сообщает DAW дополнительную latency.
+7. Дополнительно проверить `(no chord)`, Note Off/Stop и `Direct Router` в интеграционной регрессии 0.2e / 0.3.
 
-## Результат пользовательского теста — 2026-09-20
+## Результат первого пользовательского теста — 2026-09-20
 
-Пользователь записал выход Smart Voicing в отдельные MIDI-дорожки Studio Pro для наглядной проверки.
+Пользователь записал выход Smart Voicing в отдельные MIDI-дорожки Studio Pro.
 
-Проверенная последовательность Chord Track:
+Проверенная последовательность:
 
 ```text
 Dm7 → Db7 → Cm7add11 → B7b5 → Bb6 → A7
 ```
 
-По записанным MIDI-линиям подтверждено:
+Подтверждено:
 
-- V1 / Trumpet остаётся одной непрерывной удержанной melody note через всю последовательность;
-- V2–V4 перестраиваются на границах аккордов без повторного Note On от пользователя;
-- перестройки нижних Voice соответствуют сменам Chord Track;
-- в записанных MIDI-линиях не видно старых нижних нот, продолжающихся поверх следующего аккорда;
-- механизм Live Chord Reharmonization в реальном Studio Pro подтверждён.
+- V1 / Trumpet остаётся одной непрерывной удержанной melody note;
+- V2–V4 автоматически перестраиваются на сменах Chord Track;
+- механизм Live Chord Reharmonization работает в Studio Pro.
 
-Статичный скриншот не подтверждает отдельно поведение после `Note Off` / `Stop`, а также сценарии `(no chord)` и повторную регрессию `Direct Router`; эти проверки остаются в финальном чек-листе интеграции 0.2e / 0.3.
+Одновременно запись выявила небольшой block-latency сдвиг V2–V4 относительно точной границы аккорда. Поэтому 0.2d повторно открыта для точностного исправления и требует повторного Studio Pro теста после нового CI.
 
 ## Статус
 
-Основной сценарий 0.2d подтверждён Windows CI и реальной MIDI-записью в Studio Pro. Live reharmonization считается функционально подтверждённой; оставшиеся transport/release/fallback/regression проверки переходят в интеграционный чек-лист 0.2e / 0.3.
-
-## Критерий прохождения 0.2d
-
-Основной критерий выполнен: одна удержанная melody note сохраняется как V1, а V2–V4 автоматически reharmonize-ятся при нескольких сменах Chord Track без необходимости повторного Note On.
+Базовая Live Chord Reharmonization подтверждена. Реализуется sample-accurate chord-boundary fix без добавления plugin latency. Финальное подтверждение 0.2d — после зелёного CI и повторной MIDI-записи в Studio Pro.

@@ -5,6 +5,7 @@
 #include "LiveReharmonizer.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 
@@ -21,6 +22,7 @@ constexpr int sustainController = 64;
 constexpr int firstOutputChannel = 1;
 constexpr int midiOutputReserveBytes = 32768;
 constexpr double chordGestureWindowSeconds = 0.045;
+constexpr int maxChordBoundariesPerBlock = 16;
 constexpr int stateMagic = 0x53564D32; // "SVM2"
 constexpr int stateVersion = 3;
 
@@ -81,6 +83,10 @@ void SmartVoicingInstrumentProcessor::prepareToPlay(double sampleRate, int)
     chordGestureWindowSamples = (std::max<std::int64_t>)(1,
         static_cast<std::int64_t>(std::llround(currentSampleRate * chordGestureWindowSeconds)));
     processedSampleCounter = 0;
+    currentBlockStartSeconds = -1.0;
+    currentBlockStartPpq = -1.0;
+    currentBlockBpm = -1.0;
+    currentBlockNumSamples = 0;
 
     routedMidi.clear();
     routedMidi.ensureSize(static_cast<std::size_t>(midiOutputReserveBytes));
@@ -106,15 +112,29 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 {
     juce::ScopedNoDenormals noDenormals;
 
+    currentBlockStartSeconds = -1.0;
+    currentBlockStartPpq = -1.0;
+    currentBlockBpm = -1.0;
+    currentBlockNumSamples = buffer.getNumSamples();
+
     if (auto* playHead = getPlayHead())
     {
         if (const auto position = playHead->getPosition())
         {
             if (const auto seconds = position->getTimeInSeconds())
+            {
+                currentBlockStartSeconds = *seconds;
                 lastPositionSeconds.store(*seconds, std::memory_order_relaxed);
+            }
 
             if (const auto ppq = position->getPpqPosition())
+            {
+                currentBlockStartPpq = *ppq;
                 lastPpqPosition.store(*ppq, std::memory_order_relaxed);
+            }
+
+            if (const auto bpm = position->getBpm())
+                currentBlockBpm = *bpm;
         }
     }
 
@@ -136,7 +156,7 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 
     if (activeHarmonyMode == HarmonyMode::melodyHarmonize)
     {
-        processMelodyHarmonizeMidi(midiMessages);
+        processMelodyHarmonizeMidi(midiMessages, buffer.getNumSamples());
         midiMessages.swapWith(routedMidi);
         processedSampleCounter += static_cast<std::int64_t>(buffer.getNumSamples());
         buffer.clear();
@@ -229,15 +249,64 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
     buffer.clear();
 }
 
-void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages)
+void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages,
+                                                                  int blockSamples)
 {
-    // 0.2d: even if the performer sends no new MIDI event, the held melody must
-    // continue following Chord Track. Recalculate at the block boundary and emit
-    // changes only when V2..V4 actually differ from the sounding voicing.
-    refreshMelodyHarmonyFromContext(0);
+    struct ScheduledChordBoundary
+    {
+        double ppq = -1.0;
+        int samplePosition = -1;
+    };
+
+    std::array<ScheduledChordBoundary, maxChordBoundariesPerBlock> boundaries {};
+    int boundaryCount = 0;
+
+    // First synchronise the currently sounding lower voices with the chord that is
+    // already active at sample 0. This also covers transport jumps and live edits.
+    if (activeMelodyInputNote >= 0)
+        refreshMelodyHarmonyAtPpq(currentBlockStartPpq, 0);
+
+    // The complete Chord Track is already available through ARA, so future chord
+    // boundaries inside this audio block can be scheduled now. No input MIDI is
+    // delayed and no plugin latency/lookahead is introduced.
+    if (currentBlockStartPpq >= 0.0 && blockSamples > 0)
+    {
+        auto cursorPpq = currentBlockStartPpq;
+        while (boundaryCount < maxChordBoundariesPerBlock)
+        {
+            const auto nextPpq = harmonicContextProvider.nextChordStartAfter(cursorPpq);
+            if (nextPpq < 0.0)
+                break;
+
+            const auto samplePosition = samplePositionForPpq(nextPpq);
+            if (samplePosition < 0 || samplePosition >= blockSamples)
+                break;
+
+            boundaries[static_cast<std::size_t>(boundaryCount++)] = { nextPpq, samplePosition };
+            cursorPpq = nextPpq;
+        }
+    }
+
+    int nextBoundary = 0;
+    const auto applyBoundariesBefore = [this, &boundaries, boundaryCount, &nextBoundary](int samplePosition)
+    {
+        while (nextBoundary < boundaryCount
+               && boundaries[static_cast<std::size_t>(nextBoundary)].samplePosition < samplePosition)
+        {
+            const auto& boundary = boundaries[static_cast<std::size_t>(nextBoundary++)];
+            if (activeMelodyInputNote >= 0)
+                refreshMelodyHarmonyAtPpq(boundary.ppq, boundary.samplePosition);
+        }
+    };
 
     for (const auto metadata : midiMessages)
     {
+        // Keep musical state chronological. A future Chord Track boundary is never
+        // applied before an earlier Note Off/Note On that happens in the same block.
+        // Events exactly on the boundary are handled first; startMelodyVoicing then
+        // queries the chord at that exact sample, and the boundary becomes a no-op.
+        applyBoundariesBefore(metadata.samplePosition);
+
         recordMidiInputEventForProbe(metadata);
 
         if (isNoteMessage(metadata) && metadata.data != nullptr && metadata.numBytes >= 2)
@@ -280,6 +349,15 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             clearHeldNotes();
         }
     }
+
+    // Boundaries at the same sample as the last MIDI event, and all later boundaries,
+    // are applied after that event. Their MIDI output still carries the exact offset.
+    while (nextBoundary < boundaryCount)
+    {
+        const auto& boundary = boundaries[static_cast<std::size_t>(nextBoundary++)];
+        if (activeMelodyInputNote >= 0)
+            refreshMelodyHarmonyAtPpq(boundary.ppq, boundary.samplePosition);
+    }
 }
 
 void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
@@ -293,7 +371,7 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     // A new melody Note On owns the four generated Voices immediately.
     stopMelodyVoicing(samplePosition);
 
-    const auto ppq = lastPpqPosition.load(std::memory_order_relaxed);
+    const auto ppq = ppqForSamplePosition(samplePosition);
     const auto context = ppq >= 0.0
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
@@ -322,12 +400,12 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     ignoredExtraNoteCountForUi.store(0, std::memory_order_relaxed);
 }
 
-void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyFromContext(int samplePosition)
+void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
+                                                                 int samplePosition)
 {
     if (activeMelodyInputNote < 0 || activeMelodyInputNote >= midiNoteCount)
         return;
 
-    const auto ppq = lastPpqPosition.load(std::memory_order_relaxed);
     const auto context = ppq >= 0.0
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
@@ -364,8 +442,56 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyFromContext(int sample
     stableOwnership = getActiveVoiceCount() > 0;
     stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
     reharmonizationCountForUi.fetch_add(1, std::memory_order_relaxed);
-    lastReharmonizationPpqForUi.store(ppq, std::memory_order_relaxed);
+    lastReharmonizationPpqForUi.store(context.positionAvailable ? context.ppq : ppq,
+                                      std::memory_order_relaxed);
     midiRevision.fetch_add(1, std::memory_order_release);
+}
+
+double SmartVoicingInstrumentProcessor::ppqForSamplePosition(int samplePosition) noexcept
+{
+    if (samplePosition <= 0 && currentBlockStartPpq >= 0.0)
+        return currentBlockStartPpq;
+
+    if (currentBlockStartSeconds >= 0.0 && currentSampleRate > 0.0)
+    {
+        const auto seconds = currentBlockStartSeconds
+                           + static_cast<double>(samplePosition) / currentSampleRate;
+        const auto timelinePpq = harmonicContextProvider.ppqAtSeconds(seconds);
+        if (timelinePpq >= 0.0)
+            return timelinePpq;
+    }
+
+    if (currentBlockStartPpq >= 0.0 && currentBlockBpm > 0.0 && currentSampleRate > 0.0)
+    {
+        const auto seconds = static_cast<double>(samplePosition) / currentSampleRate;
+        return currentBlockStartPpq + seconds * currentBlockBpm / 60.0;
+    }
+
+    return currentBlockStartPpq;
+}
+
+int SmartVoicingInstrumentProcessor::samplePositionForPpq(double ppq) noexcept
+{
+    if (ppq < 0.0 || currentBlockNumSamples <= 0 || currentSampleRate <= 0.0)
+        return -1;
+
+    if (currentBlockStartSeconds >= 0.0)
+    {
+        const auto eventSeconds = harmonicContextProvider.secondsAtPpq(ppq);
+        if (eventSeconds >= 0.0)
+        {
+            return smartvoicing::harmony::sampleOffsetFromTimelineSeconds(currentBlockStartSeconds,
+                                                                          eventSeconds,
+                                                                          currentSampleRate,
+                                                                          currentBlockNumSamples);
+        }
+    }
+
+    return smartvoicing::harmony::sampleOffsetFromPpq(currentBlockStartPpq,
+                                                       ppq,
+                                                       currentBlockBpm,
+                                                       currentSampleRate,
+                                                       currentBlockNumSamples);
 }
 
 void SmartVoicingInstrumentProcessor::stopMelodyVoicing(int samplePosition)

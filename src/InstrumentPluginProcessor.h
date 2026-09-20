@@ -112,10 +112,12 @@ private:
     bool shouldClearHeldNotes(const juce::MidiMessageMetadata&) const noexcept;
     void clearHeldNotes() noexcept;
 
-    void processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages);
+    void processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages, int blockSamples);
     void startMelodyVoicing(int melodyNote, int velocity, int samplePosition);
-    void refreshMelodyHarmonyFromContext(int samplePosition);
+    void refreshMelodyHarmonyAtPpq(double ppq, int samplePosition);
     void stopMelodyVoicing(int samplePosition);
+    double ppqForSamplePosition(int samplePosition) noexcept;
+    int samplePositionForPpq(double ppq) noexcept;
 
     void applyVoiceState(int samplePosition);
     void applyChordDistributionFrame(int samplePosition);
@@ -192,6 +194,10 @@ private:
     smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
 
     double currentSampleRate = 44100.0;
+    double currentBlockStartSeconds = -1.0;
+    double currentBlockStartPpq = -1.0;
+    double currentBlockBpm = -1.0;
+    int currentBlockNumSamples = 0;
     std::int64_t processedSampleCounter = 0;
     std::int64_t chordGestureStartSample = -1;
     std::int64_t chordGestureWindowSamples = 1985; // 45 ms at 44.1 kHz; recalculated in prepareToPlay.

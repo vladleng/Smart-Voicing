@@ -92,5 +92,11 @@ public:
 
     virtual HarmonicContext currentContext() noexcept = 0;
     virtual HarmonicContext contextAt(double ppq) noexcept = 0;
+
+    // Optional timeline services used by sample-accurate live reharmonization.
+    // Providers that cannot expose a full timeline may keep the default fallback.
+    virtual double nextChordStartAfter(double) noexcept { return -1.0; }
+    virtual double secondsAtPpq(double) noexcept { return -1.0; }
+    virtual double ppqAtSeconds(double) noexcept { return -1.0; }
 };
 }
