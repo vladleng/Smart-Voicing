@@ -30,7 +30,7 @@ Smart Voicing
 
 Проект находится на стадии **pre-alpha / архитектурного прототипа**.
 
-Текущая рабочая версия: **Smart Voicing 0.0f**.  
+Текущая рабочая версия: **Smart Voicing 0.0g**.  
 Текущий этап: **Этап 1 — ARA Context Proof of Concept**.
 
 Уже подтверждено в Fender Studio / Studio Pro:
@@ -38,18 +38,20 @@ Smart Voicing
 - ARA/Event FX получает `Musical Context` проекта;
 - доступны `Key Signatures`, `Sheet Chords`, `Tempo Entries` и `Bar Signatures`;
 - Instrument role не получает `Musical Context` напрямую;
-- изменения Chord Track приходят через ARA без перезапуска плагина;
+- изменения Chord Track, Key Track и Bar / Time Signature приходят без Reload;
 - длина Audio Event с ARA-компонентом не ограничивает считываемый диапазон — Event используется как **ARA-якорь**;
 - реальные карты Chord / Key / Tempo / Time Signature считываются с позициями на таймлайне;
 - основной Instrument получает эти карты через shared-memory bridge;
-- Context Monitor показывает текущий аккорд, тональность, размер, темп и позицию.
+- Context Monitor показывает текущий аккорд, тональность, размер, темп и позицию;
+- `Transport revision` в STOP остаётся стабильным и меняется только при фактическом изменении транспорта;
+- сохранение и повторное открытие проекта успешно проверено.
 
-## Архитектура 0.0f
+## Архитектура 0.0g
 
 Из-за поведения Studio Pro прототип разделён на два лёгких VST3-компонента:
 
 ```text
-Smart Voicing 0.0f/
+Smart Voicing 0.0g/
 ├── Smart Voicing.vst3
 └── Smart Voicing ARA.vst3
 ```
@@ -96,33 +98,33 @@ Bridge ABI v3 разделяет:
 - transport position + transport revision;
 - отдельные seqlock-счётчики для безопасного lock-free чтения.
 
-В **0.0f** transport publication стала change-driven:
+Начиная с 0.0f transport publication работает change-driven:
 
 - одинаковый transport snapshot повторно не публикуется;
-- `Transport revision` больше не должен расти просто из-за повторных вызовов `processBlock()` в STOP;
+- `Transport revision` не растёт из-за повторных вызовов `processBlock()` в STOP;
 - revision меняется только при фактическом изменении PPQ / seconds / PLAY-STOP;
-- во время playback revision естественно меняется вместе с реальным движением транспорта;
 - публикация остаётся real-time safe: без mutex, allocation и файлового I/O в audio callback.
 
-## Что проверяет 0.0f
+## Что исправляет 0.0g
 
-0.0f — финальная крупная тестовая итерация ARA-контекста перед 0.1.
+Во время полного теста 0.0f обнаружен небольшой boundary-баг: Studio Pro иногда визуально ставит курсор точно на начало нового аккорда, но transport PPQ и ARA event position могут отличаться на микроскопическую величину floating-point. В результате при почти одинаковых значениях, например около `PPQ 12.0`, мог выбираться предыдущий аккорд.
 
-Нужно проверить:
+В 0.0g:
 
-- стабильный `Transport revision` в STOP;
-- изменение revision после ручного перемещения playhead;
-- корректную работу Context Monitor во время playback;
-- live update Key Track;
-- live update Bar / Time Signature;
-- несколько смен тональности и размера в одной аранжировке;
-- точное переключение Chord / Key / Time Signature на границах событий;
-- согласованность snapshot при одновременных изменениях карт;
-- сохранение и повторное открытие проекта.
+- для start-inclusive Chord / Key / Time Signature введён единый `boundary tolerance = 0.0001 PPQ`;
+- Context Monitor показывает PPQ с повышенной точностью;
+- добавлена строка `Boundary diag` с точной позицией курсора, ближайшим chord event и delta;
+- позиции harmonic maps в debug UI выводятся с большей точностью.
 
-Полный пошаговый чек-лист: [`docs/TEST-0.0f.md`](docs/TEST-0.0f.md).
+Ожидаемое правило:
 
-После успешного прохождения этих тестов можно готовить **0.1**, закрывать Этап 1 и переходить к MIDI Router.
+```text
+до границы    → предыдущий контекст
+на границе    → новый контекст
+после границы → новый контекст
+```
+
+После контрольного теста границ можно готовить **0.1**, закрывать Этап 1 и переходить к MIDI Router.
 
 ## Принципы архитектуры
 
