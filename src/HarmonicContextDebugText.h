@@ -5,9 +5,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace smartvoicing::debug
 {
+// Host transport positions and ARA event positions can differ by a tiny
+// floating-point amount even when Studio Pro visually places the cursor on the
+// same musical grid line. Treat positions inside this window as the same
+// start-inclusive boundary. 0.0001 quarter note is only a few samples at
+// ordinary tempi, so it fixes cursor/grid jitter without shifting meaningful
+// musical event positions.
+inline constexpr double kBoundaryTolerancePpq = 1.0e-4;
+
 inline juce::String fifthsName(std::int32_t fifths)
 {
     switch (fifths)
@@ -122,19 +131,65 @@ inline int findActiveEventIndex(const Event* events, int count, double ppq)
     if (count <= 0)
         return -1;
 
-    // ARA defines the first Chord / Key / Bar Signature as valid even before
-    // its explicit position. Event positions are start-inclusive.
+    // ARA event positions are start-inclusive. Studio Pro can report a cursor
+    // a few floating-point units before the exact ARA event position even when
+    // both are visually on the same grid line, so use a tiny PPQ tolerance.
     int active = 0;
 
     for (int i = 0; i < count; ++i)
     {
-        if (events[i].position <= ppq + 1.0e-9)
+        if (events[i].position <= ppq + kBoundaryTolerancePpq)
             active = i;
         else
             break;
     }
 
     return active;
+}
+
+template <typename Event>
+inline int findNearestEventIndex(const Event* events, int count, double ppq)
+{
+    if (count <= 0 || ppq < 0.0)
+        return -1;
+
+    int nearest = 0;
+    auto bestDistance = std::numeric_limits<double>::max();
+
+    for (int i = 0; i < count; ++i)
+    {
+        const auto distance = std::abs(events[i].position - ppq);
+        if (distance < bestDistance)
+        {
+            bestDistance = distance;
+            nearest = i;
+        }
+    }
+
+    return nearest;
+}
+
+inline juce::String boundaryDiagnostics(const SharedHarmonicContextSnapshot& context, double ppq)
+{
+    juce::String text;
+
+    if (ppq < 0.0)
+        return text;
+
+    text << "Boundary diag: PPQ " << juce::String(ppq, 9)
+         << " | tolerance " << juce::String(kBoundaryTolerancePpq, 9);
+
+    const auto chordIndex = findNearestEventIndex(context.sheetChords,
+                                                  context.sheetChordStoredCount,
+                                                  ppq);
+    if (chordIndex >= 0)
+    {
+        const auto position = context.sheetChords[chordIndex].position;
+        text << " | nearest chord " << juce::String(position, 9)
+             << " | delta " << juce::String(position - ppq, 9);
+    }
+
+    return text;
 }
 
 inline double tempoBpmAtPpq(const SharedHarmonicContextSnapshot& context, double ppq)
@@ -187,7 +242,7 @@ inline juce::String activeContextText(const SharedHarmonicContextSnapshot& conte
         return text;
     }
 
-    text << "Active @ PPQ " << juce::String(ppq, 3) << ":\n";
+    text << "Active @ PPQ " << juce::String(ppq, 6) << ":\n";
 
     const auto chordIndex = findActiveEventIndex(context.sheetChords,
                                                 context.sheetChordStoredCount,
@@ -233,7 +288,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
     {
         if (i > 0)
             text << " | ";
-        text << juce::String(context.sheetChords[i].position, 3)
+        text << juce::String(context.sheetChords[i].position, 6)
              << " " << chordText(context.sheetChords[i]);
     }
     if (context.sheetChordStoredCount > chordPreviewCount)
@@ -247,7 +302,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
     {
         if (i > 0)
             text << " | ";
-        text << juce::String(context.keySignatures[i].position, 3)
+        text << juce::String(context.keySignatures[i].position, 6)
              << " " << keyText(context.keySignatures[i]);
     }
     if (context.keySignatureStoredCount > keyPreviewCount)
@@ -262,7 +317,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
         if (i > 0)
             text << " | ";
         const auto& event = context.barSignatures[i];
-        text << juce::String(event.position, 3)
+        text << juce::String(event.position, 6)
              << " " << event.numerator << "/" << event.denominator;
     }
     if (context.barSignatureStoredCount > barPreviewCount)
@@ -277,8 +332,8 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
         if (i > 0)
             text << " | ";
         const auto& event = context.tempoEntries[i];
-        text << "q" << juce::String(event.quarterPosition, 3)
-             << "=" << juce::String(event.timePosition, 3) << "s";
+        text << "q" << juce::String(event.quarterPosition, 6)
+             << "=" << juce::String(event.timePosition, 6) << "s";
     }
     if (context.tempoEntryStoredCount > tempoPreviewCount)
         text << " | ...";
