@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 
 namespace smartvoicing::harmony
 {
@@ -89,4 +90,10 @@ struct NormalizedChord
 int circleOfFifthsToPitchClass(std::int32_t fifths) noexcept;
 NormalizedChord normalizeChord(const ChordContext& source) noexcept;
 const char* chordQualityName(ChordQuality quality) noexcept;
+
+// Diagnostic/UI helper. It is deliberately separate from normalizeChord()
+// because formatting may allocate and must never be used from the audio path.
+// The symbol is reconstructed from the normalized structural model rather
+// than from a host-provided display name, which can omit sus/extensions.
+std::string normalizedChordSymbol(const NormalizedChord& chord);
 }
