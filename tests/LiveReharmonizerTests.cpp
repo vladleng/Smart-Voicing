@@ -52,6 +52,14 @@ void expectTransition(const ReharmonizationPlan& plan,
     expect(transition.noteOn == (newNote >= 0), label + " note on flag");
 }
 
+void expectNoTransition(const ReharmonizationPlan& plan,
+                        int voice,
+                        const std::string& label)
+{
+    const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+    expect(! transition.noteOff && ! transition.noteOn, label + " no MIDI transition");
+}
+
 void testSameChordProducesNoTransition()
 {
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
@@ -61,11 +69,7 @@ void testSameChordProducesNoTransition()
 
     expect(! plan.lowerVoicesChanged, "same chord must not retrigger lower voices");
     for (int voice = 1; voice < 4; ++voice)
-    {
-        const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
-        expect(! transition.noteOff && ! transition.noteOn,
-               "same chord voice must have no MIDI transition");
-    }
+        expectNoTransition(plan, voice, "same chord voice");
 }
 
 void testChordChangeKeepsMelodyAndChangesLowerVoices()
@@ -78,8 +82,7 @@ void testChordChangeKeepsMelodyAndChangesLowerVoices()
     const auto plan = planLowerVoiceReharmonization(current, desired);
 
     expect(plan.lowerVoicesChanged, "Cmaj7 -> Fmaj7 must reharmonize lower voices");
-    expect(! plan.voices[0].noteOff && ! plan.voices[0].noteOn,
-           "V1 melody must never be retriggered by chord change");
+    expectNoTransition(plan, 0, "V1 melody");
     expectTransition(plan, 1, 64, 65, "V2 Cmaj7 -> Fmaj7");
     expectTransition(plan, 2, 60, 64, "V3 Cmaj7 -> Fmaj7");
     expectTransition(plan, 3, 59, 60, "V4 Cmaj7 -> Fmaj7");
@@ -95,8 +98,7 @@ void testNoChordFallbackClearsOnlyLowerVoices()
     const auto plan = planLowerVoiceReharmonization(current, desired);
 
     expect(plan.lowerVoicesChanged, "no chord must clear generated harmony");
-    expect(! plan.voices[0].noteOff && ! plan.voices[0].noteOn,
-           "no chord fallback must keep V1 melody");
+    expectNoTransition(plan, 0, "no chord V1 melody");
     expectTransition(plan, 1, 64, -1, "fallback V2 off");
     expectTransition(plan, 2, 60, -1, "fallback V3 off");
     expectTransition(plan, 3, 59, -1, "fallback V4 off");
@@ -139,14 +141,11 @@ void testSequenceCanBeAppliedWithoutStaleVoices()
     plan = planLowerVoiceReharmonization(current, g);
     expect(plan.lowerVoicesChanged, "sequence step G7 changes");
 
-    // G7 expected final lower voices: F4 / D4 / B3. The plan must replace
-    // whatever Dm7 left, not layer additional stale notes on top.
-    expectTransition(plan, 1, 65, 65, "shared F4 needs no transition");
-    expect(! plan.voices[1].noteOff && ! plan.voices[1].noteOn,
-           "shared F4 must stay sounding");
-    expectTransition(plan, 2, 62, 62, "shared D4 needs no transition");
-    expect(! plan.voices[2].noteOff && ! plan.voices[2].noteOn,
-           "shared D4 must stay sounding");
+    // Dm7 -> G7 keeps F4 and D4 as common tones in the same Voice slots.
+    // Only V4 must move C4 -> B3; this is the first anti-retrigger rule for
+    // live reharmonization, not yet the later voice-leading engine.
+    expectNoTransition(plan, 1, "shared F4 stays sounding");
+    expectNoTransition(plan, 2, "shared D4 stays sounding");
     expectTransition(plan, 3, 60, 59, "C4 -> B3 replacement");
 }
 }
