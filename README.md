@@ -205,7 +205,7 @@ IHarmonicContextProvider
 - **Этап 7** — Instrument Profiles и диапазоны. → `0.6a ... 0.7`
 - **Этап 8** — Presets и Performance Configurations. → `0.7a ... 0.8`
 - **Этап 9** — Host Compatibility и fallback-провайдеры. → `0.8a ... 0.9`
-- **Этап 10** — Recording / Capture результатов в DAW. → `0.9a ... 1.0-rc1`
+- **Этап 10** — Recording / Capture результатов в DAW. → `0.9a ... 0.10`
 - **Этап 11** — Оптимизация, стабильность и финальный UI. → `1.0`
 
 Актуальные Issues: #17, #3, #8, #9, #10, #11, #12, #4, #13, #14. Старые #5, #6 и #7 закрыты как поглощённые новой структурой roadmap.
