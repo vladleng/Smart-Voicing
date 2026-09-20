@@ -24,14 +24,15 @@
 - `Smart Voicing 0.1c` — Stable Voice Ownership + sustain-aware state.
 - `Smart Voicing 0.1d` — Voice Stack + legato continuation + Sustain Chord Morph.
 - `Smart Voicing 0.1e` — Distribution Modes + Gesture Classifier + `note → Voice mask` + максимум 4 Voice для Chord Gesture.
-- `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**. Текущая базовая версия для дальнейшей разработки.
+- `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**.
+- `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`; MIDI Router остаётся поведением 0.2.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.2/
+Smart Voicing 0.2a/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -42,7 +43,7 @@ Smart Voicing 0.2/
 
 Назначение компонентов:
 
-- `Smart Voicing.vst3` — основной Instrument / MIDI engine.
+- `Smart Voicing.vst3` — основной Instrument / MIDI engine и будущий Harmony Core.
 - `Smart Voicing ARA.vst3` — служебный ARA/Event FX reader harmonic context.
 
 Оба компонента устанавливаются вместе и считаются одной версией Smart Voicing.
