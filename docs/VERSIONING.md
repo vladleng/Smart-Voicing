@@ -20,13 +20,14 @@
 - `Smart Voicing 0.1` — **завершённый Этап 1: ARA Context Proof of Concept**.
 - `Smart Voicing 0.1a` — MIDI Router Probe: прозрачный pass-through, диагностика MIDI и подтверждение downstream routing в Studio Pro.
 - `Smart Voicing 0.1b` — первый Direct 4 Voice Router: ranked Voice 1–4 через MIDI Channels 1–4.
+- `Smart Voicing 0.1c` — Stable Voice Ownership + sustain-aware state: закрепление Voice slots при движении отдельных голосов и корректная логика CC64.
 
 ## Текущая структура пакета
 
 Номер версии указывается **не в имени VST3 bundle**, а в имени внешней папки пакета.
 
 ```text
-Smart Voicing 0.1b/
+Smart Voicing 0.1c/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -50,7 +51,8 @@ Smart Voicing 0.1b/
 
 - `0.1a` — MIDI Router Probe;
 - `0.1b` — Direct 4 Voice Router;
-- при необходимости `0.1c`, `0.1d` и т. д.;
+- `0.1c` — Stable Voice Ownership + Sustain;
+- при необходимости `0.1d`, `0.1e` и т. д.;
 - после завершения этапа — `0.2`.
 
 Далее схема повторяется аналогично:
