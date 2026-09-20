@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.2b"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.2c"
 
     steps:
       - name: Checkout
@@ -22,7 +22,7 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
-        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests --parallel 2
+        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests --parallel 2
 
       - name: Test Harmony Core
         run: ctest --test-dir build -C Release --output-on-failure
@@ -39,5 +39,5 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.2b-Windows
+          name: Smart-Voicing-0.2c-Windows
           path: "package"
