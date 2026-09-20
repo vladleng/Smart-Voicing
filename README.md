@@ -1,118 +1,130 @@
 # Smart Voicing
 
-Экспериментальный MIDI-плагин для гармонизации и распределения голосов от **Moon River Studio**.
+**Smart Voicing** — экспериментальный MIDI-плагин для гармонизации и распределения голосов, разрабатываемый **Moon River Studio**.
 
-Smart Voicing задуман как инструмент, который использует гармонический контекст самой DAW — аккорды, тональность и позицию на таймлайне — и объединяет его с входящим MIDI, чтобы генерировать музыкально осмысленные независимые голоса для духовой секции, ансамбля и других инструментов.
+Цель проекта — использовать гармонический контекст самой DAW (`Chord Track`, `Key`, позицию на таймлайне) вместе с входящим MIDI и на его основе формировать отдельные музыкальные голоса для духовых, струнных и других ансамблевых инструментов.
 
 ## Основная идея
 
-Целевой workflow:
-
 ```text
-Chord Track + Key Track DAW
+Chord Track + Key в DAW
         +
-     MIDI input
+входящий MIDI
         +
-   Voicing preset
+правила / preset voicing
         ↓
-   Smart Voicing
+Smart Voicing
         ↓
-Независимые MIDI-голоса
+независимые MIDI-голоса
+        ↓
+отдельные инструментальные дорожки
 ```
 
-DAW остаётся источником гармонической истины. Если хост уже содержит Chord Track и Key Track, пользователь не должен вручную создавать вторую параллельную гармоническую карту внутри плагина.
+Главный принцип: **DAW остаётся источником гармонической истины**. Если хост уже содержит Chord Track и Key Track, пользователь не должен создавать вторую независимую гармоническую карту внутри Smart Voicing.
 
-## Текущий этап разработки
+Музыкальное ядро при этом должно оставаться независимым от конкретной DAW. ARA 2 используется как один из способов получения гармонического контекста, а не как часть самого алгоритма гармонизации.
 
-Сейчас проект находится на **Этапе 1 — ARA Context Proof of Concept**.
+## Текущий статус
 
-Рабочая версия: **Smart Voicing 0.0c**.
+Проект находится на стадии **pre-alpha**.
 
-Главная задача этапа — подтвердить, что сторонний плагин может получать гармонический контекст проекта через ARA 2 и передавать его MIDI-инструменту в реальном времени.
+Текущая завершённая версия: **Smart Voicing 0.1**.  
+**Этап 1 — ARA Context Proof of Concept завершён.**  
+Следующий этап: **Этап 2 — MIDI Router**.
 
-## Что уже подтверждено в Studio Pro / Fender Studio
+Версия 0.1 фиксирует полностью проверенный ARA-контекст и двухкомпонентную архитектуру после последовательных рабочих сборок 0.0b–0.0g.
 
-В процессе разработки выяснилось следующее:
+Подтверждено в Fender Studio / Studio Pro:
 
-- ARA/Event FX получает `Musical Context` проекта;
+- `Smart Voicing ARA` как ARA/Event FX получает `Musical Context` проекта;
 - доступны `Key Signatures`, `Sheet Chords`, `Tempo Entries` и `Bar Signatures`;
-- Instrument-экземпляр может получить ARA binding, но Studio Pro не прикрепляет к нему `Musical Context`;
-- поэтому один Instrument не может напрямую читать Chord Track / Key Track через ARA;
-- изменения Chord Track приходят через ARA без перезагрузки плагина;
-- изменение или добавление аккорда увеличивает `Bridge revision` в основном Smart Voicing;
-- длина Audio Event, на котором находится ARA-плагин, не ограничивает область доступного гармонического контекста;
-- playhead может находиться за пределами этого Event, а изменения Chord Track всё равно продолжают поступать в основной инструмент.
+- Instrument role не получает `Musical Context` напрямую;
+- изменения Chord Track, Key Track и Bar / Time Signature приходят live без Reload;
+- длина Audio Event с ARA-компонентом не ограничивает считываемый диапазон — Event используется как **ARA-якорь**;
+- реальные карты Chord / Key / Tempo / Time Signature считываются с позициями на таймлайне;
+- основной Instrument получает эти карты через shared-memory bridge;
+- Context Monitor показывает текущий аккорд, тональность, размер, темп и позицию;
+- transport publication работает change-driven: в STOP revision остаётся стабильным;
+- сохранение и повторное открытие проекта проверено;
+- границы Chord / Key / Time Signature обрабатываются как start-inclusive с малым floating-point tolerance, поэтому визуальная граница в Studio Pro соответствует новому событию.
 
-Последний пункт означает, что Audio Event используется только как **ARA-якорь**, а не как временное окно действия гармонии.
+## Архитектура 0.1
 
-## Архитектура версии 0.0c
-
-Из-за особенностей Studio Pro проект разделён на два лёгких VST3-компонента:
+Пакет состоит из двух лёгких VST3-компонентов:
 
 ```text
-Smart Voicing 0.0c/
+Smart Voicing 0.1/
 ├── Smart Voicing.vst3
 └── Smart Voicing ARA.vst3
 ```
 
 ### Smart Voicing.vst3
 
-Основной Instrument / MIDI engine:
+Основной компонент:
 
-- принимает MIDI;
-- выдаёт MIDI;
-- в дальнейшем будет выполнять harmonization, voicing и voice allocation;
-- не запрашивает ARA напрямую;
-- получает актуальный harmonic context от `Smart Voicing ARA`.
+- отображается как Instrument;
+- принимает и выдаёт MIDI;
+- получает harmonic-context snapshot от `Smart Voicing ARA`;
+- содержит Context Monitor;
+- на Этапе 2 получает MIDI Router;
+- далее получит harmonizer, voicing и voice leading.
 
 ### Smart Voicing ARA.vst3
 
-Служебный ARA/Event FX:
+Служебный компонент:
 
-- устанавливается на любой Audio Event;
+- загружается как ARA/Event FX на любой Audio Event;
 - пропускает аудио без изменений;
-- получает `Musical Context` проекта через ARA;
-- читает Chord / Key / Tempo / Bar data;
-- публикует компактный snapshot для основного Smart Voicing.
+- читает `Musical Context` проекта через ARA;
+- публикует harmonic-context snapshot;
+- публикует transport position для основного Instrument.
 
-На Windows связь между двумя VST3-модулями реализована через минимальный named shared-memory bridge без файлового I/O.
-
-Текущая подтверждённая схема:
+Подтверждённая схема:
 
 ```text
-Studio Pro Chord / Key Track
-            ↓
-           ARA
-            ↓
-    Smart Voicing ARA
-            ↓
-    shared context bridge
-            ↓
-      Smart Voicing
-            ↓
-       MIDI voices
+Studio Pro Chord / Key / Tempo / Signature
+        ↓ ARA
+Smart Voicing ARA
+        ↓ shared context + transport
+Smart Voicing Instrument
+        ↓ MIDI Router / дальнейшая обработка
+Destination instruments
 ```
 
-## Следующий шаг
+## Shared bridge
 
-Сейчас bridge уже передаёт наличие ARA-контекста, количество событий и revision.
+Текущий Windows-прототип использует named shared memory без файлового I/O.
 
-Следующая задача — передавать реальные значения:
+Bridge ABI v3 разделяет:
+
+- harmonic map + harmonic revision;
+- transport position + transport revision;
+- отдельные seqlock-счётчики для безопасного lock-free чтения.
+
+Транспорт публикуется только при фактическом изменении PPQ / seconds / PLAY-STOP и остаётся real-time safe: без mutex, allocation и файлового I/O в audio callback.
+
+## Boundary semantics
+
+Для Chord / Key / Time Signature действует единое правило:
 
 ```text
-1.1  Am
-3.1  F
-5.1  C
-7.1  E7
-
-Key: A minor
+до границы    → предыдущий контекст
+на границе    → новый контекст
+после границы → новый контекст
 ```
 
-После этого основной Smart Voicing должен определять текущий Chord и Key по позиции транспорта и использовать их для MIDI-гармонизации.
+Для компенсации микроскопического floating-point расхождения между host transport и ARA event position используется небольшой `boundary tolerance = 0.0001 PPQ`.
 
-## Архитектурный принцип
+## Принципы архитектуры
 
-Музыкальное ядро не должно зависеть от конкретной DAW или ARA.
+- музыкальная логика не зависит от JUCE, ARA и конкретной DAW;
+- хостовые возможности определяются через capability detection, а не по имени DAW;
+- ARA-контекст кэшируется вне real-time audio thread;
+- MIDI-обработка должна быть real-time safe;
+- UI остаётся минимальным;
+- CPU и память используются максимально экономно;
+- никаких тяжёлых фоновых процессов без необходимости;
+- при отсутствии ARA в будущем должны быть возможны альтернативные источники контекста.
 
 Планируемая абстракция:
 
@@ -123,91 +135,29 @@ IHarmonicContextProvider
 └── ManualContextProvider
 ```
 
-ARA — только один из способов получить гармонический контекст. Если конкретный хост не предоставляет Chord/Key через ARA, Smart Voicing в будущем должен уметь использовать MIDI- или Manual-context.
+## Следующий этап: MIDI Router
 
-## Планируемые музыкальные режимы
+Этап 2 должен превратить основной `Smart Voicing` из Context Monitor в первый реально работающий MIDI-маршрутизатор.
 
-После завершения ARA-этапа:
-
-- Direct 4 Voice;
-- Melody Harmonize;
-- Chord redistribution / revoicing;
-- Context-aware voicing.
-
-Первые типы voicing:
-
-- Close;
-- Drop 2;
-- Guide Tones;
-- Custom.
-
-Позже:
-
-- Drop 3;
-- Drop 2+4;
-- Spread;
-- Unison;
-- instrument-aware ranges;
-- voice leading;
-- root omission;
-- tension policies.
-
-## Первый практический состав
-
-Начальный сценарий — духовая секция из четырёх голосов:
+Базовая цель:
 
 ```text
-Voice 1 → Trumpet
-Voice 2 → Tenor Sax
-Voice 3 → Trombone
-Voice 4 → Baritone Sax
+MIDI input
+   ↓
+Smart Voicing
+   ↓
+Voice 1 / Voice 2 / Voice 3 / Voice 4
+   ↓
+отдельные целевые инструменты / дорожки
 ```
 
-Но состав не должен быть зашит в движок. В дальнейшем каждый голос получит собственный инструментальный профиль и диапазон.
-
-## Приоритет музыкальной логики
-
-Долгосрочная схема приоритетов:
-
-```text
-1. Сыгранная нота / мелодия
-2. Текущий аккорд
-3. Текущая тональность
-4. Гармоническая функция
-5. Voice leading
-6. Диапазоны инструментов
-7. Выбранный voicing
-```
-
-Локальный аккорд должен иметь приоритет над механическим следованием основной гамме. Например, при `C major` и аккорде `A7` движок должен понимать необходимость `C#`.
-
-## Производительность
-
-Smart Voicing должен оставаться максимально лёгким:
-
-- минимальная нагрузка CPU;
-- минимальное потребление памяти;
-- real-time-safe MIDI processing;
-- отсутствие тяжёлых фоновых процессов;
-- отсутствие постоянного polling хоста из audio thread;
-- кэширование harmonic context вне real-time потока;
-- простая UI-часть;
-- музыкальная логика отдельно от JUCE/ARA wrapper-кода.
-
-## Reference products
-
-Полезные ориентиры:
-
-- **Divisimate** — live routing и распределение голосов;
-- **Scaler** — harmonic context, divisi, voicing и multi-channel MIDI.
-
-Smart Voicing не должен копировать эти продукты. Его основное отличие — использование **гармонической карты самой DAW**, когда хост её предоставляет.
+На этом этапе гармонизация ещё не нужна. Сначала требуется надёжно определить модель распределения и маршрутизации независимых MIDI-голосов в Studio Pro и сделать её пригодной для дальнейшего harmonizer engine.
 
 ## Roadmap
 
-- **Этап 0** — каркас проекта и базовая сборка — завершён.
-- **Этап 1** — ARA Context Proof of Concept — текущий этап.
-- **Этап 2** — MIDI Router.
+- **Этап 0** — каркас проекта и базовая сборка. ✅
+- **Этап 1** — ARA Context Proof of Concept. ✅ → `0.1`
+- **Этап 2** — MIDI Router. ← текущий следующий этап
 - **Этап 3** — Chord-aware harmonizer.
 - **Этап 4** — Key-aware engine.
 - **Этап 5** — Jazz voicing.
@@ -218,32 +168,12 @@ Smart Voicing не должен копировать эти продукты. Е
 
 Smart Voicing не должен автоматически создавать «готовую аранжировку».
 
-Его задача — быстро создать качественный редактируемый каркас партий:
+Его задача — быстро получить музыкально осмысленный и редактируемый MIDI-скелет.
 
-```text
-Chord / Key DAW
-      ↓
-Melody / chord input
-      ↓
-Smart Voicing
-      ↓
-Separate MIDI voices
-      ↓
-Ручная редактура
-      ↓
-Articulations / Expression / Vibrato
-      ↓
-Финальная аранжировка
-```
-
-Музыкант остаётся главным автором результата.
-
-## Документация
-
-Подробная концепция и технические заметки находятся в [`docs/CONCEPT.md`](docs/CONCEPT.md).
+Полная концепция и технические заметки находятся в [`docs/CONCEPT.md`](docs/CONCEPT.md).
 
 ## Язык ведения проекта
 
-Все этапы разработки, GitHub Issues, задачи, подзадачи, roadmap и пояснения ведутся **на русском языке**.
+README, концепция, этапы разработки, GitHub Issues, задачи, подзадачи, roadmap и пояснения ведутся **на русском языке**.
 
-Английский используется только там, где это технически необходимо: API, имена классов и методов, форматы, SDK, идентификаторы и код.
+Английский используется там, где он необходим технически: имена классов и методов, API, SDK, форматы, идентификаторы, код и общепринятые технические термины.
