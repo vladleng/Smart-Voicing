@@ -49,8 +49,29 @@
    - CC / Pitch Bend проходят downstream;
    - stuck notes отсутствуют.
 
+## Результат теста — 2026-09-20
+
+**Статус: ПРОЙДЕН.**
+
+Подтверждено в Studio Pro пользователем:
+
+- заголовок `Smart Voicing 0.2a - Harmonic Context Core` отображается корректно;
+- `Smart Voicing ARA: CONNECTED`;
+- `Neutral provider: READY`;
+- при позиции PPQ 7.0 активный Context Monitor показывает `Dm`;
+- Key Context показывает `C major`;
+- Time Signature показывает `4/4`;
+- Tempo показывает `120.00 BPM`;
+- neutral provider сообщает `position YES`, `chord DEFINED`, `key AVAILABLE`, `time signature AVAILABLE`;
+- для активного `Dm` neutral chord содержит `start PPQ 4.000000`, `root 2`, `bass 2`, `interval mask 0 3 7`, что соответствует минорному трезвучию D–F–A;
+- MIDI Router 0.2 остаётся активным; по пользовательскому тесту новых регрессий не выявлено.
+
+Windows CI для commit `fb22a87d49f9ff329192d18338d4864645d63c52` завершён успешно. Шаги Configure / Build / Prepare versioned package / Upload VST3 package прошли успешно. Создан artifact `Smart-Voicing-0.2a-Windows`.
+
 ## Критерий прохождения 0.2a
 
 Версия считается подтверждённой пользователем, если новый neutral provider показывает тот же активный Chord / Key / Time Signature, что и существующий ARA Context Monitor, а поведение MIDI Router не изменилось относительно 0.2.
 
-После подтверждения можно переходить к следующей итерации Этапа 3: нормализация chord model и первый тестируемый Chord-aware Harmonizer.
+**Критерий выполнен. Smart Voicing 0.2a зафиксирована как успешно протестированная рабочая итерация Этапа 3.**
+
+Следующая итерация: нормализация chord model и подготовка первого тестируемого Chord-aware Harmonizer.
