@@ -22,13 +22,14 @@
 - `Smart Voicing 0.1b` — первый Direct 4 Voice Router: ranked Voice 1–4 через MIDI Channels 1–4.
 - `Smart Voicing 0.1c` — Stable Voice Ownership + sustain-aware state: закрепление Voice slots при движении отдельных голосов и корректная базовая логика CC64.
 - `Smart Voicing 0.1d` — Voice Stack + legato continuation: перекрывающиеся Note On на одном Voice/channel, смена аккорда под Sustain и сохранение физически удерживаемых нот после pedal-up.
+- `Smart Voicing 0.1e` — Voice Distribution Modes + Gesture Classifier: режимы сверху вниз / снизу вверх / заполнить 4 голоса, note-to-Voice mask, строгий максимум 4 Voice для chord gesture и сохранение voice gesture/legato.
 
 ## Текущая структура пакета
 
 Номер версии указывается **не в имени VST3 bundle**, а в имени внешней папки пакета.
 
 ```text
-Smart Voicing 0.1d/
+Smart Voicing 0.1e/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -54,7 +55,8 @@ Smart Voicing 0.1d/
 - `0.1b` — Direct 4 Voice Router;
 - `0.1c` — Stable Voice Ownership + Sustain;
 - `0.1d` — Voice Stack / Legato + Sustain Chord Morph;
-- при необходимости `0.1e`, `0.1f` и т. д.;
+- `0.1e` — Voice Distribution Modes + Gesture Classifier;
+- при необходимости `0.1f`, `0.1g` и т. д.;
 - после завершения этапа — `0.2`.
 
 Далее схема повторяется аналогично:
