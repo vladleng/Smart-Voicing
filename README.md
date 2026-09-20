@@ -33,7 +33,9 @@ Smart Voicing
 Текущая рабочая версия: **Smart Voicing 0.0g**.  
 Текущий этап: **Этап 1 — ARA Context Proof of Concept**.
 
-Уже подтверждено в Fender Studio / Studio Pro:
+Полный тест 0.0f в Studio Pro пройден успешно: transport, live updates Chord / Key / Time Signature, несколько смен контекста, одновременные изменения, короткий ARA-якорь и сохранение/повторное открытие проекта работают. Остался один микробаг на точной визуальной границе нового аккорда — его исправляет и диагностирует 0.0g.
+
+Уже подтверждено:
 
 - ARA/Event FX получает `Musical Context` проекта;
 - доступны `Key Signatures`, `Sheet Chords`, `Tempo Entries` и `Bar Signatures`;
