@@ -1,4 +1,5 @@
 #include "InstrumentPluginEditor.h"
+#include "ChordModel.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
 
@@ -106,7 +107,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.2a - Harmonic Context Core",
+    titleLabel.setText("Smart Voicing 0.2b - Chord Model",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -246,12 +247,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     const auto ppq = useBridgeTransport ? context.transportPpq : localPpq;
     const auto seconds = useBridgeTransport ? context.transportSeconds : localSeconds;
 
-    // Stage 3 / 0.2a: read the same already-working bridge through the new
-    // host-neutral provider. This is diagnostic only; Router behaviour remains
-    // exactly the 0.2 path in this iteration.
     const auto neutralContext = ppq >= 0.0
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
+    const auto normalizedChord = smartvoicing::harmony::normalizeChord(neutralContext.chord);
 
     juce::String chord = "n/a";
     juce::String key = "n/a";
@@ -299,6 +298,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     juce::String bridgeText;
     bridgeText << "Smart Voicing ARA: " << (context.connected ? "CONNECTED" : "WAITING")
                << " | Neutral provider: " << (neutralContext.providerConnected ? "READY" : "WAITING")
+               << " | Chord model: " << (normalizedChord.valid ? "READY" : "N/A")
                << " | Harmony rev: " << juce::String(static_cast<juce::int64>(neutralContext.harmonicRevision))
                << " | Transport rev: " << juce::String(static_cast<juce::int64>(neutralContext.transportRevision));
     bridgeLabel.setText(bridgeText, juce::dontSendNotification);
@@ -349,23 +349,33 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 3 / 0.2a: IHarmonicContextProvider -> ARAContextProvider -> HarmonicContext\n";
+    debugText << "Stage 3 / 0.2b: ARAContextProvider -> HarmonicContext -> NormalizedChord\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
               << " | time signature " << (neutralContext.timeSignature.available ? "AVAILABLE" : "N/A") << "\n";
+
     if (neutralContext.chord.available)
     {
         debugText << "Neutral chord: start PPQ " << juce::String(neutralContext.chord.startPpq, 6)
-                  << " | root " << neutralContext.chord.root
-                  << " | bass " << neutralContext.chord.bass
+                  << " | root fifths " << neutralContext.chord.root
+                  << " | bass fifths " << neutralContext.chord.bass
                   << " | interval mask ";
         for (int i = 0; i < smartvoicing::harmony::kPitchClassCount; ++i)
             if (neutralContext.chord.intervals.values[static_cast<std::size_t>(i)] != 0)
                 debugText << i << " ";
         debugText << "\n";
     }
-    debugText << "VoiceOutput[4]: host-neutral contract prepared; harmonizer not active in 0.2a\n";
+
+    debugText << "Chord model: " << (normalizedChord.valid ? "VALID" : "N/A")
+              << " | quality " << smartvoicing::harmony::chordQualityName(normalizedChord.quality)
+              << " | root PC " << normalizedChord.rootPitchClass
+              << " | bass PC " << normalizedChord.bassPitchClass
+              << " | slash " << (normalizedChord.slashBass ? "YES" : "NO")
+              << " | ext flags " << normalizedChord.extensions
+              << " | alt flags " << normalizedChord.alterations << "\n";
+
+    debugText << "VoiceOutput[4]: prepared; MIDI harmonizer not active in 0.2b\n";
     debugText << "MIDI input/output: YES / YES | 0.2 Router path unchanged\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
