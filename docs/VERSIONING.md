@@ -18,13 +18,15 @@
 - `Smart Voicing 0.0f` — change-driven transport и полный интеграционный тест Studio Pro.
 - `Smart Voicing 0.0g` — boundary hardening Chord / Key / Time Signature.
 - `Smart Voicing 0.1` — **завершённый Этап 1: ARA Context Proof of Concept**.
+- `Smart Voicing 0.1a` — MIDI Router Probe: прозрачный pass-through, диагностика MIDI и подтверждение downstream routing в Studio Pro.
+- `Smart Voicing 0.1b` — первый Direct 4 Voice Router: ranked Voice 1–4 через MIDI Channels 1–4.
 
 ## Текущая структура пакета
 
 Номер версии указывается **не в имени VST3 bundle**, а в имени внешней папки пакета.
 
 ```text
-Smart Voicing 0.1/
+Smart Voicing 0.1b/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -40,15 +42,16 @@ Smart Voicing 0.1/
 
 Оба компонента устанавливаются вместе и считаются одной версией Smart Voicing.
 
-## Следующий этап
+## Текущий этап
 
-После `0.1` начинается Этап 2 — MIDI Router.
+После `0.1` идёт Этап 2 — MIDI Router.
 
 Промежуточные версии Этапа 2:
 
-- `0.1a`
-- при необходимости `0.1b`, `0.1c` и т. д.
-- после завершения этапа — `0.2`
+- `0.1a` — MIDI Router Probe;
+- `0.1b` — Direct 4 Voice Router;
+- при необходимости `0.1c`, `0.1d` и т. д.;
+- после завершения этапа — `0.2`.
 
 Далее схема повторяется аналогично:
 
