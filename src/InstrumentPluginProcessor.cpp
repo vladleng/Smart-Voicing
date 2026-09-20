@@ -12,6 +12,7 @@ constexpr std::uint8_t noteOnStatus = 0x90;
 constexpr std::uint8_t controllerStatus = 0xB0;
 constexpr std::uint8_t pitchBendStatus = 0xE0;
 constexpr std::uint8_t systemStatus = 0xF0;
+constexpr int sustainController = 64;
 constexpr int voiceCount = 4;
 constexpr int firstOutputChannel = 1;
 constexpr int midiOutputReserveBytes = 32768;
@@ -28,12 +29,40 @@ bool isNoteMessage(const juce::MidiMessageMetadata& metadata) noexcept
     const auto type = static_cast<std::uint8_t>(status & statusMask);
     return type == noteOnStatus || type == noteOffStatus;
 }
+
+bool isNoteOffMessage(const juce::MidiMessageMetadata& metadata) noexcept
+{
+    if (! isNoteMessage(metadata) || metadata.numBytes < 2)
+        return false;
+
+    const auto type = static_cast<std::uint8_t>(metadata.data[0] & statusMask);
+    const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
+    return type == noteOffStatus || (type == noteOnStatus && velocity == 0);
+}
+
+bool getSustainState(const juce::MidiMessageMetadata& metadata, bool& down) noexcept
+{
+    if (metadata.data == nullptr || metadata.numBytes < 3)
+        return false;
+
+    const auto status = metadata.data[0];
+    if (status >= systemStatus || (status & statusMask) != controllerStatus)
+        return false;
+
+    if (static_cast<int>(metadata.data[1]) != sustainController)
+        return false;
+
+    down = static_cast<int>(metadata.data[2]) >= 64;
+    return true;
+}
 }
 
 SmartVoicingInstrumentProcessor::SmartVoicingInstrumentProcessor()
     : juce::AudioProcessor(BusesProperties()
                               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    noteVoiceOwners.fill(-1);
+
     for (auto& voiceNote : voiceNotesForUi)
         voiceNote.store(-1, std::memory_order_relaxed);
 }
@@ -81,37 +110,75 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
     int currentSamplePosition = -1;
     bool noteStateChangedAtCurrentSample = false;
 
+    const auto flushPendingNoteState = [this, &currentSamplePosition, &noteStateChangedAtCurrentSample]
+    {
+        if (noteStateChangedAtCurrentSample && currentSamplePosition >= 0)
+            applyVoiceState(currentSamplePosition);
+
+        noteStateChangedAtCurrentSample = false;
+    };
+
     for (const auto metadata : midiMessages)
     {
         if (currentSamplePosition >= 0 && metadata.samplePosition != currentSamplePosition)
-        {
-            if (noteStateChangedAtCurrentSample)
-                rebuildVoiceAssignments(currentSamplePosition);
-
-            noteStateChangedAtCurrentSample = false;
-        }
+            flushPendingNoteState();
 
         currentSamplePosition = metadata.samplePosition;
         recordMidiInputEventForProbe(metadata);
 
         if (isNoteMessage(metadata))
         {
+            // Once a chord/interval starts being edited, preserve the identity of
+            // the existing Voice slots instead of re-ranking the remaining notes.
+            if (isNoteOffMessage(metadata) && ! stableOwnership && getActiveVoiceCount() >= 2)
+            {
+                stableOwnership = true;
+                stableOwnershipForUi.store(true, std::memory_order_relaxed);
+            }
+
             noteStateChangedAtCurrentSample = updateHeldNoteFromEvent(metadata)
                                             || noteStateChangedAtCurrentSample;
+            continue;
+        }
+
+        // Preserve MIDI event order: finish any pending note ownership change before
+        // broadcasting a controller/pitch/pressure event at the same sample.
+        flushPendingNoteState();
+
+        bool newSustainState = false;
+        if (getSustainState(metadata, newSustainState))
+        {
+            if (newSustainState != sustainDown)
+            {
+                sustainDown = newSustainState;
+                sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
+
+                if (sustainDown)
+                {
+                    // Sustain requires stable ownership even for fewer than four voices:
+                    // released keys keep their Voice slot until pedal-up.
+                    stableOwnership = true;
+                    stableOwnershipForUi.store(true, std::memory_order_relaxed);
+                }
+                else
+                {
+                    // Release sustain-held ownership before CC64-up reaches the synth.
+                    // Physical Note Offs were already sent while the pedal was down.
+                    applyVoiceState(metadata.samplePosition);
+                }
+            }
+
+            routeNonNoteEvent(metadata);
             continue;
         }
 
         routeNonNoteEvent(metadata);
 
         if (shouldClearHeldNotes(metadata))
-        {
             clearHeldNotes();
-            noteStateChangedAtCurrentSample = true;
-        }
     }
 
-    if (noteStateChangedAtCurrentSample && currentSamplePosition >= 0)
-        rebuildVoiceAssignments(currentSamplePosition);
+    flushPendingNoteState();
 
     midiMessages.swapWith(routedMidi);
 
@@ -140,10 +207,10 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
 
     if (isNoteOn)
     {
-        if (heldNoteCounts[static_cast<std::size_t>(note)] == 0)
+        auto& count = heldNoteCounts[static_cast<std::size_t>(note)];
+        if (count == 0)
             ++heldDistinctNoteCount;
 
-        auto& count = heldNoteCounts[static_cast<std::size_t>(note)];
         if (count < 255)
             ++count;
 
@@ -160,10 +227,7 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
 
         --count;
         if (count == 0)
-        {
-            heldNoteVelocities[static_cast<std::size_t>(note)] = 0;
             heldDistinctNoteCount = (std::max)(0, heldDistinctNoteCount - 1);
-        }
 
         heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
         return true;
@@ -172,7 +236,30 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
     return false;
 }
 
-void SmartVoicingInstrumentProcessor::rebuildVoiceAssignments(int samplePosition)
+void SmartVoicingInstrumentProcessor::applyVoiceState(int samplePosition)
+{
+    if (sustainDown)
+        stableOwnership = true;
+
+    if (stableOwnership)
+        reconcileStableAssignments(samplePosition);
+    else
+        rebuildRankedAssignments(samplePosition);
+
+    // A complete four-note voicing becomes a stable ownership frame. From this
+    // point a released/replaced note edits its own Voice instead of shifting all
+    // neighbouring voices.
+    if (! stableOwnership && getActiveVoiceCount() >= voiceCount)
+        stableOwnership = true;
+
+    if (! sustainDown && heldDistinctNoteCount == 0 && getActiveVoiceCount() == 0)
+        stableOwnership = false;
+
+    sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
+    stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::rebuildRankedAssignments(int samplePosition)
 {
     std::array<int, voiceCount> desiredNotes { -1, -1, -1, -1 };
     int desiredIndex = 0;
@@ -186,46 +273,174 @@ void SmartVoicingInstrumentProcessor::rebuildVoiceAssignments(int samplePosition
         ++desiredIndex;
     }
 
-    // First release every voice whose ranked assignment changed.
+    // Release every ranked Voice that is about to change.
     for (int voice = 0; voice < voiceCount; ++voice)
     {
         const auto index = static_cast<std::size_t>(voice);
-        const auto oldNote = activeVoiceNotes[index];
-        const auto newNote = desiredNotes[index];
-
-        if (oldNote < 0 || oldNote == newNote)
-            continue;
-
-        const std::uint8_t bytes[3] {
-            static_cast<std::uint8_t>(noteOffStatus | ((firstOutputChannel + voice - 1) & channelMask)),
-            static_cast<std::uint8_t>(oldNote),
-            0
-        };
-        addOutputEvent(bytes, 3, samplePosition);
+        if (activeVoiceNotes[index] >= 0 && activeVoiceNotes[index] != desiredNotes[index])
+            sendVoiceNoteOff(voice, samplePosition);
     }
 
-    // Then start new assignments. Doing all Note Offs first avoids overlaps when
-    // several ranked voices shift after adding/removing one note.
+    noteVoiceOwners.fill(-1);
+
     for (int voice = 0; voice < voiceCount; ++voice)
     {
         const auto index = static_cast<std::size_t>(voice);
         const auto oldNote = activeVoiceNotes[index];
         const auto newNote = desiredNotes[index];
 
-        if (newNote >= 0 && oldNote != newNote)
+        if (oldNote != newNote)
         {
-            const auto velocity = heldNoteVelocities[static_cast<std::size_t>(newNote)];
-            const std::uint8_t bytes[3] {
-                static_cast<std::uint8_t>(noteOnStatus | ((firstOutputChannel + voice - 1) & channelMask)),
-                static_cast<std::uint8_t>(newNote),
-                velocity > 0 ? velocity : static_cast<std::uint8_t>(1)
-            };
-            addOutputEvent(bytes, 3, samplePosition);
+            activeVoiceNotes[index] = newNote;
+            voiceNoteOnActive[index] = false;
         }
 
-        activeVoiceNotes[index] = newNote;
+        if (newNote >= 0)
+        {
+            noteVoiceOwners[static_cast<std::size_t>(newNote)] = voice;
+            if (! voiceNoteOnActive[index])
+                sendVoiceNoteOn(voice, samplePosition);
+        }
+
         voiceNotesForUi[index].store(newNote, std::memory_order_relaxed);
     }
+}
+
+void SmartVoicingInstrumentProcessor::reconcileStableAssignments(int samplePosition)
+{
+    // Keep each already-owned note on the same Voice channel. A physical Note Off
+    // is still forwarded immediately. With CC64 down the slot remains reserved so
+    // that neighbouring voices cannot collapse into it.
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        const auto index = static_cast<std::size_t>(voice);
+        const auto note = activeVoiceNotes[index];
+        if (note < 0)
+            continue;
+
+        const auto physicallyHeld = heldNoteCounts[static_cast<std::size_t>(note)] > 0;
+
+        if (physicallyHeld)
+        {
+            // Retriggering a note that was released under sustain reuses the same Voice.
+            if (! voiceNoteOnActive[index])
+                sendVoiceNoteOn(voice, samplePosition);
+            continue;
+        }
+
+        if (voiceNoteOnActive[index])
+            sendVoiceNoteOff(voice, samplePosition);
+
+        if (! sustainDown)
+            clearVoiceOwnership(voice);
+    }
+
+    assignUnownedHeldNotes(samplePosition);
+}
+
+void SmartVoicingInstrumentProcessor::assignUnownedHeldNotes(int samplePosition)
+{
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        const auto voiceIndex = static_cast<std::size_t>(voice);
+        if (activeVoiceNotes[voiceIndex] >= 0)
+            continue;
+
+        int candidate = -1;
+        for (int note = 127; note >= 0; --note)
+        {
+            const auto noteIndex = static_cast<std::size_t>(note);
+            if (heldNoteCounts[noteIndex] == 0 || noteVoiceOwners[noteIndex] >= 0)
+                continue;
+
+            candidate = note;
+            break;
+        }
+
+        if (candidate < 0)
+            continue;
+
+        activeVoiceNotes[voiceIndex] = candidate;
+        noteVoiceOwners[static_cast<std::size_t>(candidate)] = voice;
+        voiceNoteOnActive[voiceIndex] = false;
+        voiceNotesForUi[voiceIndex].store(candidate, std::memory_order_relaxed);
+        sendVoiceNoteOn(voice, samplePosition);
+    }
+}
+
+void SmartVoicingInstrumentProcessor::sendVoiceNoteOn(int voice, int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount)
+        return;
+
+    const auto index = static_cast<std::size_t>(voice);
+    const auto note = activeVoiceNotes[index];
+    if (note < 0)
+        return;
+
+    const auto velocity = heldNoteVelocities[static_cast<std::size_t>(note)];
+    const std::uint8_t bytes[3] {
+        static_cast<std::uint8_t>(noteOnStatus | ((firstOutputChannel + voice - 1) & channelMask)),
+        static_cast<std::uint8_t>(note),
+        velocity > 0 ? velocity : static_cast<std::uint8_t>(1)
+    };
+
+    addOutputEvent(bytes, 3, samplePosition);
+    voiceNoteOnActive[index] = true;
+}
+
+void SmartVoicingInstrumentProcessor::sendVoiceNoteOff(int voice, int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount)
+        return;
+
+    const auto index = static_cast<std::size_t>(voice);
+    const auto note = activeVoiceNotes[index];
+    if (note < 0 || ! voiceNoteOnActive[index])
+        return;
+
+    const std::uint8_t bytes[3] {
+        static_cast<std::uint8_t>(noteOffStatus | ((firstOutputChannel + voice - 1) & channelMask)),
+        static_cast<std::uint8_t>(note),
+        0
+    };
+
+    addOutputEvent(bytes, 3, samplePosition);
+    voiceNoteOnActive[index] = false;
+}
+
+void SmartVoicingInstrumentProcessor::clearVoiceOwnership(int voice) noexcept
+{
+    if (voice < 0 || voice >= voiceCount)
+        return;
+
+    const auto index = static_cast<std::size_t>(voice);
+    const auto note = activeVoiceNotes[index];
+
+    if (note >= 0 && note < static_cast<int>(noteVoiceOwners.size()))
+    {
+        const auto noteIndex = static_cast<std::size_t>(note);
+        if (noteVoiceOwners[noteIndex] == voice)
+            noteVoiceOwners[noteIndex] = -1;
+
+        if (heldNoteCounts[noteIndex] == 0)
+            heldNoteVelocities[noteIndex] = 0;
+    }
+
+    activeVoiceNotes[index] = -1;
+    voiceNoteOnActive[index] = false;
+    voiceNotesForUi[index].store(-1, std::memory_order_relaxed);
+}
+
+int SmartVoicingInstrumentProcessor::getActiveVoiceCount() const noexcept
+{
+    int count = 0;
+    for (const auto note : activeVoiceNotes)
+    {
+        if (note >= 0)
+            ++count;
+    }
+    return count;
 }
 
 void SmartVoicingInstrumentProcessor::routeNonNoteEvent(const juce::MidiMessageMetadata& metadata)
@@ -277,8 +492,19 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
 {
     heldNoteCounts.fill(0);
     heldNoteVelocities.fill(0);
+    noteVoiceOwners.fill(-1);
+    activeVoiceNotes.fill(-1);
+    voiceNoteOnActive.fill(false);
     heldDistinctNoteCount = 0;
+    sustainDown = false;
+    stableOwnership = false;
+
     heldNoteCountForUi.store(0, std::memory_order_relaxed);
+    sustainDownForUi.store(false, std::memory_order_relaxed);
+    stableOwnershipForUi.store(false, std::memory_order_relaxed);
+
+    for (auto& voiceNote : voiceNotesForUi)
+        voiceNote.store(-1, std::memory_order_relaxed);
 }
 
 void SmartVoicingInstrumentProcessor::addOutputEvent(const std::uint8_t* data,
@@ -372,6 +598,8 @@ SmartVoicingInstrumentProcessor::MidiProbeSnapshot SmartVoicingInstrumentProcess
     snapshot.lastData1 = lastMidiData1.load(std::memory_order_relaxed);
     snapshot.lastData2 = lastMidiData2.load(std::memory_order_relaxed);
     snapshot.heldNoteCount = heldNoteCountForUi.load(std::memory_order_relaxed);
+    snapshot.sustainDown = sustainDownForUi.load(std::memory_order_relaxed);
+    snapshot.stableOwnership = stableOwnershipForUi.load(std::memory_order_relaxed);
 
     for (std::size_t i = 0; i < snapshot.voiceNotes.size(); ++i)
         snapshot.voiceNotes[i] = voiceNotesForUi[i].load(std::memory_order_relaxed);
@@ -398,14 +626,7 @@ void SmartVoicingInstrumentProcessor::resetMidiProbeStatistics() noexcept
 
 void SmartVoicingInstrumentProcessor::resetRouterState() noexcept
 {
-    heldNoteCounts.fill(0);
-    heldNoteVelocities.fill(0);
-    activeVoiceNotes.fill(-1);
-    heldDistinctNoteCount = 0;
-    heldNoteCountForUi.store(0, std::memory_order_relaxed);
-
-    for (auto& voiceNote : voiceNotesForUi)
-        voiceNote.store(-1, std::memory_order_relaxed);
+    clearHeldNotes();
 }
 
 juce::AudioProcessorEditor* SmartVoicingInstrumentProcessor::createEditor()
