@@ -26,6 +26,9 @@ private:
     juce::Label timeSignatureLabel;
     juce::Label tempoLabel;
     juce::Label positionLabel;
+    juce::Label midiProbeTitleLabel;
+    juce::Label midiProbeLabel;
+    juce::TextButton resetMidiStatsButton;
     juce::Label debugLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SmartVoicingInstrumentEditor)
