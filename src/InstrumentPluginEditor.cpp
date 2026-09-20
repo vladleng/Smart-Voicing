@@ -296,7 +296,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "Техническая диагностика\n";
     debugText << "MIDI input/output: YES / YES | 0.1c Stable Voice Ownership + sustain-aware state\n";
     debugText << "Bootstrap: pitch ranking | locked voices keep Ch1-4 identity while edited\n";
-    debugText << "CC64: physical Note Off forwarded, Voice slot reserved until pedal-up\n";
+    debugText << "CC64: Note Off deferred by router until pedal-up; Voice slot stays reserved\n";
     debugText << "Channel messages: broadcast to Ch1-4 | extra notes do not steal locked voices\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
