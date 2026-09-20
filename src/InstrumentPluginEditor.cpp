@@ -23,7 +23,7 @@ void configureContextLabel(juce::Label& label)
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.0e - Context Monitor", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.0f - Context Monitor", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);

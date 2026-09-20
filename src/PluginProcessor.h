@@ -51,5 +51,14 @@ private:
     std::atomic<double> lastPositionSeconds { -1.0 };
     std::atomic<double> lastPpqPosition { -1.0 };
 
+    // Audio-thread-only cache used to suppress identical transport snapshots.
+    // The shared transport revision therefore represents actual transport
+    // changes instead of processBlock call count.
+    bool hasPublishedTransport = false;
+    bool lastPublishedTransportAvailable = false;
+    bool lastPublishedTransportPlaying = false;
+    double lastPublishedTransportSeconds = -1.0;
+    double lastPublishedTransportPpq = -1.0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SmartVoicingAudioProcessor)
 };

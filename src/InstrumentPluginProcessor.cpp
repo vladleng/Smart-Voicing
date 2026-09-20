@@ -39,8 +39,8 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
         }
     }
 
-    // 0.0c is still a routing/context proof. The Instrument generates no audio
-    // and passes incoming MIDI through unchanged for the next routing test.
+    // 0.0f is still an ARA/context proof. The Instrument generates no audio
+    // and passes incoming MIDI through unchanged for the next routing stage.
     buffer.clear();
     juce::ignoreUnused(midiMessages);
 }

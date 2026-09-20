@@ -6,6 +6,18 @@
 #include "ARAContextDocumentController.h"
 #endif
 
+#include <cmath>
+
+namespace
+{
+constexpr double transportComparisonEpsilon = 1.0e-9;
+
+bool transportValueChanged(double current, double previous) noexcept
+{
+    return std::abs(current - previous) > transportComparisonEpsilon;
+}
+}
+
 SmartVoicingAudioProcessor::SmartVoicingAudioProcessor()
     : juce::AudioProcessor(
           BusesProperties()
@@ -70,12 +82,30 @@ void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     lastPositionSeconds.store(seconds, std::memory_order_relaxed);
     lastPpqPosition.store(ppq, std::memory_order_relaxed);
 
-    SharedHarmonicContextBridge::instance().publishTransport(transportAvailable,
-                                                             seconds,
-                                                             ppq,
-                                                             playing);
+    const auto transportChanged = ! hasPublishedTransport
+                               || transportAvailable != lastPublishedTransportAvailable
+                               || playing != lastPublishedTransportPlaying
+                               || transportValueChanged(seconds, lastPublishedTransportSeconds)
+                               || transportValueChanged(ppq, lastPublishedTransportPpq);
 
-    // Smart Voicing ARA 0.0e is a context reader only.
+    // 0.0f: publish only semantic transport changes. Studio Pro may keep
+    // calling processBlock while stopped; identical STOP snapshots must not
+    // increment Transport revision or touch shared memory unnecessarily.
+    if (transportChanged)
+    {
+        SharedHarmonicContextBridge::instance().publishTransport(transportAvailable,
+                                                                 seconds,
+                                                                 ppq,
+                                                                 playing);
+
+        hasPublishedTransport = true;
+        lastPublishedTransportAvailable = transportAvailable;
+        lastPublishedTransportPlaying = playing;
+        lastPublishedTransportSeconds = seconds;
+        lastPublishedTransportPpq = ppq;
+    }
+
+    // Smart Voicing ARA 0.0f is a context reader only.
     // Audio passes through unchanged and MIDI is not used.
     juce::ignoreUnused(buffer, midiMessages);
 }
