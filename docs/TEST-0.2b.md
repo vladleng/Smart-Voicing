@@ -42,53 +42,28 @@ CI проверяет как минимум:
 - undefined chord;
 - читаемые символы `Dsus4`, `D7sus4`, `D7#11`, `C7b9`, `C7#9`, `C7b13`, slash chord.
 
-## Ручной тест в Studio Pro
+## Результаты пользовательских тестов в Studio Pro — 2026-09-20
 
-1. Установить оба компонента из пакета `Smart Voicing 0.2b`.
-2. Убедиться, что ARA Context продолжает переключать Chord / Key / Time Signature без регрессий.
-3. Проверить несколько аккордов Chord Track, включая major/minor/diminished/sus/slash и altered dominant.
-4. Сверить, что строка `Аккорд:` показывает **нормализованный символ Chord Model**, а не только host display name.
-5. В технической диагностике проверить `Chord model: ... | symbol ... | quality ... | ext flags ... | alt flags ...`.
-6. Коротко проверить старый Router 0.2: четыре канала, Sustain/Voice Stack и отсутствие stuck notes.
+Подтверждено:
 
-## Результат первого теста в Studio Pro — 2026-09-20
+- `A/B` корректно распознаётся как slash chord;
+- diminished корректно определяется как `quality diminished`;
+- `Dsus4` корректно определяется как `quality sus4`;
+- `D7#11` корректно определяется как dominant с extension 11 и alteration `#11`;
+- после перехода UI на `normalizedChordSymbol()` сложный altered dominant `D7#9#11b13` отображается полностью и совпадает с Chord Selector Studio Pro;
+- ARA context продолжает корректно передавать Chord / Key / Time Signature / Tempo;
+- MIDI Router 0.2 после повторной проверки работает штатно: V1–V4 / Ch1–4, Sustain / Voice Stack без выявленных регрессий и stuck notes.
 
-Пользователь проверил `A/B`, diminished, `Dsus4` и `D7#11`.
+## CI
 
-Подтверждено по диагностике:
+- Windows Build #185 — `success`;
+- `SmartVoicingCoreTests` / `ctest` — `success`;
+- пакет `Smart-Voicing-0.2b-Windows` создаётся штатно.
 
-- slash bass `A/B` распознан: root PC 9, bass PC 11, `slash YES`;
-- diminished распознан как `quality diminished`;
-- `Dsus4` уже корректно попадал во внутреннюю модель как `quality sus4`, raw interval mask `0 5 7`;
-- `D7#11` уже корректно попадал во внутреннюю модель как `quality dominant`, `ext flags 18`, `alt flags 16`, то есть b7 + 11 и отдельная #11 alteration.
+## Итог
 
-Обнаруженная проблема относилась не к Chord Model, а к отображению: большая строка `Аккорд:` использовала старый host/context text, который для этих примеров показывал только `D` и `D7`, скрывая `sus4` и `#11`.
+**Smart Voicing 0.2b подтверждена и закрыта 2026-09-20.**
 
-Исправление: добавлен `normalizedChordSymbol()` и UI переведён на символ, построенный из внутренней Chord Model. Raw host text остаётся только как сравнительная диагностика.
+Критерии прохождения выполнены: Chord Model подтверждена автоматическими тестами и реальным Studio Pro тестом, включая sus / extensions / alterations / slash bass; Router 0.2 регрессий не показал.
 
-## Результат повторного теста в Studio Pro — 2026-09-20
-
-Повторный тест обновлённой сборки подтвердил исправление отображения и корректную работу сложного altered dominant.
-
-На контрольном примере Studio Pro Chord Selector задаёт `D7 #9 #11 b13`, а Smart Voicing показывает:
-
-- большая строка `Аккорд: D7#9#11b13`;
-- `Chord model: VALID`;
-- `symbol D7#9#11b13`;
-- `quality dominant`;
-- root PC 2 / bass PC 2;
-- `slash NO`;
-- extensions / alterations сохранены во внутренней модели.
-
-Windows Build #185 завершён `success`; unit-тесты Harmony Core и пакет 0.2b собраны успешно.
-
-На этом Chord Model / normalization / отображение sus, extensions, alterations и slash bass считаются подтверждёнными. Для окончательного закрытия 0.2b остаётся только короткая пользовательская регрессия Router 0.2: четыре Voice на Ch1–4, Sustain/Voice Stack и отсутствие stuck notes.
-
-## Критерий прохождения 0.2b
-
-Версия подтверждается после двух условий:
-
-1. `SmartVoicingCoreTests` успешно проходят в Windows CI — **ВЫПОЛНЕНО**.
-2. Пользователь подтверждает в Studio Pro, что несколько разных Chord Track событий, включая sus / extensions / alterations / slash bass, отображаются и классифицируются ожидаемо, а Router 0.2 не получил регрессий — **Chord Model ВЫПОЛНЕНО; Router regression ОЖИДАЕТСЯ**.
-
-После этого можно переходить к `0.2c — Melody Harmonize MVP + базовый Close voicing`.
+Следующая итерация: `0.2c — Melody Harmonize MVP + базовый Close voicing`.
