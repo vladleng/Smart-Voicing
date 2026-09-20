@@ -118,7 +118,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.2c - Melody Harmonize MVP",
+    titleLabel.setText("Smart Voicing 0.2d - Live Chord Reharmonization",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -176,7 +176,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.2c | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.2d | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -198,7 +198,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     debugLabel.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(debugLabel);
 
-    setSize(900, 1045);
+    setSize(900, 1075);
     refreshContextMonitor();
     startTimerHz(8);
 }
@@ -224,7 +224,7 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.drawRoundedRectangle(modeArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(12);
-    auto midiArea = area.removeFromTop(220);
+    auto midiArea = area.removeFromTop(250);
     g.drawRoundedRectangle(midiArea.toFloat(), 8.0f, 1.0f);
 }
 
@@ -255,7 +255,7 @@ void SmartVoicingInstrumentEditor::resized()
 
     area.removeFromTop(12);
     midiProbeTitleLabel.setBounds(area.removeFromTop(30).reduced(12, 0));
-    midiProbeLabel.setBounds(area.removeFromTop(147).reduced(12, 0));
+    midiProbeLabel.setBounds(area.removeFromTop(177).reduced(12, 0));
     auto buttonRow = area.removeFromTop(32).reduced(12, 0);
     resetMidiStatsButton.setBounds(buttonRow.removeFromLeft(180));
 
@@ -377,11 +377,17 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     if (directRouter)
         midiText << " | distribution: " << distributionModeText(midiProbe.distributionMode);
     else
-        midiText << " | Close voicing from current Chord Track";
+        midiText << " | Close voicing + live Chord Track reharmonization";
     midiText << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
     midiText << "sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
              << " | keys held: " << midiProbe.heldNoteCount
              << " | extra chord notes ignored: " << midiProbe.ignoredExtraNoteCount << "\n";
+    midiText << "reharmonizations: " << counterText(midiProbe.reharmonizationCount);
+    if (midiProbe.lastReharmonizationPpq >= 0.0)
+        midiText << " | last PPQ: " << juce::String(midiProbe.lastReharmonizationPpq, 6);
+    else
+        midiText << " | last PPQ: n/a";
+    midiText << "\n";
     midiText << "events in/out: " << counterText(midiProbe.totalInputEvents)
              << " / " << counterText(midiProbe.totalOutputEvents)
              << " | input channels seen: " << channelsText(midiProbe.channelMask) << "\n";
@@ -400,7 +406,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 3 / 0.2c: ARAContextProvider -> NormalizedChord -> CloseVoicingHarmonizer -> VoiceOutput[4]\n";
+    debugText << "Stage 3 / 0.2d: ARAContextProvider -> NormalizedChord -> CloseVoicing -> LiveReharmonizer -> VoiceOutput[4]\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -428,8 +434,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << " | alt flags " << normalizedChord.alterations << "\n";
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
-              << " | Melody note is authoritative | lower voices from current chord\n";
-    debugText << "0.2c limits: no live held-note reharmonization yet; full Sustain/VoiceStack integration comes in 0.2e\n";
+              << " | V1 melody is immutable | V2-V4 follow current chord live\n";
+    debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
+              << " | current implementation updates at audio-block boundaries\n";
+    debugText << "0.2d limits: basic Close voicing only; no voice-leading engine; full Sustain/VoiceStack integration comes in 0.2e\n";
     debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
