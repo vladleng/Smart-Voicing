@@ -35,6 +35,8 @@ public:
         int lastData1 = 0;
         int lastData2 = 0;
         int heldNoteCount = 0;
+        bool sustainDown = false;
+        bool stableOwnership = false;
         std::array<int, 4> voiceNotes { -1, -1, -1, -1 };
     };
 
@@ -77,7 +79,15 @@ private:
     bool updateHeldNoteFromEvent(const juce::MidiMessageMetadata&) noexcept;
     bool shouldClearHeldNotes(const juce::MidiMessageMetadata&) const noexcept;
     void clearHeldNotes() noexcept;
-    void rebuildVoiceAssignments(int samplePosition);
+
+    void applyVoiceState(int samplePosition);
+    void rebuildRankedAssignments(int samplePosition);
+    void reconcileStableAssignments(int samplePosition);
+    void assignUnownedHeldNotes(int samplePosition);
+    void sendVoiceNoteOn(int voice, int samplePosition);
+    void sendVoiceNoteOff(int voice, int samplePosition);
+    void clearVoiceOwnership(int voice) noexcept;
+    int getActiveVoiceCount() const noexcept;
     void resetRouterState() noexcept;
 
     std::atomic<double> lastPositionSeconds { -1.0 };
@@ -97,13 +107,19 @@ private:
     std::atomic<int> lastMidiData1 { 0 };
     std::atomic<int> lastMidiData2 { 0 };
     std::atomic<int> heldNoteCountForUi { 0 };
+    std::atomic<bool> sustainDownForUi { false };
+    std::atomic<bool> stableOwnershipForUi { false };
     std::array<std::atomic<int>, 4> voiceNotesForUi;
 
     // Audio-thread-owned router state. No locking is required.
     std::array<std::uint8_t, 128> heldNoteCounts {};
     std::array<std::uint8_t, 128> heldNoteVelocities {};
+    std::array<int, 128> noteVoiceOwners {};
     std::array<int, 4> activeVoiceNotes { -1, -1, -1, -1 };
+    std::array<bool, 4> voiceNoteOnActive { false, false, false, false };
     int heldDistinctNoteCount = 0;
+    bool sustainDown = false;
+    bool stableOwnership = false;
 
     // Reused/preallocated output buffer to avoid per-block allocation in the normal path.
     juce::MidiBuffer routedMidi;
