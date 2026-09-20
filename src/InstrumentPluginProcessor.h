@@ -38,6 +38,7 @@ public:
         bool sustainDown = false;
         bool stableOwnership = false;
         std::array<int, 4> voiceNotes { -1, -1, -1, -1 };
+        std::array<int, 4> voiceStackDepths { 0, 0, 0, 0 };
     };
 
     SmartVoicingInstrumentProcessor();
@@ -73,6 +74,10 @@ public:
     void resetMidiProbeStatistics() noexcept;
 
 private:
+    static constexpr int midiNoteCount = 128;
+    static constexpr int voiceCount = 4;
+    static constexpr int maxVoiceStackDepth = midiNoteCount;
+
     void recordMidiInputEventForProbe(const juce::MidiMessageMetadata&) noexcept;
     void addOutputEvent(const std::uint8_t* data, int numBytes, int samplePosition);
     void routeNonNoteEvent(const juce::MidiMessageMetadata&);
@@ -83,10 +88,27 @@ private:
     void applyVoiceState(int samplePosition);
     void rebuildRankedAssignments(int samplePosition);
     void reconcileStableAssignments(int samplePosition);
+    void processPendingRetriggers(int samplePosition);
+    void removeReleasedNotesFromStacks(int samplePosition);
     void assignUnownedHeldNotes(int samplePosition);
-    void sendVoiceNoteOn(int voice, int samplePosition);
-    void sendVoiceNoteOff(int voice, int samplePosition);
-    void clearVoiceOwnership(int voice) noexcept;
+    void assignContinuationNotes(const std::array<int, midiNoteCount>& notes,
+                                 int noteCount,
+                                 std::array<bool, voiceCount>& voiceUsed,
+                                 int samplePosition);
+
+    bool pushNoteToVoice(int voice, int note, int samplePosition);
+    void removeNoteFromVoice(int voice, int note, int samplePosition);
+    void clearVoiceStack(int voice, int samplePosition);
+    void moveOwnedNoteToTop(int voice, int note) noexcept;
+    bool voiceHasPhysicallyHeldNotes(int voice) const noexcept;
+    int chooseNearestVoice(int note,
+                           const std::array<bool, voiceCount>& allowed,
+                           const std::array<bool, voiceCount>& alreadyUsed) const noexcept;
+    int getVoiceTopNote(int voice) const noexcept;
+    void refreshVoiceUi(int voice) noexcept;
+
+    void sendRoutedNoteOn(int voice, int note, int samplePosition);
+    void sendRoutedNoteOff(int voice, int note, int samplePosition);
     int getActiveVoiceCount() const noexcept;
     void resetRouterState() noexcept;
 
@@ -109,15 +131,19 @@ private:
     std::atomic<int> heldNoteCountForUi { 0 };
     std::atomic<bool> sustainDownForUi { false };
     std::atomic<bool> stableOwnershipForUi { false };
-    std::array<std::atomic<int>, 4> voiceNotesForUi;
+    std::array<std::atomic<int>, voiceCount> voiceNotesForUi;
+    std::array<std::atomic<int>, voiceCount> voiceStackDepthsForUi;
 
-    // Audio-thread-owned router state. No locking is required.
-    std::array<std::uint8_t, 128> heldNoteCounts {};
-    std::array<std::uint8_t, 128> heldNoteVelocities {};
-    std::array<int, 128> noteVoiceOwners {};
-    std::array<int, 4> activeVoiceNotes { -1, -1, -1, -1 };
-    std::array<bool, 4> voiceNoteOnActive { false, false, false, false };
-    std::array<bool, 4> voiceReleasedUnderSustain { false, false, false, false };
+    // Audio-thread-owned router state. Fixed-size storage only; no locks/allocations.
+    std::array<std::uint8_t, midiNoteCount> heldNoteCounts {};
+    std::array<std::uint8_t, midiNoteCount> heldNoteVelocities {};
+    std::array<int, midiNoteCount> noteVoiceOwners {};
+    std::array<bool, midiNoteCount> routedNoteActive {};
+    std::array<bool, midiNoteCount> retriggerPending {};
+
+    std::array<std::array<int, maxVoiceStackDepth>, voiceCount> voiceNoteStacks {};
+    std::array<int, voiceCount> voiceStackSizes { 0, 0, 0, 0 };
+
     int heldDistinctNoteCount = 0;
     bool sustainDown = false;
     bool stableOwnership = false;
