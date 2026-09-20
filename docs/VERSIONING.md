@@ -18,11 +18,13 @@
 - `Smart Voicing 0.0f` — change-driven transport и полный интеграционный тест Studio Pro.
 - `Smart Voicing 0.0g` — boundary hardening Chord / Key / Time Signature.
 - `Smart Voicing 0.1` — **завершённый Этап 1: ARA Context Proof of Concept**.
-- `Smart Voicing 0.1a` — MIDI Router Probe: прозрачный pass-through, диагностика MIDI и подтверждение downstream routing в Studio Pro.
-- `Smart Voicing 0.1b` — первый Direct 4 Voice Router: ranked Voice 1–4 через MIDI Channels 1–4.
-- `Smart Voicing 0.1c` — Stable Voice Ownership + sustain-aware state: закрепление Voice slots при движении отдельных голосов и корректная базовая логика CC64.
-- `Smart Voicing 0.1d` — Voice Stack + legato continuation: перекрывающиеся Note On на одном Voice/channel, смена аккорда под Sustain и сохранение физически удерживаемых нот после pedal-up.
-- `Smart Voicing 0.1e` — Voice Distribution Modes + Gesture Classifier: режимы сверху вниз / снизу вверх / заполнить 4 голоса, note-to-Voice mask, строгий максимум 4 Voice для chord gesture и сохранение voice gesture/legato.
+- `Smart Voicing 0.1a` — MIDI Router Probe: pass-through, диагностика MIDI и подтверждение downstream routing.
+- `Smart Voicing 0.1b` — Direct 4 Voice Router через MIDI Channels 1–4.
+- `Smart Voicing 0.1c` — Stable Voice Ownership + sustain-aware state.
+- `Smart Voicing 0.1d` — Voice Stack + legato continuation + Sustain Chord Morph.
+- `Smart Voicing 0.1e` — Distribution Modes + Gesture Classifier + `note → Voice mask` + строгий максимум 4 Voice для chord gesture.
+- `Smart Voicing 0.1f` — **планируемый Router Hardening**: VoiceOutput abstraction, Panic/reset, transport/state regression, stress tests.
+- `Smart Voicing 0.2` — **планируемая финальная версия Этапа 2: MIDI Router**.
 
 ## Текущая структура пакета
 
@@ -45,23 +47,22 @@ Smart Voicing 0.1e/
 
 Оба компонента устанавливаются вместе и считаются одной версией Smart Voicing.
 
-## Текущий этап
+## Версии по этапам
 
-После `0.1` идёт Этап 2 — MIDI Router.
+```text
+Этап 2: 0.1a ... 0.1f → 0.2
+Этап 3: 0.2a ...      → 0.3
+Этап 4: 0.3a ...      → 0.4
+Этап 5: 0.4a ...      → 0.5
+Этап 6: 0.5a ...      → 0.6
+Этап 7: 0.6a ...      → 0.7
+Этап 8: 0.7a ...      → 0.8
+Этап 9: 0.8a ...      → 0.9
+Этап 10: 0.9a ...     → 1.0-rc1
+Этап 11:              → 1.0
+```
 
-Промежуточные версии Этапа 2:
-
-- `0.1a` — MIDI Router Probe;
-- `0.1b` — Direct 4 Voice Router;
-- `0.1c` — Stable Voice Ownership + Sustain;
-- `0.1d` — Voice Stack / Legato + Sustain Chord Morph;
-- `0.1e` — Voice Distribution Modes + Gesture Classifier;
-- при необходимости `0.1f`, `0.1g` и т. д.;
-- после завершения этапа — `0.2`.
-
-Далее схема повторяется аналогично:
-
-`0.2a` → `0.2b` → ... → `0.3`
+Буква последней рабочей версии внутри этапа не фиксирована заранее, кроме текущего плана 0.1f перед 0.2. Дополнительные буквенные версии добавляются только при необходимости.
 
 ## Важное правило
 
