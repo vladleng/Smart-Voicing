@@ -53,6 +53,18 @@ juce::String noteText(int note)
     return name + " (" + juce::String(note) + ")";
 }
 
+juce::String distributionModeText(SmartVoicingInstrumentProcessor::DistributionMode mode)
+{
+    using Mode = SmartVoicingInstrumentProcessor::DistributionMode;
+    switch (mode)
+    {
+        case Mode::topDown:   return juce::String::fromUTF8("Сверху вниз");
+        case Mode::bottomUp:  return juce::String::fromUTF8("Снизу вверх");
+        case Mode::fillFour:  return juce::String::fromUTF8("Заполнить 4 голоса");
+        default:              return "?";
+    }
+}
+
 juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeSnapshot& snapshot)
 {
     using Type = SmartVoicingInstrumentProcessor::MidiProbeEventType;
@@ -94,7 +106,8 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.1d - Voice Stack + Legato", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.1e - Distribution Modes + Gesture Classifier",
+                       juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -116,7 +129,25 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     positionLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(positionLabel);
 
-    midiProbeTitleLabel.setText("MIDI Router 0.1d | Voice Stack / Legato | V1->Ch1 ... V4->Ch4",
+    distributionModeLabel.setText(juce::String::fromUTF8("Распределение:"), juce::dontSendNotification);
+    distributionModeLabel.setJustificationType(juce::Justification::centredLeft);
+    distributionModeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    addAndMakeVisible(distributionModeLabel);
+
+    distributionModeBox.addItem(juce::String::fromUTF8("Сверху вниз"), 1);
+    distributionModeBox.addItem(juce::String::fromUTF8("Снизу вверх"), 2);
+    distributionModeBox.addItem(juce::String::fromUTF8("Заполнить 4 голоса"), 3);
+    distributionModeBox.setSelectedId(static_cast<int>(processor.getDistributionMode()) + 1,
+                                      juce::dontSendNotification);
+    distributionModeBox.onChange = [this]
+    {
+        const auto value = juce::jlimit(0, 2, distributionModeBox.getSelectedId() - 1);
+        processor.setDistributionMode(static_cast<SmartVoicingInstrumentProcessor::DistributionMode>(value));
+        refreshContextMonitor();
+    };
+    addAndMakeVisible(distributionModeBox);
+
+    midiProbeTitleLabel.setText("MIDI Router 0.1e | Gesture Classifier | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -138,7 +169,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     debugLabel.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(debugLabel);
 
-    setSize(900, 920);
+    setSize(900, 965);
     refreshContextMonitor();
     startTimerHz(8);
 }
@@ -159,8 +190,12 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.setColour(getLookAndFeel().findColour(juce::Label::outlineColourId).withAlpha(0.35f));
     g.drawRoundedRectangle(contextArea.toFloat(), 8.0f, 1.0f);
 
-    area.removeFromTop(54);
-    auto midiArea = area.removeFromTop(205);
+    area.removeFromTop(52);
+    auto modeArea = area.removeFromTop(42);
+    g.drawRoundedRectangle(modeArea.toFloat(), 8.0f, 1.0f);
+
+    area.removeFromTop(12);
+    auto midiArea = area.removeFromTop(220);
     g.drawRoundedRectangle(midiArea.toFloat(), 8.0f, 1.0f);
 }
 
@@ -181,8 +216,13 @@ void SmartVoicingInstrumentEditor::resized()
     positionLabel.setBounds(area.removeFromTop(30));
     area.removeFromTop(12);
 
+    auto modeRow = area.removeFromTop(42).reduced(12, 4);
+    distributionModeLabel.setBounds(modeRow.removeFromLeft(130));
+    distributionModeBox.setBounds(modeRow.removeFromLeft(280));
+
+    area.removeFromTop(12);
     midiProbeTitleLabel.setBounds(area.removeFromTop(30).reduced(12, 0));
-    midiProbeLabel.setBounds(area.removeFromTop(132).reduced(12, 0));
+    midiProbeLabel.setBounds(area.removeFromTop(147).reduced(12, 0));
     auto buttonRow = area.removeFromTop(32).reduced(12, 0);
     resetMidiStatsButton.setBounds(buttonRow.removeFromLeft(180));
 
@@ -272,10 +312,16 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     positionLabel.setText(positionText, juce::dontSendNotification);
 
     const auto midiProbe = processor.getMidiProbeSnapshot();
+    const auto desiredSelectedId = static_cast<int>(midiProbe.distributionMode) + 1;
+    if (distributionModeBox.getSelectedId() != desiredSelectedId)
+        distributionModeBox.setSelectedId(desiredSelectedId, juce::dontSendNotification);
+
     juce::String midiText;
-    midiText << "Router: ACTIVE | mode: " << (midiProbe.stableOwnership ? "STABLE" : "RANKING")
-             << " | sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
-             << " | keys held: " << midiProbe.heldNoteCount << "\n";
+    midiText << "Router: ACTIVE | distribution: " << distributionModeText(midiProbe.distributionMode)
+             << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
+    midiText << "sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
+             << " | keys held: " << midiProbe.heldNoteCount
+             << " | extra chord notes ignored: " << midiProbe.ignoredExtraNoteCount << "\n";
     midiText << "events in/out: " << counterText(midiProbe.totalInputEvents)
              << " / " << counterText(midiProbe.totalOutputEvents)
              << " | input channels seen: " << channelsText(midiProbe.channelMask) << "\n";
@@ -294,10 +340,11 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << "Техническая диагностика\n";
-    debugText << "MIDI input/output: YES / YES | 0.1d Voice Stack + legato continuation\n";
-    debugText << "Stable Voice: overlap Note On stays on the same Ch1-4; nearest Voice resolves single-note continuation\n";
-    debugText << "CC64: released notes stay below current note in Voice Stack until pedal-up\n";
-    debugText << "Chord morph: new chord may enter while Sustain is DOWN; held new notes survive pedal-up\n";
+    debugText << "MIDI input/output: YES / YES | 0.1e Distribution Modes + Gesture Classifier\n";
+    debugText << "Chord Gesture: short note group -> max 4-Voice frame; fifth+ chord pitches are ignored\n";
+    debugText << "Voice Gesture: later single/few notes -> nearest stable Voice with same-channel legato overlap\n";
+    debugText << "Fill 4: 1 note = unison x4; 2 notes = 2+2; 3 notes = V4 doubles V3\n";
+    debugText << "CC64: sustain-held notes remain in Voice Stack; next chord may enter before pedal-up\n";
     debugText << "Channel messages: broadcast to Ch1-4 | fixed arrays, no locks/heap work in router state\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
