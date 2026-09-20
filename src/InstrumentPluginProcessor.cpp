@@ -1,18 +1,92 @@
 #include "InstrumentPluginProcessor.h"
 #include "InstrumentPluginEditor.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+
+namespace
+{
+constexpr std::uint8_t statusMask = 0xF0;
+constexpr std::uint8_t channelMask = 0x0F;
+constexpr std::uint8_t noteOffStatus = 0x80;
+constexpr std::uint8_t noteOnStatus = 0x90;
+constexpr std::uint8_t controllerStatus = 0xB0;
+constexpr std::uint8_t pitchBendStatus = 0xE0;
+constexpr std::uint8_t systemStatus = 0xF0;
+constexpr int sustainController = 64;
+constexpr int firstOutputChannel = 1;
+constexpr int midiOutputReserveBytes = 32768;
+constexpr double chordGestureWindowSeconds = 0.045;
+constexpr int stateMagic = 0x53564D32; // "SVM2"
+constexpr int stateVersion = 2;
+
+bool isNoteMessage(const juce::MidiMessageMetadata& metadata) noexcept
+{
+    if (metadata.data == nullptr || metadata.numBytes <= 0)
+        return false;
+
+    const auto status = metadata.data[0];
+    if (status >= systemStatus)
+        return false;
+
+    const auto type = static_cast<std::uint8_t>(status & statusMask);
+    return type == noteOnStatus || type == noteOffStatus;
+}
+
+bool getSustainState(const juce::MidiMessageMetadata& metadata, bool& down) noexcept
+{
+    if (metadata.data == nullptr || metadata.numBytes < 3)
+        return false;
+
+    const auto status = metadata.data[0];
+    if (status >= systemStatus || (status & statusMask) != controllerStatus)
+        return false;
+
+    if (static_cast<int>(metadata.data[1]) != sustainController)
+        return false;
+
+    down = static_cast<int>(metadata.data[2]) >= 64;
+    return true;
+}
+
+std::uint8_t voiceBit(int voice) noexcept
+{
+    return static_cast<std::uint8_t>(1u << static_cast<unsigned int>(voice));
+}
+}
+
 SmartVoicingInstrumentProcessor::SmartVoicingInstrumentProcessor()
     : juce::AudioProcessor(BusesProperties()
                               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    for (auto& stack : voiceNoteStacks)
+        stack.fill(-1);
+
+    for (auto& voiceNote : voiceNotesForUi)
+        voiceNote.store(-1, std::memory_order_relaxed);
+
+    for (auto& depth : voiceStackDepthsForUi)
+        depth.store(0, std::memory_order_relaxed);
 }
 
-void SmartVoicingInstrumentProcessor::prepareToPlay(double, int)
+void SmartVoicingInstrumentProcessor::prepareToPlay(double sampleRate, int)
 {
+    currentSampleRate = sampleRate > 0.0 ? sampleRate : 44100.0;
+    chordGestureWindowSamples = (std::max<std::int64_t>)(1,
+        static_cast<std::int64_t>(std::llround(currentSampleRate * chordGestureWindowSeconds)));
+    processedSampleCounter = 0;
+
+    routedMidi.clear();
+    routedMidi.ensureSize(static_cast<std::size_t>(midiOutputReserveBytes));
+    resetRouterState();
+    resetMidiProbeStatistics();
 }
 
 void SmartVoicingInstrumentProcessor::releaseResources()
 {
+    routedMidi.clear();
+    resetRouterState();
 }
 
 bool SmartVoicingInstrumentProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -39,10 +113,887 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
         }
     }
 
-    // 0.0f is still an ARA/context proof. The Instrument generates no audio
-    // and passes incoming MIDI through unchanged for the next routing stage.
+    routedMidi.clear();
+    const auto blockStartSample = processedSampleCounter;
+
+    const auto requestedModeValue = juce::jlimit(0, 2, requestedDistributionMode.load(std::memory_order_relaxed));
+    const auto requestedMode = static_cast<DistributionMode>(requestedModeValue);
+    if (requestedMode != activeDistributionMode)
+    {
+        // Changing distribution policy is intentionally explicit: stop the old routed
+        // frame at the block boundary and rebuild the currently held notes under the
+        // new policy. This avoids mixed ownership from two modes.
+        for (int voice = 0; voice < voiceCount; ++voice)
+            clearVoiceStack(voice, 0);
+
+        chordFrameNotes.fill(-1);
+        ignoredChordNotes.fill(false);
+        activeDistributionMode = requestedMode;
+        stableOwnership = false;
+        pendingChordFrame = heldDistinctNoteCount > 0;
+        chordGestureStartSample = pendingChordFrame ? blockStartSample : -1;
+    }
+
+    int currentSamplePosition = -1;
+    bool noteStateChangedAtCurrentSample = false;
+
+    const auto flushPendingNoteState = [this, &currentSamplePosition, &noteStateChangedAtCurrentSample]
+    {
+        if (noteStateChangedAtCurrentSample && currentSamplePosition >= 0)
+            applyVoiceState(currentSamplePosition);
+
+        noteStateChangedAtCurrentSample = false;
+    };
+
+    for (const auto metadata : midiMessages)
+    {
+        if (currentSamplePosition >= 0 && metadata.samplePosition != currentSamplePosition)
+            flushPendingNoteState();
+
+        currentSamplePosition = metadata.samplePosition;
+        recordMidiInputEventForProbe(metadata);
+
+        if (isNoteMessage(metadata))
+        {
+            const auto absoluteSample = blockStartSample + static_cast<std::int64_t>(metadata.samplePosition);
+            noteStateChangedAtCurrentSample = updateHeldNoteFromEvent(metadata, absoluteSample)
+                                            || noteStateChangedAtCurrentSample;
+            continue;
+        }
+
+        flushPendingNoteState();
+
+        bool newSustainState = false;
+        if (getSustainState(metadata, newSustainState))
+        {
+            if (newSustainState != sustainDown)
+            {
+                sustainDown = newSustainState;
+                sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
+
+                if (sustainDown)
+                {
+                    stableOwnership = true;
+                }
+                else
+                {
+                    // Pedal-up removes only physically released stack entries. The
+                    // newly held chord remains active.
+                    applyVoiceState(metadata.samplePosition);
+                }
+            }
+
+            routeNonNoteEvent(metadata);
+            continue;
+        }
+
+        routeNonNoteEvent(metadata);
+
+        if (shouldClearHeldNotes(metadata))
+            clearHeldNotes();
+    }
+
+    flushPendingNoteState();
+    midiMessages.swapWith(routedMidi);
+
+    processedSampleCounter += static_cast<std::int64_t>(buffer.getNumSamples());
+
+    // Smart Voicing is a MIDI engine and does not generate audio.
     buffer.clear();
-    juce::ignoreUnused(midiMessages);
+}
+
+bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMessageMetadata& metadata,
+                                                               std::int64_t absoluteSample) noexcept
+{
+    if (metadata.data == nullptr || metadata.numBytes < 2)
+        return false;
+
+    const auto status = metadata.data[0];
+    if (status >= systemStatus)
+        return false;
+
+    const auto type = static_cast<std::uint8_t>(status & statusMask);
+    const auto note = static_cast<int>(metadata.data[1]);
+    const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
+
+    if (note < 0 || note >= midiNoteCount)
+        return false;
+
+    const auto isNoteOn = type == noteOnStatus && velocity > 0;
+    const auto isNoteOff = type == noteOffStatus || (type == noteOnStatus && velocity == 0);
+    const auto noteIndex = static_cast<std::size_t>(note);
+
+    if (isNoteOn)
+    {
+        auto& count = heldNoteCounts[noteIndex];
+        const auto wasPhysicallyUp = count == 0;
+
+        if (wasPhysicallyUp)
+        {
+            // A first physical key after all keys were released starts a new Chord
+            // Gesture even if Sustain is still holding the previous Voice stacks.
+            if (heldDistinctNoteCount == 0)
+            {
+                chordGestureStartSample = absoluteSample;
+                pendingChordFrame = true;
+                chordFrameNotes.fill(-1); // old sustain-held chord becomes background stack state.
+            }
+            else if (chordGestureStartSample >= 0
+                     && absoluteSample - chordGestureStartSample <= chordGestureWindowSamples)
+            {
+                // Notes arriving inside the short gesture window belong to the same
+                // chord frame, not to independent legato continuations.
+                pendingChordFrame = true;
+            }
+            else
+            {
+                // A later note is a Voice Gesture. It will be resolved to the nearest
+                // existing Voice and may create a same-channel legato overlap.
+                chordGestureStartSample = -1;
+            }
+
+            ++heldDistinctNoteCount;
+            ignoredChordNotes[noteIndex] = false;
+        }
+
+        if (count < 255)
+            ++count;
+
+        heldNoteVelocities[noteIndex] = static_cast<std::uint8_t>(velocity);
+
+        // Re-pressing a sustain-held note re-articulates every Voice currently using
+        // that physical pitch (needed for Fill 4 Voices unison/duplication mode).
+        if (wasPhysicallyUp && noteVoiceMasks[noteIndex] != 0)
+            retriggerPending[noteIndex] = true;
+
+        heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
+        return true;
+    }
+
+    if (isNoteOff)
+    {
+        auto& count = heldNoteCounts[noteIndex];
+        if (count == 0)
+            return false;
+
+        --count;
+        if (count == 0)
+        {
+            heldDistinctNoteCount = (std::max)(0, heldDistinctNoteCount - 1);
+            ignoredChordNotes[noteIndex] = false;
+
+            if (chordGestureStartSample >= 0
+                && absoluteSample - chordGestureStartSample <= chordGestureWindowSamples)
+                pendingChordFrame = true;
+        }
+
+        heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
+        return true;
+    }
+
+    return false;
+}
+
+void SmartVoicingInstrumentProcessor::applyVoiceState(int samplePosition)
+{
+    if (pendingChordFrame)
+    {
+        applyChordDistributionFrame(samplePosition);
+        pendingChordFrame = false;
+        stableOwnership = getActiveVoiceCount() > 0;
+    }
+
+    if (stableOwnership)
+        reconcileStableAssignments(samplePosition);
+
+    if (! sustainDown && heldDistinctNoteCount == 0 && getActiveVoiceCount() == 0)
+    {
+        stableOwnership = false;
+        chordGestureStartSample = -1;
+        chordFrameNotes.fill(-1);
+        ignoredChordNotes.fill(false);
+    }
+
+    sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
+    stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
+    updateIgnoredExtraCountForUi();
+}
+
+std::array<int, SmartVoicingInstrumentProcessor::voiceCount>
+SmartVoicingInstrumentProcessor::buildDistributionFrame() const noexcept
+{
+    std::array<int, voiceCount> result { -1, -1, -1, -1 };
+    std::array<int, midiNoteCount> descending {};
+    descending.fill(-1);
+    int count = 0;
+
+    for (int note = midiNoteCount - 1; note >= 0; --note)
+    {
+        if (heldNoteCounts[static_cast<std::size_t>(note)] > 0)
+            descending[static_cast<std::size_t>(count++)] = note;
+    }
+
+    if (count <= 0)
+        return result;
+
+    if (activeDistributionMode == DistributionMode::topDown)
+    {
+        const auto useCount = (std::min)(count, voiceCount);
+        for (int i = 0; i < useCount; ++i)
+            result[static_cast<std::size_t>(i)] = descending[static_cast<std::size_t>(i)];
+        return result;
+    }
+
+    if (activeDistributionMode == DistributionMode::bottomUp)
+    {
+        const auto useCount = (std::min)(count, voiceCount);
+        const auto sourceStart = count - useCount; // choose the lowest four when >4 notes are chord input.
+        const auto voiceStart = voiceCount - useCount;
+        for (int i = 0; i < useCount; ++i)
+            result[static_cast<std::size_t>(voiceStart + i)] =
+                descending[static_cast<std::size_t>(sourceStart + i)];
+        return result;
+    }
+
+    // Fill Four Voices: simple performance-friendly doubling before the later
+    // harmony-aware stages exist.
+    if (count == 1)
+    {
+        result.fill(descending[0]);
+    }
+    else if (count == 2)
+    {
+        result[0] = descending[0];
+        result[1] = descending[0];
+        result[2] = descending[1];
+        result[3] = descending[1];
+    }
+    else if (count == 3)
+    {
+        result[0] = descending[0];
+        result[1] = descending[1];
+        result[2] = descending[2];
+        result[3] = descending[2];
+    }
+    else
+    {
+        for (int i = 0; i < voiceCount; ++i)
+            result[static_cast<std::size_t>(i)] = descending[static_cast<std::size_t>(i)];
+    }
+
+    return result;
+}
+
+void SmartVoicingInstrumentProcessor::applyChordDistributionFrame(int samplePosition)
+{
+    const auto desired = buildDistributionFrame();
+
+    // Remove only the provisional/current chord-frame layer. Older sustain-held
+    // notes from the previous chord stay underneath in the Voice stacks.
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        const auto index = static_cast<std::size_t>(voice);
+        const auto oldNote = chordFrameNotes[index];
+        const auto newNote = desired[index];
+
+        if (oldNote >= 0 && oldNote != newNote && voiceContainsNote(voice, oldNote))
+            removeNoteFromVoice(voice, oldNote, samplePosition);
+
+        chordFrameNotes[index] = -1;
+    }
+
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        const auto index = static_cast<std::size_t>(voice);
+        const auto note = desired[index];
+        if (note < 0)
+            continue;
+
+        if (voiceContainsNote(voice, note))
+        {
+            moveNoteToTop(voice, note);
+            refreshVoiceUi(voice);
+        }
+        else
+        {
+            pushNoteToVoice(voice, note, samplePosition);
+        }
+
+        chordFrameNotes[index] = note;
+    }
+
+    // A Chord Gesture is always limited to four output voices. Any fifth+ physical
+    // pitch not represented in the chosen frame is explicitly ignored until key-up;
+    // it must not accidentally become a second note in one Voice.
+    std::array<bool, midiNoteCount> represented {};
+    for (const auto note : desired)
+    {
+        if (note >= 0)
+            represented[static_cast<std::size_t>(note)] = true;
+    }
+
+    for (int note = 0; note < midiNoteCount; ++note)
+    {
+        const auto index = static_cast<std::size_t>(note);
+        if (heldNoteCounts[index] == 0)
+        {
+            ignoredChordNotes[index] = false;
+            continue;
+        }
+
+        ignoredChordNotes[index] = ! represented[index];
+    }
+
+    processPendingRetriggers(samplePosition);
+}
+
+void SmartVoicingInstrumentProcessor::reconcileStableAssignments(int samplePosition)
+{
+    processPendingRetriggers(samplePosition);
+
+    if (! sustainDown)
+        removeReleasedNotesFromStacks(samplePosition);
+
+    assignUnownedHeldNotes(samplePosition);
+}
+
+void SmartVoicingInstrumentProcessor::processPendingRetriggers(int samplePosition)
+{
+    for (int note = 0; note < midiNoteCount; ++note)
+    {
+        const auto noteIndex = static_cast<std::size_t>(note);
+        if (! retriggerPending[noteIndex])
+            continue;
+
+        retriggerPending[noteIndex] = false;
+        if (heldNoteCounts[noteIndex] == 0)
+            continue;
+
+        const auto mask = noteVoiceMasks[noteIndex];
+        for (int voice = 0; voice < voiceCount; ++voice)
+        {
+            if ((mask & voiceBit(voice)) == 0)
+                continue;
+
+            moveNoteToTop(voice, note);
+            sendRoutedNoteOff(voice, note, samplePosition);
+            sendRoutedNoteOn(voice, note, samplePosition);
+            refreshVoiceUi(voice);
+        }
+    }
+}
+
+void SmartVoicingInstrumentProcessor::removeReleasedNotesFromStacks(int samplePosition)
+{
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        auto& stackSize = voiceStackSizes[static_cast<std::size_t>(voice)];
+        for (int index = stackSize - 1; index >= 0; --index)
+        {
+            const auto note = voiceNoteStacks[static_cast<std::size_t>(voice)][static_cast<std::size_t>(index)];
+            if (note >= 0 && heldNoteCounts[static_cast<std::size_t>(note)] == 0)
+                removeNoteFromVoice(voice, note, samplePosition);
+        }
+    }
+}
+
+void SmartVoicingInstrumentProcessor::assignUnownedHeldNotes(int samplePosition)
+{
+    std::array<bool, voiceCount> voiceUsed {};
+
+    for (int note = midiNoteCount - 1; note >= 0; --note)
+    {
+        const auto noteIndex = static_cast<std::size_t>(note);
+        if (heldNoteCounts[noteIndex] == 0
+            || noteVoiceMasks[noteIndex] != 0
+            || ignoredChordNotes[noteIndex])
+            continue;
+
+        const auto voice = chooseNearestVoice(note, voiceUsed);
+        if (voice < 0)
+        {
+            // More than four simultaneous Voice Gestures in one sample frame are
+            // outside the four-voice contract; ignore the extras deterministically.
+            ignoredChordNotes[noteIndex] = true;
+            continue;
+        }
+
+        if (pushNoteToVoice(voice, note, samplePosition))
+            voiceUsed[static_cast<std::size_t>(voice)] = true;
+    }
+}
+
+int SmartVoicingInstrumentProcessor::chooseNearestVoice(int note,
+                                                         const std::array<bool, voiceCount>& alreadyUsed) const noexcept
+{
+    int bestVoice = -1;
+    int bestDistance = 1000;
+
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        const auto index = static_cast<std::size_t>(voice);
+        if (alreadyUsed[index])
+            continue;
+
+        const auto top = getVoiceTopNote(voice);
+        if (top < 0)
+            continue;
+
+        const auto distance = std::abs(note - top);
+        if (distance < bestDistance)
+        {
+            bestDistance = distance;
+            bestVoice = voice;
+        }
+    }
+
+    if (bestVoice >= 0)
+        return bestVoice;
+
+    // Fallback is mainly for recovery after an All Notes Off/state change. Initial
+    // playing normally enters through a Chord Gesture and never needs this path.
+    if (activeDistributionMode == DistributionMode::bottomUp)
+    {
+        for (int voice = voiceCount - 1; voice >= 0; --voice)
+            if (! alreadyUsed[static_cast<std::size_t>(voice)])
+                return voice;
+    }
+    else
+    {
+        for (int voice = 0; voice < voiceCount; ++voice)
+            if (! alreadyUsed[static_cast<std::size_t>(voice)])
+                return voice;
+    }
+
+    return -1;
+}
+
+bool SmartVoicingInstrumentProcessor::pushNoteToVoice(int voice,
+                                                       int note,
+                                                       int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount || note < 0 || note >= midiNoteCount)
+        return false;
+
+    const auto voiceIndex = static_cast<std::size_t>(voice);
+    const auto noteIndex = static_cast<std::size_t>(note);
+    const auto bit = voiceBit(voice);
+
+    if ((noteVoiceMasks[noteIndex] & bit) != 0)
+    {
+        moveNoteToTop(voice, note);
+        refreshVoiceUi(voice);
+        return true;
+    }
+
+    auto& stackSize = voiceStackSizes[voiceIndex];
+    if (stackSize >= maxVoiceStackDepth)
+        return false;
+
+    voiceNoteStacks[voiceIndex][static_cast<std::size_t>(stackSize++)] = note;
+    noteVoiceMasks[noteIndex] = static_cast<std::uint8_t>(noteVoiceMasks[noteIndex] | bit);
+    ignoredChordNotes[noteIndex] = false;
+
+    sendRoutedNoteOn(voice, note, samplePosition);
+    refreshVoiceUi(voice);
+    return true;
+}
+
+void SmartVoicingInstrumentProcessor::removeNoteFromVoice(int voice,
+                                                           int note,
+                                                           int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount || note < 0 || note >= midiNoteCount)
+        return;
+
+    const auto voiceIndex = static_cast<std::size_t>(voice);
+    auto& stackSize = voiceStackSizes[voiceIndex];
+    int foundIndex = -1;
+
+    for (int i = 0; i < stackSize; ++i)
+    {
+        if (voiceNoteStacks[voiceIndex][static_cast<std::size_t>(i)] == note)
+        {
+            foundIndex = i;
+            break;
+        }
+    }
+
+    if (foundIndex < 0)
+        return;
+
+    sendRoutedNoteOff(voice, note, samplePosition);
+
+    for (int i = foundIndex; i + 1 < stackSize; ++i)
+        voiceNoteStacks[voiceIndex][static_cast<std::size_t>(i)] =
+            voiceNoteStacks[voiceIndex][static_cast<std::size_t>(i + 1)];
+
+    --stackSize;
+    voiceNoteStacks[voiceIndex][static_cast<std::size_t>(stackSize)] = -1;
+
+    const auto noteIndex = static_cast<std::size_t>(note);
+    noteVoiceMasks[noteIndex] = static_cast<std::uint8_t>(noteVoiceMasks[noteIndex] & ~voiceBit(voice));
+
+    if (chordFrameNotes[voiceIndex] == note)
+        chordFrameNotes[voiceIndex] = -1;
+
+    if (noteVoiceMasks[noteIndex] == 0)
+    {
+        retriggerPending[noteIndex] = false;
+        if (heldNoteCounts[noteIndex] == 0)
+            heldNoteVelocities[noteIndex] = 0;
+    }
+
+    refreshVoiceUi(voice);
+}
+
+void SmartVoicingInstrumentProcessor::clearVoiceStack(int voice, int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount)
+        return;
+
+    while (voiceStackSizes[static_cast<std::size_t>(voice)] > 0)
+    {
+        const auto note = getVoiceTopNote(voice);
+        if (note < 0)
+            break;
+        removeNoteFromVoice(voice, note, samplePosition);
+    }
+}
+
+void SmartVoicingInstrumentProcessor::moveNoteToTop(int voice, int note) noexcept
+{
+    if (voice < 0 || voice >= voiceCount || note < 0 || note >= midiNoteCount)
+        return;
+
+    const auto voiceIndex = static_cast<std::size_t>(voice);
+    const auto stackSize = voiceStackSizes[voiceIndex];
+    int foundIndex = -1;
+
+    for (int i = 0; i < stackSize; ++i)
+    {
+        if (voiceNoteStacks[voiceIndex][static_cast<std::size_t>(i)] == note)
+        {
+            foundIndex = i;
+            break;
+        }
+    }
+
+    if (foundIndex < 0 || foundIndex == stackSize - 1)
+        return;
+
+    for (int i = foundIndex; i + 1 < stackSize; ++i)
+        voiceNoteStacks[voiceIndex][static_cast<std::size_t>(i)] =
+            voiceNoteStacks[voiceIndex][static_cast<std::size_t>(i + 1)];
+
+    voiceNoteStacks[voiceIndex][static_cast<std::size_t>(stackSize - 1)] = note;
+}
+
+bool SmartVoicingInstrumentProcessor::voiceContainsNote(int voice, int note) const noexcept
+{
+    if (voice < 0 || voice >= voiceCount || note < 0 || note >= midiNoteCount)
+        return false;
+
+    return (noteVoiceMasks[static_cast<std::size_t>(note)] & voiceBit(voice)) != 0;
+}
+
+int SmartVoicingInstrumentProcessor::getVoiceTopNote(int voice) const noexcept
+{
+    if (voice < 0 || voice >= voiceCount)
+        return -1;
+
+    const auto voiceIndex = static_cast<std::size_t>(voice);
+    const auto stackSize = voiceStackSizes[voiceIndex];
+    if (stackSize <= 0)
+        return -1;
+
+    return voiceNoteStacks[voiceIndex][static_cast<std::size_t>(stackSize - 1)];
+}
+
+void SmartVoicingInstrumentProcessor::refreshVoiceUi(int voice) noexcept
+{
+    if (voice < 0 || voice >= voiceCount)
+        return;
+
+    const auto index = static_cast<std::size_t>(voice);
+    voiceNotesForUi[index].store(getVoiceTopNote(voice), std::memory_order_relaxed);
+    voiceStackDepthsForUi[index].store(voiceStackSizes[index], std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::sendRoutedNoteOn(int voice,
+                                                        int note,
+                                                        int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount || note < 0 || note >= midiNoteCount)
+        return;
+
+    const auto noteIndex = static_cast<std::size_t>(note);
+    const auto bit = voiceBit(voice);
+    const auto velocity = heldNoteVelocities[noteIndex];
+    const std::uint8_t bytes[3] {
+        static_cast<std::uint8_t>(noteOnStatus | ((firstOutputChannel + voice - 1) & channelMask)),
+        static_cast<std::uint8_t>(note),
+        velocity > 0 ? velocity : static_cast<std::uint8_t>(1)
+    };
+
+    addOutputEvent(bytes, 3, samplePosition);
+    routedNoteVoiceMasks[noteIndex] = static_cast<std::uint8_t>(routedNoteVoiceMasks[noteIndex] | bit);
+}
+
+void SmartVoicingInstrumentProcessor::sendRoutedNoteOff(int voice,
+                                                         int note,
+                                                         int samplePosition)
+{
+    if (voice < 0 || voice >= voiceCount || note < 0 || note >= midiNoteCount)
+        return;
+
+    const auto noteIndex = static_cast<std::size_t>(note);
+    const auto bit = voiceBit(voice);
+    if ((routedNoteVoiceMasks[noteIndex] & bit) == 0)
+        return;
+
+    const std::uint8_t bytes[3] {
+        static_cast<std::uint8_t>(noteOffStatus | ((firstOutputChannel + voice - 1) & channelMask)),
+        static_cast<std::uint8_t>(note),
+        0
+    };
+
+    addOutputEvent(bytes, 3, samplePosition);
+    routedNoteVoiceMasks[noteIndex] = static_cast<std::uint8_t>(routedNoteVoiceMasks[noteIndex] & ~bit);
+}
+
+int SmartVoicingInstrumentProcessor::getActiveVoiceCount() const noexcept
+{
+    int count = 0;
+    for (const auto stackSize : voiceStackSizes)
+    {
+        if (stackSize > 0)
+            ++count;
+    }
+    return count;
+}
+
+void SmartVoicingInstrumentProcessor::routeNonNoteEvent(const juce::MidiMessageMetadata& metadata)
+{
+    if (metadata.data == nullptr || metadata.numBytes <= 0)
+        return;
+
+    const auto status = metadata.data[0];
+
+    if (status < systemStatus)
+    {
+        if (metadata.numBytes > 3)
+            return;
+
+        std::uint8_t bytes[3] { 0, 0, 0 };
+        for (int i = 0; i < metadata.numBytes; ++i)
+            bytes[i] = metadata.data[i];
+
+        for (int voice = 0; voice < voiceCount; ++voice)
+        {
+            bytes[0] = static_cast<std::uint8_t>((status & statusMask)
+                                                | ((firstOutputChannel + voice - 1) & channelMask));
+            addOutputEvent(bytes, metadata.numBytes, metadata.samplePosition);
+        }
+        return;
+    }
+
+    routedMidi.addEvent(metadata.data, metadata.numBytes, metadata.samplePosition);
+    midiTotalOutputEvents.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool SmartVoicingInstrumentProcessor::shouldClearHeldNotes(const juce::MidiMessageMetadata& metadata) const noexcept
+{
+    if (metadata.data == nullptr || metadata.numBytes < 2)
+        return false;
+
+    const auto status = metadata.data[0];
+    if (status >= systemStatus || (status & statusMask) != controllerStatus)
+        return false;
+
+    const auto controller = static_cast<int>(metadata.data[1]);
+    return controller == 120 || controller == 123;
+}
+
+void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
+{
+    heldNoteCounts.fill(0);
+    heldNoteVelocities.fill(0);
+    noteVoiceMasks.fill(0);
+    routedNoteVoiceMasks.fill(0);
+    retriggerPending.fill(false);
+    ignoredChordNotes.fill(false);
+
+    for (auto& stack : voiceNoteStacks)
+        stack.fill(-1);
+    voiceStackSizes.fill(0);
+    chordFrameNotes.fill(-1);
+
+    heldDistinctNoteCount = 0;
+    sustainDown = false;
+    stableOwnership = false;
+    pendingChordFrame = false;
+    chordGestureStartSample = -1;
+
+    heldNoteCountForUi.store(0, std::memory_order_relaxed);
+    ignoredExtraNoteCountForUi.store(0, std::memory_order_relaxed);
+    sustainDownForUi.store(false, std::memory_order_relaxed);
+    stableOwnershipForUi.store(false, std::memory_order_relaxed);
+
+    for (int voice = 0; voice < voiceCount; ++voice)
+        refreshVoiceUi(voice);
+}
+
+void SmartVoicingInstrumentProcessor::updateIgnoredExtraCountForUi() noexcept
+{
+    int count = 0;
+    for (int note = 0; note < midiNoteCount; ++note)
+    {
+        const auto index = static_cast<std::size_t>(note);
+        if (ignoredChordNotes[index] && heldNoteCounts[index] > 0)
+            ++count;
+    }
+    ignoredExtraNoteCountForUi.store(count, std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::addOutputEvent(const std::uint8_t* data,
+                                                      int numBytes,
+                                                      int samplePosition)
+{
+    routedMidi.addEvent(data, numBytes, samplePosition);
+    midiTotalOutputEvents.fetch_add(1, std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::recordMidiInputEventForProbe(const juce::MidiMessageMetadata& metadata) noexcept
+{
+    midiTotalInputEvents.fetch_add(1, std::memory_order_relaxed);
+
+    if (metadata.data == nullptr || metadata.numBytes <= 0)
+    {
+        midiOtherEvents.fetch_add(1, std::memory_order_relaxed);
+        lastMidiEventType.store(static_cast<int>(MidiProbeEventType::systemOrOther), std::memory_order_relaxed);
+        lastMidiChannel.store(0, std::memory_order_relaxed);
+        lastMidiData1.store(0, std::memory_order_relaxed);
+        lastMidiData2.store(0, std::memory_order_relaxed);
+        midiRevision.fetch_add(1, std::memory_order_release);
+        return;
+    }
+
+    const auto status = metadata.data[0];
+    const auto messageType = static_cast<std::uint8_t>(status & statusMask);
+    const auto data1 = metadata.numBytes > 1 ? static_cast<int>(metadata.data[1]) : 0;
+    const auto data2 = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
+
+    auto eventType = MidiProbeEventType::systemOrOther;
+    auto channel = 0;
+
+    if (status < systemStatus)
+    {
+        channel = static_cast<int>(status & channelMask) + 1;
+        midiChannelMask.fetch_or(1u << static_cast<unsigned int>(channel - 1), std::memory_order_relaxed);
+
+        if (messageType == noteOnStatus && data2 > 0)
+        {
+            eventType = MidiProbeEventType::noteOn;
+            midiNoteOnEvents.fetch_add(1, std::memory_order_relaxed);
+        }
+        else if (messageType == noteOffStatus || (messageType == noteOnStatus && data2 == 0))
+        {
+            eventType = MidiProbeEventType::noteOff;
+            midiNoteOffEvents.fetch_add(1, std::memory_order_relaxed);
+        }
+        else if (messageType == controllerStatus)
+        {
+            eventType = MidiProbeEventType::controller;
+            midiControllerEvents.fetch_add(1, std::memory_order_relaxed);
+        }
+        else if (messageType == pitchBendStatus)
+        {
+            eventType = MidiProbeEventType::pitchBend;
+            midiPitchBendEvents.fetch_add(1, std::memory_order_relaxed);
+        }
+        else
+        {
+            eventType = MidiProbeEventType::otherChannel;
+            midiOtherEvents.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+    else
+    {
+        midiOtherEvents.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    lastMidiEventType.store(static_cast<int>(eventType), std::memory_order_relaxed);
+    lastMidiChannel.store(channel, std::memory_order_relaxed);
+    lastMidiData1.store(data1, std::memory_order_relaxed);
+    lastMidiData2.store(data2, std::memory_order_relaxed);
+    midiRevision.fetch_add(1, std::memory_order_release);
+}
+
+SmartVoicingInstrumentProcessor::MidiProbeSnapshot SmartVoicingInstrumentProcessor::getMidiProbeSnapshot() const noexcept
+{
+    MidiProbeSnapshot snapshot;
+    snapshot.revision = midiRevision.load(std::memory_order_acquire);
+    snapshot.totalInputEvents = midiTotalInputEvents.load(std::memory_order_relaxed);
+    snapshot.totalOutputEvents = midiTotalOutputEvents.load(std::memory_order_relaxed);
+    snapshot.noteOnEvents = midiNoteOnEvents.load(std::memory_order_relaxed);
+    snapshot.noteOffEvents = midiNoteOffEvents.load(std::memory_order_relaxed);
+    snapshot.controllerEvents = midiControllerEvents.load(std::memory_order_relaxed);
+    snapshot.pitchBendEvents = midiPitchBendEvents.load(std::memory_order_relaxed);
+    snapshot.otherEvents = midiOtherEvents.load(std::memory_order_relaxed);
+    snapshot.channelMask = midiChannelMask.load(std::memory_order_relaxed);
+    snapshot.lastEventType = static_cast<MidiProbeEventType>(lastMidiEventType.load(std::memory_order_relaxed));
+    snapshot.lastChannel = lastMidiChannel.load(std::memory_order_relaxed);
+    snapshot.lastData1 = lastMidiData1.load(std::memory_order_relaxed);
+    snapshot.lastData2 = lastMidiData2.load(std::memory_order_relaxed);
+    snapshot.heldNoteCount = heldNoteCountForUi.load(std::memory_order_relaxed);
+    snapshot.ignoredExtraNoteCount = ignoredExtraNoteCountForUi.load(std::memory_order_relaxed);
+    snapshot.sustainDown = sustainDownForUi.load(std::memory_order_relaxed);
+    snapshot.stableOwnership = stableOwnershipForUi.load(std::memory_order_relaxed);
+    snapshot.distributionMode = getDistributionMode();
+
+    for (std::size_t i = 0; i < snapshot.voiceNotes.size(); ++i)
+    {
+        snapshot.voiceNotes[i] = voiceNotesForUi[i].load(std::memory_order_relaxed);
+        snapshot.voiceStackDepths[i] = voiceStackDepthsForUi[i].load(std::memory_order_relaxed);
+    }
+
+    return snapshot;
+}
+
+void SmartVoicingInstrumentProcessor::resetMidiProbeStatistics() noexcept
+{
+    midiRevision.store(0, std::memory_order_relaxed);
+    midiTotalInputEvents.store(0, std::memory_order_relaxed);
+    midiTotalOutputEvents.store(0, std::memory_order_relaxed);
+    midiNoteOnEvents.store(0, std::memory_order_relaxed);
+    midiNoteOffEvents.store(0, std::memory_order_relaxed);
+    midiControllerEvents.store(0, std::memory_order_relaxed);
+    midiPitchBendEvents.store(0, std::memory_order_relaxed);
+    midiOtherEvents.store(0, std::memory_order_relaxed);
+    midiChannelMask.store(0, std::memory_order_relaxed);
+    lastMidiEventType.store(static_cast<int>(MidiProbeEventType::none), std::memory_order_relaxed);
+    lastMidiChannel.store(0, std::memory_order_relaxed);
+    lastMidiData1.store(0, std::memory_order_relaxed);
+    lastMidiData2.store(0, std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::setDistributionMode(DistributionMode mode) noexcept
+{
+    const auto value = juce::jlimit(0, 2, static_cast<int>(mode));
+    requestedDistributionMode.store(value, std::memory_order_release);
+}
+
+SmartVoicingInstrumentProcessor::DistributionMode SmartVoicingInstrumentProcessor::getDistributionMode() const noexcept
+{
+    const auto value = juce::jlimit(0, 2, requestedDistributionMode.load(std::memory_order_acquire));
+    return static_cast<DistributionMode>(value);
+}
+
+void SmartVoicingInstrumentProcessor::resetRouterState() noexcept
+{
+    clearHeldNotes();
+    activeDistributionMode = getDistributionMode();
 }
 
 juce::AudioProcessorEditor* SmartVoicingInstrumentProcessor::createEditor()
@@ -52,12 +1003,26 @@ juce::AudioProcessorEditor* SmartVoicingInstrumentProcessor::createEditor()
 
 void SmartVoicingInstrumentProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    static constexpr char state[] = "SmartVoicingInstrumentStateV1";
-    destData.replaceAll(state, sizeof(state));
+    juce::MemoryOutputStream stream(destData, false);
+    stream.writeInt(stateMagic);
+    stream.writeInt(stateVersion);
+    stream.writeInt(static_cast<int>(getDistributionMode()));
 }
 
-void SmartVoicingInstrumentProcessor::setStateInformation(const void*, int)
+void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
+    if (data == nullptr || sizeInBytes < 12)
+        return;
+
+    juce::MemoryInputStream stream(data, static_cast<std::size_t>(sizeInBytes), false);
+    if (stream.readInt() != stateMagic)
+        return;
+
+    const auto version = stream.readInt();
+    if (version < 2)
+        return;
+
+    setDistributionMode(static_cast<DistributionMode>(juce::jlimit(0, 2, stream.readInt())));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

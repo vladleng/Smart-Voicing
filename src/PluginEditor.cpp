@@ -17,7 +17,7 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing ARA 0.1", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing ARA 0.2", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -79,20 +79,33 @@ void SmartVoicingAudioProcessorEditor::refreshDebugText()
     text << "Bar Signatures: "
          << availabilityText(local.barSignaturesAvailable, local.barSignatureEventCount) << "\n\n";
 
-    const auto seconds = processor.getLastPositionSecondsForDebug();
-    const auto ppq = processor.getLastPpqPositionForDebug();
-    text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 6) : "n/a") << "\n";
-    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 9) : "n/a") << "\n";
-    text << "Shared transport: "
-         << (context.transportAvailable ? "AVAILABLE" : "n/a")
-         << " | " << (context.transportPlaying ? "PLAY" : "STOP") << "\n";
-    text << "Transport publish: changes only\n";
-    text << smartvoicing::debug::boundaryDiagnostics(context, ppq) << "\n\n";
+    text << "Transport local: ";
+    if (processor.getLastPpqPositionForDebug() >= 0.0)
+        text << "PPQ " << juce::String(processor.getLastPpqPositionForDebug(), 6);
+    else
+        text << "n/a";
 
-    text << smartvoicing::debug::activeContextText(context, ppq) << "\n";
-    text << smartvoicing::debug::timelinePreview(context) << "\n";
+    if (processor.getLastPositionSecondsForDebug() >= 0.0)
+        text << " | " << juce::String(processor.getLastPositionSecondsForDebug(), 6) << " sec";
 
-    text << juce::String(L"\u041A\u043E\u0434\u0438\u0440\u043E\u0432\u043A\u0430: \u041E\u041A");
+    text << "\nShared transport: ";
+    if (context.transportAvailable)
+    {
+        text << (context.transportPlaying ? "PLAY" : "STOP")
+             << " | PPQ " << juce::String(context.transportPpq, 6)
+             << " | " << juce::String(context.transportSeconds, 6) << " sec";
+    }
+    else
+    {
+        text << "n/a";
+    }
+
+    text << "\n\n";
+    text << smartvoicing::debug::boundaryDiagnostics(context,
+                                                      context.transportAvailable ? context.transportPpq
+                                                                                 : processor.getLastPpqPositionForDebug());
+    text << "\n\n";
+    text << smartvoicing::debug::timelinePreview(context);
 
     statusLabel.setText(text, juce::dontSendNotification);
 }
