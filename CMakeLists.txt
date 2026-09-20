@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.2.3
+    VERSION 0.2.4
     DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
 
@@ -66,6 +66,8 @@ target_sources(SmartVoicing
         src/ChordModel.h
         src/CloseVoicingHarmonizer.cpp
         src/CloseVoicingHarmonizer.h
+        src/LiveReharmonizer.cpp
+        src/LiveReharmonizer.h
         src/ARAContextProvider.cpp
         src/ARAContextProvider.h
         src/InstrumentPluginProcessor.cpp
@@ -155,10 +157,26 @@ add_executable(SmartVoicingHarmonizerTests
 target_include_directories(SmartVoicingHarmonizerTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(SmartVoicingHarmonizerTests PRIVATE cxx_std_20)
 
+add_executable(SmartVoicingLiveReharmonizerTests
+    tests/LiveReharmonizerTests.cpp
+    src/ChordModel.cpp
+    src/ChordModel.h
+    src/CloseVoicingHarmonizer.cpp
+    src/CloseVoicingHarmonizer.h
+    src/LiveReharmonizer.cpp
+    src/LiveReharmonizer.h
+    src/HarmonicContext.h
+)
+
+target_include_directories(SmartVoicingLiveReharmonizerTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingLiveReharmonizerTests PRIVATE cxx_std_20)
+
 if(MSVC)
     target_compile_options(SmartVoicingCoreTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingHarmonizerTests PRIVATE /utf-8)
+    target_compile_options(SmartVoicingLiveReharmonizerTests PRIVATE /utf-8)
 endif()
 
 add_test(NAME SmartVoicingCoreTests COMMAND SmartVoicingCoreTests)
 add_test(NAME SmartVoicingHarmonizerTests COMMAND SmartVoicingHarmonizerTests)
+add_test(NAME SmartVoicingLiveReharmonizerTests COMMAND SmartVoicingLiveReharmonizerTests)
