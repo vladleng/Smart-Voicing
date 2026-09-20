@@ -19,6 +19,13 @@ public:
         systemOrOther
     };
 
+    enum class DistributionMode : int
+    {
+        topDown = 0,
+        bottomUp,
+        fillFour
+    };
+
     struct MidiProbeSnapshot
     {
         std::uint32_t revision = 0;
@@ -31,10 +38,12 @@ public:
         std::uint32_t otherEvents = 0;
         std::uint32_t channelMask = 0;
         MidiProbeEventType lastEventType = MidiProbeEventType::none;
+        DistributionMode distributionMode = DistributionMode::topDown;
         int lastChannel = 0;
         int lastData1 = 0;
         int lastData2 = 0;
         int heldNoteCount = 0;
+        int ignoredExtraNoteCount = 0;
         bool sustainDown = false;
         bool stableOwnership = false;
         std::array<int, 4> voiceNotes { -1, -1, -1, -1 };
@@ -73,6 +82,9 @@ public:
     MidiProbeSnapshot getMidiProbeSnapshot() const noexcept;
     void resetMidiProbeStatistics() noexcept;
 
+    void setDistributionMode(DistributionMode mode) noexcept;
+    DistributionMode getDistributionMode() const noexcept;
+
 private:
     static constexpr int midiNoteCount = 128;
     static constexpr int voiceCount = 4;
@@ -81,36 +93,34 @@ private:
     void recordMidiInputEventForProbe(const juce::MidiMessageMetadata&) noexcept;
     void addOutputEvent(const std::uint8_t* data, int numBytes, int samplePosition);
     void routeNonNoteEvent(const juce::MidiMessageMetadata&);
-    bool updateHeldNoteFromEvent(const juce::MidiMessageMetadata&) noexcept;
+    bool updateHeldNoteFromEvent(const juce::MidiMessageMetadata&, std::int64_t absoluteSample) noexcept;
     bool shouldClearHeldNotes(const juce::MidiMessageMetadata&) const noexcept;
     void clearHeldNotes() noexcept;
 
     void applyVoiceState(int samplePosition);
-    void rebuildRankedAssignments(int samplePosition);
+    void applyChordDistributionFrame(int samplePosition);
     void reconcileStableAssignments(int samplePosition);
     void processPendingRetriggers(int samplePosition);
     void removeReleasedNotesFromStacks(int samplePosition);
     void assignUnownedHeldNotes(int samplePosition);
-    void assignContinuationNotes(const std::array<int, midiNoteCount>& notes,
-                                 int noteCount,
-                                 std::array<bool, voiceCount>& voiceUsed,
-                                 int samplePosition);
+
+    std::array<int, voiceCount> buildDistributionFrame() const noexcept;
+    int chooseNearestVoice(int note,
+                           const std::array<bool, voiceCount>& alreadyUsed) const noexcept;
 
     bool pushNoteToVoice(int voice, int note, int samplePosition);
     void removeNoteFromVoice(int voice, int note, int samplePosition);
     void clearVoiceStack(int voice, int samplePosition);
-    void moveOwnedNoteToTop(int voice, int note) noexcept;
-    bool voiceHasPhysicallyHeldNotes(int voice) const noexcept;
-    int chooseNearestVoice(int note,
-                           const std::array<bool, voiceCount>& allowed,
-                           const std::array<bool, voiceCount>& alreadyUsed) const noexcept;
+    void moveNoteToTop(int voice, int note) noexcept;
     int getVoiceTopNote(int voice) const noexcept;
     void refreshVoiceUi(int voice) noexcept;
+    bool voiceContainsNote(int voice, int note) const noexcept;
 
     void sendRoutedNoteOn(int voice, int note, int samplePosition);
     void sendRoutedNoteOff(int voice, int note, int samplePosition);
     int getActiveVoiceCount() const noexcept;
     void resetRouterState() noexcept;
+    void updateIgnoredExtraCountForUi() noexcept;
 
     std::atomic<double> lastPositionSeconds { -1.0 };
     std::atomic<double> lastPpqPosition { -1.0 };
@@ -129,24 +139,35 @@ private:
     std::atomic<int> lastMidiData1 { 0 };
     std::atomic<int> lastMidiData2 { 0 };
     std::atomic<int> heldNoteCountForUi { 0 };
+    std::atomic<int> ignoredExtraNoteCountForUi { 0 };
     std::atomic<bool> sustainDownForUi { false };
     std::atomic<bool> stableOwnershipForUi { false };
+    std::atomic<int> requestedDistributionMode { static_cast<int>(DistributionMode::topDown) };
     std::array<std::atomic<int>, voiceCount> voiceNotesForUi;
     std::array<std::atomic<int>, voiceCount> voiceStackDepthsForUi;
 
     // Audio-thread-owned router state. Fixed-size storage only; no locks/allocations.
     std::array<std::uint8_t, midiNoteCount> heldNoteCounts {};
     std::array<std::uint8_t, midiNoteCount> heldNoteVelocities {};
-    std::array<int, midiNoteCount> noteVoiceOwners {};
-    std::array<bool, midiNoteCount> routedNoteActive {};
+    std::array<std::uint8_t, midiNoteCount> noteVoiceMasks {};
+    std::array<std::uint8_t, midiNoteCount> routedNoteVoiceMasks {};
     std::array<bool, midiNoteCount> retriggerPending {};
+    std::array<bool, midiNoteCount> ignoredChordNotes {};
 
     std::array<std::array<int, maxVoiceStackDepth>, voiceCount> voiceNoteStacks {};
     std::array<int, voiceCount> voiceStackSizes { 0, 0, 0, 0 };
+    std::array<int, voiceCount> chordFrameNotes { -1, -1, -1, -1 };
 
     int heldDistinctNoteCount = 0;
     bool sustainDown = false;
     bool stableOwnership = false;
+    bool pendingChordFrame = false;
+    DistributionMode activeDistributionMode = DistributionMode::topDown;
+
+    double currentSampleRate = 44100.0;
+    std::int64_t processedSampleCounter = 0;
+    std::int64_t chordGestureStartSample = -1;
+    std::int64_t chordGestureWindowSamples = 1985; // 45 ms at 44.1 kHz; recalculated in prepareToPlay.
 
     // Reused/preallocated output buffer to avoid per-block allocation in the normal path.
     juce::MidiBuffer routedMidi;
