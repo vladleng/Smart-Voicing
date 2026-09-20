@@ -228,7 +228,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
 
     text << "Chord map (" << context.sheetChordStoredCount
          << "/" << context.sheetChordEventCount << "): ";
-    const auto chordPreviewCount = std::min(context.sheetChordStoredCount, 8);
+    const auto chordPreviewCount = (std::min)(context.sheetChordStoredCount, 8);
     for (int i = 0; i < chordPreviewCount; ++i)
     {
         if (i > 0)
@@ -242,7 +242,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
 
     text << "Key map (" << context.keySignatureStoredCount
          << "/" << context.keySignatureEventCount << "): ";
-    const auto keyPreviewCount = std::min(context.keySignatureStoredCount, 6);
+    const auto keyPreviewCount = (std::min)(context.keySignatureStoredCount, 6);
     for (int i = 0; i < keyPreviewCount; ++i)
     {
         if (i > 0)
@@ -256,7 +256,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
 
     text << "Time-signature map (" << context.barSignatureStoredCount
          << "/" << context.barSignatureEventCount << "): ";
-    const auto barPreviewCount = std::min(context.barSignatureStoredCount, 6);
+    const auto barPreviewCount = (std::min)(context.barSignatureStoredCount, 6);
     for (int i = 0; i < barPreviewCount; ++i)
     {
         if (i > 0)
@@ -271,7 +271,7 @@ inline juce::String timelinePreview(const SharedHarmonicContextSnapshot& context
 
     text << "Tempo map (" << context.tempoEntryStoredCount
          << "/" << context.tempoEntryEventCount << "): ";
-    const auto tempoPreviewCount = std::min(context.tempoEntryStoredCount, 4);
+    const auto tempoPreviewCount = (std::min)(context.tempoEntryStoredCount, 4);
     for (int i = 0; i < tempoPreviewCount; ++i)
     {
         if (i > 0)
