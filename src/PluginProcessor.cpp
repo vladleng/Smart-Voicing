@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "SharedHarmonicContext.h"
 
 #if JucePlugin_Enable_ARA
 #include "ARAContextDocumentController.h"
@@ -11,6 +12,9 @@ SmartVoicingAudioProcessor::SmartVoicingAudioProcessor()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    // Prepare the shared writer outside processBlock so transport publication
+    // stays allocation-free and lock-free in the audio callback.
+    SharedHarmonicContextBridge::instance().prepareWriter();
 }
 
 void SmartVoicingAudioProcessor::prepareToPlay(double, int)
@@ -38,19 +42,40 @@ void SmartVoicingAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 {
     juce::ScopedNoDenormals noDenormals;
 
-    if (auto* playHead = getPlayHead())
-    {
-        if (const auto position = playHead->getPosition())
-        {
-            if (const auto seconds = position->getTimeInSeconds())
-                lastPositionSeconds.store(*seconds, std::memory_order_relaxed);
+    double seconds = -1.0;
+    double ppq = -1.0;
+    bool playing = false;
+    bool transportAvailable = false;
 
-            if (const auto ppq = position->getPpqPosition())
-                lastPpqPosition.store(*ppq, std::memory_order_relaxed);
+    if (auto* hostPlayHead = getPlayHead())
+    {
+        if (const auto position = hostPlayHead->getPosition())
+        {
+            if (const auto timeInSeconds = position->getTimeInSeconds())
+            {
+                seconds = *timeInSeconds;
+                transportAvailable = true;
+            }
+
+            if (const auto ppqPosition = position->getPpqPosition())
+            {
+                ppq = *ppqPosition;
+                transportAvailable = true;
+            }
+
+            playing = position->getIsPlaying();
         }
     }
 
-    // Smart Voicing ARA 0.0c is a context reader only.
+    lastPositionSeconds.store(seconds, std::memory_order_relaxed);
+    lastPpqPosition.store(ppq, std::memory_order_relaxed);
+
+    SharedHarmonicContextBridge::instance().publishTransport(transportAvailable,
+                                                             seconds,
+                                                             ppq,
+                                                             playing);
+
+    // Smart Voicing ARA 0.0e is a context reader only.
     // Audio passes through unchanged and MIDI is not used.
     juce::ignoreUnused(buffer, midiMessages);
 }

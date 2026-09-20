@@ -72,14 +72,21 @@ struct SharedHarmonicContextSnapshot
     int barSignatureEventCount = 0;
     int barSignatureStoredCount = 0;
     SharedBarSignatureEvent barSignatures[kSmartVoicingMaxBarEvents] {};
+
+    bool transportAvailable = false;
+    std::uint64_t transportRevision = 0;
+    double transportSeconds = -1.0;
+    double transportPpq = -1.0;
+    bool transportPlaying = false;
 };
 
 // Lightweight bridge between Smart Voicing ARA.vst3 and Smart Voicing.vst3.
 //
 // Separate VST3 bundles are separate DLL modules, therefore ordinary C++
 // statics are not shared between them. On Windows the proof of concept uses a
-// named memory mapping. ARA writes complete immutable-style snapshots on model
-// updates, while the Instrument performs lock-free seqlock reads.
+// named memory mapping. Harmonic maps and transport position use separate
+// seqlocks: map updates happen outside the audio thread, while transport
+// updates stay lock-free and do not change the harmonic revision counter.
 class SharedHarmonicContextBridge final
 {
 public:
@@ -96,6 +103,7 @@ public:
         {
             SharedHarmonicContextSnapshot empty;
             publish(empty);
+            publishTransport(false, -1.0, -1.0, false);
         }
 
         if (block != nullptr)
@@ -109,6 +117,17 @@ public:
 #endif
     }
 
+    // Call from a non-real-time context so the ARA/Event FX owns an already
+    // mapped writer view before processBlock starts publishing transport data.
+    void prepareWriter()
+    {
+#if JUCE_WINDOWS
+        (void) ensureWriter();
+#endif
+    }
+
+    // Harmonic map publication. This may use a mutex because ARA model updates
+    // are not performed from the real-time audio callback.
     void publish(const SharedHarmonicContextSnapshot& snapshot)
     {
 #if JUCE_WINDOWS
@@ -118,7 +137,7 @@ public:
         if (writeMutex != nullptr)
             WaitForSingleObject(writeMutex, INFINITE);
 
-        // Odd sequence means "writer in progress", even means stable snapshot.
+        // Odd harmonic sequence means "writer in progress", even means stable.
         InterlockedIncrement64(&block->sequence);
         MemoryBarrier();
 
@@ -162,8 +181,49 @@ public:
         if (writeMutex != nullptr)
             ReleaseMutex(writeMutex);
 #else
+        const auto transportAvailable = localSnapshot.transportAvailable;
+        const auto transportRevision = localSnapshot.transportRevision;
+        const auto transportSeconds = localSnapshot.transportSeconds;
+        const auto transportPpq = localSnapshot.transportPpq;
+        const auto transportPlaying = localSnapshot.transportPlaying;
+
         localSnapshot = snapshot;
         localSnapshot.revision = ++localRevision;
+        localSnapshot.transportAvailable = transportAvailable;
+        localSnapshot.transportRevision = transportRevision;
+        localSnapshot.transportSeconds = transportSeconds;
+        localSnapshot.transportPpq = transportPpq;
+        localSnapshot.transportPlaying = transportPlaying;
+#endif
+    }
+
+    // Real-time-safe transport publication. The mapping must already have been
+    // prepared by prepareWriter()/publish(). No mutex, allocation or file I/O.
+    void publishTransport(bool available,
+                          double seconds,
+                          double ppq,
+                          bool playing) noexcept
+    {
+#if JUCE_WINDOWS
+        if (block == nullptr || ! writer)
+            return;
+
+        InterlockedIncrement64(&block->transportSequence);
+        MemoryBarrier();
+
+        block->transportAvailable = available ? 1u : 0u;
+        block->transportSeconds = seconds;
+        block->transportPpq = ppq;
+        block->transportPlaying = playing ? 1u : 0u;
+
+        MemoryBarrier();
+        InterlockedIncrement64(&block->transportSequence);
+#else
+        localSnapshot.transportAvailable = available;
+        localSnapshot.transportSeconds = seconds;
+        localSnapshot.transportPpq = ppq;
+        localSnapshot.transportPlaying = playing;
+        localSnapshot.transportRevision = ++localTransportRevision;
 #endif
     }
 
@@ -172,6 +232,9 @@ public:
 #if JUCE_WINDOWS
         if (! ensureReader())
             return {};
+
+        SharedHarmonicContextSnapshot result;
+        bool harmonicReadSucceeded = false;
 
         for (int attempt = 0; attempt < 8; ++attempt)
         {
@@ -183,7 +246,6 @@ public:
 
             MemoryBarrier();
 
-            SharedHarmonicContextSnapshot result;
             const auto magic = block->magic;
             const auto version = block->abiVersion;
 
@@ -239,10 +301,45 @@ public:
                 return {};
 
             result.revision = after / 2u;
-            return result;
+            harmonicReadSucceeded = true;
+            break;
         }
 
-        return {};
+        if (! harmonicReadSucceeded)
+            return {};
+
+        for (int attempt = 0; attempt < 8; ++attempt)
+        {
+            const auto before = static_cast<std::uint64_t>(
+                InterlockedCompareExchange64(&block->transportSequence, 0, 0));
+
+            if ((before & 1u) != 0u)
+                continue;
+
+            MemoryBarrier();
+
+            const auto available = block->transportAvailable;
+            const auto seconds = block->transportSeconds;
+            const auto ppq = block->transportPpq;
+            const auto playing = block->transportPlaying;
+
+            MemoryBarrier();
+
+            const auto after = static_cast<std::uint64_t>(
+                InterlockedCompareExchange64(&block->transportSequence, 0, 0));
+
+            if (before != after || (after & 1u) != 0u)
+                continue;
+
+            result.transportAvailable = available != 0;
+            result.transportSeconds = seconds;
+            result.transportPpq = ppq;
+            result.transportPlaying = playing != 0;
+            result.transportRevision = after / 2u;
+            break;
+        }
+
+        return result;
 #else
         return localSnapshot;
 #endif
@@ -255,6 +352,7 @@ private:
     struct SharedBlock
     {
         volatile LONG64 sequence = 0;
+        volatile LONG64 transportSequence = 0;
         std::uint32_t magic = 0;
         std::uint32_t abiVersion = 0;
         std::uint32_t connected = 0;
@@ -280,12 +378,17 @@ private:
         std::int32_t barSignatureEventCount = 0;
         std::int32_t barSignatureStoredCount = 0;
         SharedBarSignatureEvent barSignatures[kSmartVoicingMaxBarEvents] {};
+
+        std::uint32_t transportAvailable = 0;
+        double transportSeconds = -1.0;
+        double transportPpq = -1.0;
+        std::uint32_t transportPlaying = 0;
     };
 
     static constexpr std::uint32_t magicValue = 0x53564D52; // "SVMR"
-    static constexpr std::uint32_t abiVersion = 2;
-    static constexpr const wchar_t* mappingName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_v2";
-    static constexpr const wchar_t* mutexName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_Write_v2";
+    static constexpr std::uint32_t abiVersion = 3;
+    static constexpr const wchar_t* mappingName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_v3";
+    static constexpr const wchar_t* mutexName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_Write_v3";
 
     bool ensureWriter()
     {
@@ -361,5 +464,6 @@ private:
 #else
     SharedHarmonicContextSnapshot localSnapshot;
     std::uint64_t localRevision = 0;
+    std::uint64_t localTransportRevision = 0;
 #endif
 };

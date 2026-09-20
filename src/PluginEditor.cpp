@@ -17,7 +17,7 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing ARA 0.0d", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing ARA 0.0e", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -26,9 +26,9 @@ SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingA
     statusLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(statusLabel);
 
-    setSize(820, 650);
+    setSize(820, 680);
     refreshDebugText();
-    startTimerHz(4);
+    startTimerHz(8);
 }
 
 SmartVoicingAudioProcessorEditor::~SmartVoicingAudioProcessorEditor()
@@ -67,7 +67,8 @@ void SmartVoicingAudioProcessorEditor::refreshDebugText()
     text << "ARA controllers: " << local.registeredControllerCount << "\n";
     text << "Host content access: " << (local.hostContentAccessAvailable ? "YES" : "NO") << "\n";
     text << "Musical contexts: " << local.musicalContextCount << "\n";
-    text << "Bridge revision: " << juce::String(static_cast<juce::int64>(context.revision)) << "\n\n";
+    text << "Harmony revision: " << juce::String(static_cast<juce::int64>(context.revision)) << "\n";
+    text << "Transport revision: " << juce::String(static_cast<juce::int64>(context.transportRevision)) << "\n\n";
 
     text << "Key Signatures: "
          << availabilityText(local.keySignaturesAvailable, local.keySignatureEventCount) << "\n";
@@ -81,7 +82,10 @@ void SmartVoicingAudioProcessorEditor::refreshDebugText()
     const auto seconds = processor.getLastPositionSecondsForDebug();
     const auto ppq = processor.getLastPpqPositionForDebug();
     text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 3) : "n/a") << "\n";
-    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n\n";
+    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n";
+    text << "Shared transport: "
+         << (context.transportAvailable ? "AVAILABLE" : "n/a")
+         << " | " << (context.transportPlaying ? "PLAY" : "STOP") << "\n\n";
 
     text << smartvoicing::debug::activeContextText(context, ppq) << "\n";
     text << smartvoicing::debug::timelinePreview(context) << "\n";

@@ -11,23 +11,47 @@ juce::String availabilityText(bool available, int eventCount)
 
     return "AVAILABLE (events: " + juce::String(eventCount) + ")";
 }
+
+void configureContextLabel(juce::Label& label)
+{
+    label.setJustificationType(juce::Justification::centredLeft);
+    label.setFont(juce::FontOptions(24.0f, juce::Font::bold));
+    label.setMinimumHorizontalScale(0.75f);
+}
 }
 
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.0d - Instrument", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.0e - Context Monitor", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
 
-    statusLabel.setJustificationType(juce::Justification::topLeft);
-    statusLabel.setFont(juce::FontOptions(14.0f));
-    addAndMakeVisible(statusLabel);
+    bridgeLabel.setJustificationType(juce::Justification::centredLeft);
+    bridgeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    addAndMakeVisible(bridgeLabel);
 
-    setSize(820, 650);
-    refreshDebugText();
-    startTimerHz(4);
+    configureContextLabel(chordLabel);
+    configureContextLabel(keyLabel);
+    configureContextLabel(timeSignatureLabel);
+    configureContextLabel(tempoLabel);
+    addAndMakeVisible(chordLabel);
+    addAndMakeVisible(keyLabel);
+    addAndMakeVisible(timeSignatureLabel);
+    addAndMakeVisible(tempoLabel);
+
+    positionLabel.setJustificationType(juce::Justification::centredLeft);
+    positionLabel.setFont(juce::FontOptions(14.0f));
+    addAndMakeVisible(positionLabel);
+
+    debugLabel.setJustificationType(juce::Justification::topLeft);
+    debugLabel.setFont(juce::FontOptions(12.5f));
+    addAndMakeVisible(debugLabel);
+
+    setSize(860, 720);
+    refreshContextMonitor();
+    startTimerHz(8);
 }
 
 SmartVoicingInstrumentEditor::~SmartVoicingInstrumentEditor()
@@ -38,51 +62,126 @@ SmartVoicingInstrumentEditor::~SmartVoicingInstrumentEditor()
 void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
 {
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+
+    auto monitorArea = getLocalBounds().reduced(20);
+    monitorArea.removeFromTop(88);
+    monitorArea.setHeight(190);
+
+    g.setColour(getLookAndFeel().findColour(juce::Label::outlineColourId)
+                    .withAlpha(0.35f));
+    g.drawRoundedRectangle(monitorArea.toFloat(), 8.0f, 1.0f);
 }
 
 void SmartVoicingInstrumentEditor::resized()
 {
     auto area = getLocalBounds().reduced(20);
-    titleLabel.setBounds(area.removeFromTop(50));
+
+    titleLabel.setBounds(area.removeFromTop(45));
+    bridgeLabel.setBounds(area.removeFromTop(32));
+    area.removeFromTop(11);
+
+    chordLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
+    keyLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
+    timeSignatureLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
+    tempoLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
+
     area.removeFromTop(10);
-    statusLabel.setBounds(area);
+    positionLabel.setBounds(area.removeFromTop(30));
+    area.removeFromTop(8);
+    debugLabel.setBounds(area);
 }
 
 void SmartVoicingInstrumentEditor::timerCallback()
 {
-    refreshDebugText();
+    refreshContextMonitor();
 }
 
-void SmartVoicingInstrumentEditor::refreshDebugText()
+void SmartVoicingInstrumentEditor::refreshContextMonitor()
 {
     const auto context = SharedHarmonicContextBridge::instance().read();
 
-    juce::String text;
-    text << "Role: Instrument / MIDI engine\n";
-    text << "MIDI input: YES\n";
-    text << "MIDI output: YES\n\n";
+    const auto localSeconds = processor.getLastPositionSecondsForDebug();
+    const auto localPpq = processor.getLastPpqPositionForDebug();
 
-    text << "Smart Voicing ARA bridge: " << (context.connected ? "CONNECTED" : "WAITING") << "\n";
-    text << "Bridge revision: " << juce::String(static_cast<juce::int64>(context.revision)) << "\n";
-    text << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO") << "\n";
-    text << "Musical contexts: " << context.musicalContextCount << "\n\n";
+    const auto useBridgeTransport = context.transportAvailable && context.transportPpq >= 0.0;
+    const auto ppq = useBridgeTransport ? context.transportPpq : localPpq;
+    const auto seconds = useBridgeTransport ? context.transportSeconds : localSeconds;
 
-    text << "Key Signatures: "
-         << availabilityText(context.keySignaturesAvailable, context.keySignatureEventCount) << "\n";
-    text << "Sheet Chords: "
-         << availabilityText(context.sheetChordsAvailable, context.sheetChordEventCount) << "\n";
-    text << "Tempo Entries: "
-         << availabilityText(context.tempoEntriesAvailable, context.tempoEntryEventCount) << "\n";
-    text << "Bar Signatures: "
-         << availabilityText(context.barSignaturesAvailable, context.barSignatureEventCount) << "\n\n";
+    juce::String chord = "n/a";
+    juce::String key = "n/a";
+    juce::String timeSignature = "n/a";
+    juce::String tempo = "n/a";
 
-    const auto seconds = processor.getLastPositionSecondsForDebug();
-    const auto ppq = processor.getLastPpqPositionForDebug();
-    text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 3) : "n/a") << "\n";
-    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n\n";
+    if (ppq >= 0.0)
+    {
+        const auto chordIndex = smartvoicing::debug::findActiveEventIndex(context.sheetChords,
+                                                                         context.sheetChordStoredCount,
+                                                                         ppq);
+        const auto keyIndex = smartvoicing::debug::findActiveEventIndex(context.keySignatures,
+                                                                       context.keySignatureStoredCount,
+                                                                       ppq);
+        const auto barIndex = smartvoicing::debug::findActiveEventIndex(context.barSignatures,
+                                                                       context.barSignatureStoredCount,
+                                                                       ppq);
 
-    text << smartvoicing::debug::activeContextText(context, ppq) << "\n";
-    text << smartvoicing::debug::timelinePreview(context);
+        if (chordIndex >= 0)
+            chord = smartvoicing::debug::chordText(context.sheetChords[chordIndex]);
 
-    statusLabel.setText(text, juce::dontSendNotification);
+        if (keyIndex >= 0)
+            key = smartvoicing::debug::keyText(context.keySignatures[keyIndex]);
+
+        if (barIndex >= 0)
+        {
+            const auto& signature = context.barSignatures[barIndex];
+            timeSignature = juce::String(signature.numerator) + "/" + juce::String(signature.denominator);
+        }
+
+        const auto bpm = smartvoicing::debug::tempoBpmAtPpq(context, ppq);
+        if (bpm > 0.0)
+            tempo = juce::String(bpm, 2) + " BPM";
+    }
+
+    chordLabel.setText("Аккорд: " + chord, juce::dontSendNotification);
+    keyLabel.setText("Тональность: " + key, juce::dontSendNotification);
+    timeSignatureLabel.setText("Размер: " + timeSignature, juce::dontSendNotification);
+    tempoLabel.setText("Темп: " + tempo, juce::dontSendNotification);
+
+    juce::String bridgeText;
+    bridgeText << "Smart Voicing ARA: " << (context.connected ? "CONNECTED" : "WAITING")
+               << " | Harmony rev: " << juce::String(static_cast<juce::int64>(context.revision))
+               << " | Transport rev: " << juce::String(static_cast<juce::int64>(context.transportRevision));
+    bridgeLabel.setText(bridgeText, juce::dontSendNotification);
+
+    juce::String positionText;
+    positionText << "Позиция: ";
+    if (ppq >= 0.0)
+        positionText << "PPQ " << juce::String(ppq, 3);
+    else
+        positionText << "n/a";
+
+    if (seconds >= 0.0)
+        positionText << " | " << juce::String(seconds, 3) << " sec";
+
+    positionText << " | источник: " << (useBridgeTransport ? "Smart Voicing ARA" : "Instrument");
+    if (context.transportAvailable)
+        positionText << " | " << (context.transportPlaying ? "PLAY" : "STOP");
+
+    positionLabel.setText(positionText, juce::dontSendNotification);
+
+    juce::String debugText;
+    debugText << "Техническая диагностика\n";
+    debugText << "MIDI input/output: YES / YES\n";
+    debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
+              << " | Musical contexts: " << context.musicalContextCount << "\n";
+    debugText << "Key Signatures: "
+              << availabilityText(context.keySignaturesAvailable, context.keySignatureEventCount) << "\n";
+    debugText << "Sheet Chords: "
+              << availabilityText(context.sheetChordsAvailable, context.sheetChordEventCount) << "\n";
+    debugText << "Tempo Entries: "
+              << availabilityText(context.tempoEntriesAvailable, context.tempoEntryEventCount) << "\n";
+    debugText << "Bar Signatures: "
+              << availabilityText(context.barSignaturesAvailable, context.barSignatureEventCount) << "\n\n";
+    debugText << smartvoicing::debug::timelinePreview(context);
+
+    debugLabel.setText(debugText, juce::dontSendNotification);
 }

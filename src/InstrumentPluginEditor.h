@@ -15,11 +15,18 @@ public:
 
 private:
     void timerCallback() override;
-    void refreshDebugText();
+    void refreshContextMonitor();
 
     SmartVoicingInstrumentProcessor& processor;
+
     juce::Label titleLabel;
-    juce::Label statusLabel;
+    juce::Label bridgeLabel;
+    juce::Label chordLabel;
+    juce::Label keyLabel;
+    juce::Label timeSignatureLabel;
+    juce::Label tempoLabel;
+    juce::Label positionLabel;
+    juce::Label debugLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SmartVoicingInstrumentEditor)
 };

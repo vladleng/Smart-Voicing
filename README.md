@@ -30,7 +30,7 @@ Smart Voicing
 
 Проект находится на стадии **pre-alpha / архитектурного прототипа**.
 
-Текущая рабочая версия: **Smart Voicing 0.0d**.  
+Текущая рабочая версия: **Smart Voicing 0.0e**.  
 Текущий этап: **Этап 1 — ARA Context Proof of Concept**.
 
 На этом этапе уже подтверждено в Fender Studio / Studio Pro:
@@ -39,16 +39,17 @@ Smart Voicing
 - доступны `Key Signatures`, `Sheet Chords`, `Tempo Entries` и `Bar Signatures`;
 - инструментальный экземпляр может получить ARA binding, но Studio Pro не прикрепляет к нему `Musical Context`;
 - изменения Chord Track приходят через ARA без перезапуска плагина;
-- изменение или добавление аккорда увеличивает `Bridge revision` в основном инструментальном экземпляре;
+- изменение или добавление аккорда увеличивает harmonic `Bridge revision`;
 - длина аудио Event, на котором установлен ARA-компонент, не ограничивает доступ к гармоническому контексту: playhead может находиться за пределами Event, а изменения Chord Track продолжают поступать;
-- следовательно, Audio Event используется как **ARA-якорь**, а не как временное окно действия гармонии.
+- Audio Event используется как **ARA-якорь**, а не как временное окно действия гармонии;
+- 0.0d подтвердил чтение реальных карт Chord / Key / Tempo / Time Signature с позициями на таймлайне.
 
-## Архитектура 0.0d
+## Архитектура 0.0e
 
 Из-за поведения Studio Pro текущий прототип разделён на два очень лёгких VST3-компонента в одном пакете:
 
 ```text
-Smart Voicing 0.0d/
+Smart Voicing 0.0e/
 ├── Smart Voicing.vst3
 └── Smart Voicing ARA.vst3
 ```
@@ -62,7 +63,8 @@ Smart Voicing 0.0d/
 - выдаёт MIDI;
 - в дальнейшем будет содержать MIDI Router, harmonizer, voicing и voice leading;
 - не запрашивает ARA-контекст напрямую;
-- получает готовый harmonic-context snapshot от `Smart Voicing ARA`.
+- получает готовый harmonic-context snapshot от `Smart Voicing ARA`;
+- в 0.0e содержит первый рабочий **Context Monitor** с крупным отображением текущего аккорда, тональности, размера, темпа и позиции.
 
 ### Smart Voicing ARA.vst3
 
@@ -72,37 +74,48 @@ Smart Voicing 0.0d/
 - пропускает аудио без изменений;
 - читает `Musical Context` проекта через ARA;
 - отслеживает изменения Chord Track;
-- публикует harmonic-context snapshot для основного `Smart Voicing`.
-
-В 0.0d snapshot расширен: через bridge передаются уже не только counts, но и реальные карты событий `Chord / Key / Tempo / Time Signature` с позициями на музыкальном таймлайне.
-
-Текущий Windows PoC использует минимальный named shared-memory bridge без файлового I/O. Это транспорт между двумя VST3-модулями, а не часть музыкальной логики.
+- публикует harmonic-context snapshot для основного `Smart Voicing`;
+- в 0.0e дополнительно публикует текущую transport-позицию для Instrument.
 
 Подтверждённая схема:
 
 ```text
-Studio Pro Chord / Key Track
+Studio Pro Chord / Key / Tempo / Signature
         ↓ ARA
 Smart Voicing ARA
-        ↓ shared context
+        ↓ shared context + transport
 Smart Voicing Instrument
         ↓ MIDI processing
 Destination instruments
 ```
 
-## Что проверяет 0.0d
+## Shared bridge
+
+Текущий Windows PoC использует минимальный named shared-memory bridge без файлового I/O.
+
+В 0.0e используется bridge ABI v3:
+
+- harmonic maps и transport position имеют отдельные revision/seqlock;
+- изменение позиции транспорта не увеличивает harmonic revision;
+- ARA model updates по-прежнему хорошо видны через отдельный harmonic revision;
+- transport обновляется lock-free из `processBlock` ARA/Event FX;
+- основной Instrument выбирает shared ARA transport как приоритетный источник позиции, а собственный host playhead использует как fallback.
+
+Это позволяет Instrument определять активные `Chord / Key / Time Signature / Tempo`, даже если его собственный `processBlock` в данный момент не получает позицию от хоста.
+
+## Что проверяет 0.0e
 
 Следующий тест Этапа 1:
 
-- совпадают ли реальные названия аккордов и их PPQ-позиции с Chord Track;
-- корректно ли передаются смены тональности как отдельные `Key Signature` events;
-- корректно ли передаются смены размера как отдельные `Bar Signature` events;
-- выбирает ли основной Instrument активные `Chord / Key / Time Signature` по текущей PPQ-позиции;
-- меняется ли `Bridge revision` при редактировании Key Track и Time Signature;
-- корректно ли работает контекст точно на границе смены события;
-- корректно ли обрабатываются несколько смен тональности и размера в пределах одной аранжировки.
+- совпадает ли Context Monitor Instrument с фактическим Chord Track на текущей позиции;
+- обновляется ли позиция Instrument при playback;
+- обновляется ли позиция после перемещения курсора при остановленном транспорте;
+- корректно ли выбирается аккорд точно на границе его смены;
+- корректно ли переключаются Key Signature и Time Signature;
+- увеличивается ли harmonic revision только при изменении карты, а transport revision — при движении транспорта;
+- корректно ли восстанавливается контекст после сохранения и повторного открытия проекта.
 
-После подтверждения этих пунктов останется довести Stage 1 до версии **0.1**.
+После подтверждения этих пунктов останется довести Этап 1 до версии **0.1**.
 
 ## Принципы архитектуры
 
@@ -110,6 +123,7 @@ Destination instruments
 - хостовые возможности определяются через capability detection, а не по имени DAW;
 - ARA-контекст кэшируется вне real-time audio thread;
 - MIDI-обработка должна быть real-time safe;
+- transport-публикация из audio thread не должна использовать mutex, allocation или файловый I/O;
 - UI остаётся минимальным;
 - CPU и память должны использоваться максимально экономно;
 - никаких тяжёлых фоновых процессов без необходимости;
