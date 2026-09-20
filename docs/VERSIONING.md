@@ -25,14 +25,15 @@
 - `Smart Voicing 0.1d` — Voice Stack + legato continuation + Sustain Chord Morph.
 - `Smart Voicing 0.1e` — Distribution Modes + Gesture Classifier + `note → Voice mask` + максимум 4 Voice для Chord Gesture.
 - `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**.
-- `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`; MIDI Router остаётся поведением 0.2.
+- `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`; пользовательский тест пройден.
+- `Smart Voicing 0.2b` — нормализованная `ChordModel`: pitch class из circle-of-fifths, chord quality, extensions, alterations и slash bass; добавлены host-neutral unit tests.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.2a/
+Smart Voicing 0.2b/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -78,6 +79,7 @@ Smart Voicing 0.2a/
 0.1e → 0.1.5
 0.2  → 0.2.0
 0.2a → 0.2.1
+0.2b → 0.2.2
 ```
 
 ## Отложенная стабилизация
