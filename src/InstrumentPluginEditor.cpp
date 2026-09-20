@@ -1,4 +1,5 @@
 #include "InstrumentPluginEditor.h"
+#include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
 
 namespace
@@ -15,16 +16,16 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.0c - Instrument", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.0d - Instrument", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
 
     statusLabel.setJustificationType(juce::Justification::topLeft);
-    statusLabel.setFont(juce::FontOptions(15.0f));
+    statusLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(statusLabel);
 
-    setSize(590, 410);
+    setSize(820, 650);
     refreshDebugText();
     startTimerHz(4);
 }
@@ -78,7 +79,10 @@ void SmartVoicingInstrumentEditor::refreshDebugText()
     const auto seconds = processor.getLastPositionSecondsForDebug();
     const auto ppq = processor.getLastPpqPositionForDebug();
     text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 3) : "n/a") << "\n";
-    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n";
+    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n\n";
+
+    text << smartvoicing::debug::activeContextText(context, ppq) << "\n";
+    text << smartvoicing::debug::timelinePreview(context);
 
     statusLabel.setText(text, juce::dontSendNotification);
 }

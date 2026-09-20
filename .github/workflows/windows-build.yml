@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.0c"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.0d"
 
     steps:
       - name: Checkout
@@ -36,5 +36,5 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.0c-Windows
+          name: Smart-Voicing-0.0d-Windows
           path: "package"

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "SharedHarmonicContext.h"
+
 #include <mutex>
 #include <unordered_map>
 
@@ -24,6 +26,8 @@ struct ARAContextDebugSnapshot
 
     int registeredControllerCount = 0;
     bool sharedContextAvailable = false;
+
+    SharedHarmonicContextSnapshot harmonicContext;
 };
 
 class ARAContextDebugState final

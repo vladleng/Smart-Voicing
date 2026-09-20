@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.0.3
+    VERSION 0.0.4
     DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
 
@@ -59,6 +59,7 @@ juce_generate_juce_header(SmartVoicing)
 target_sources(SmartVoicing
     PRIVATE
         src/SharedHarmonicContext.h
+        src/HarmonicContextDebugText.h
         src/InstrumentPluginProcessor.cpp
         src/InstrumentPluginProcessor.h
         src/InstrumentPluginEditor.cpp
@@ -90,6 +91,7 @@ juce_generate_juce_header(SmartVoicingARA)
 target_sources(SmartVoicingARA
     PRIVATE
         src/SharedHarmonicContext.h
+        src/HarmonicContextDebugText.h
         src/ARAContextDebugState.h
         src/ARAContextDocumentController.cpp
         src/ARAContextDocumentController.h

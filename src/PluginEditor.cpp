@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 #include "ARAContextDebugState.h"
+#include "HarmonicContextDebugText.h"
+#include "SharedHarmonicContext.h"
 
 namespace
 {
@@ -15,16 +17,16 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing ARA 0.0c", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing ARA 0.0d", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
 
     statusLabel.setJustificationType(juce::Justification::topLeft);
-    statusLabel.setFont(juce::FontOptions(15.0f));
+    statusLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(statusLabel);
 
-    setSize(590, 430);
+    setSize(820, 650);
     refreshDebugText();
     startTimerHz(4);
 }
@@ -54,30 +56,35 @@ void SmartVoicingAudioProcessorEditor::timerCallback()
 
 void SmartVoicingAudioProcessorEditor::refreshDebugText()
 {
-    const auto snapshot = ARAContextDebugState::instance().getSnapshot();
+    const auto local = ARAContextDebugState::instance().getSnapshot();
+    const auto context = SharedHarmonicContextBridge::instance().read();
 
     juce::String text;
     text << "Role: ARA / Event FX context reader\n";
     text << "Audio: pass-through\n\n";
 
     text << "ARA instance bound: " << (processor.isARABoundForDebug() ? "YES" : "NO") << "\n";
-    text << "ARA controllers: " << snapshot.registeredControllerCount << "\n";
-    text << "Host content access: " << (snapshot.hostContentAccessAvailable ? "YES" : "NO") << "\n";
-    text << "Musical contexts: " << snapshot.musicalContextCount << "\n\n";
+    text << "ARA controllers: " << local.registeredControllerCount << "\n";
+    text << "Host content access: " << (local.hostContentAccessAvailable ? "YES" : "NO") << "\n";
+    text << "Musical contexts: " << local.musicalContextCount << "\n";
+    text << "Bridge revision: " << juce::String(static_cast<juce::int64>(context.revision)) << "\n\n";
 
     text << "Key Signatures: "
-         << availabilityText(snapshot.keySignaturesAvailable, snapshot.keySignatureEventCount) << "\n";
+         << availabilityText(local.keySignaturesAvailable, local.keySignatureEventCount) << "\n";
     text << "Sheet Chords: "
-         << availabilityText(snapshot.sheetChordsAvailable, snapshot.sheetChordEventCount) << "\n";
+         << availabilityText(local.sheetChordsAvailable, local.sheetChordEventCount) << "\n";
     text << "Tempo Entries: "
-         << availabilityText(snapshot.tempoEntriesAvailable, snapshot.tempoEntryEventCount) << "\n";
+         << availabilityText(local.tempoEntriesAvailable, local.tempoEntryEventCount) << "\n";
     text << "Bar Signatures: "
-         << availabilityText(snapshot.barSignaturesAvailable, snapshot.barSignatureEventCount) << "\n\n";
+         << availabilityText(local.barSignaturesAvailable, local.barSignatureEventCount) << "\n\n";
 
     const auto seconds = processor.getLastPositionSecondsForDebug();
     const auto ppq = processor.getLastPpqPositionForDebug();
     text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 3) : "n/a") << "\n";
     text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n\n";
+
+    text << smartvoicing::debug::activeContextText(context, ppq) << "\n";
+    text << smartvoicing::debug::timelinePreview(context) << "\n";
 
     text << juce::String(L"\u041A\u043E\u0434\u0438\u0440\u043E\u0432\u043A\u0430: \u041E\u041A");
 

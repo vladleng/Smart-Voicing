@@ -1,11 +1,49 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 
 #if JUCE_WINDOWS
  #include <windows.h>
 #endif
+
+inline constexpr int kSmartVoicingMaxKeyEvents = 64;
+inline constexpr int kSmartVoicingMaxChordEvents = 256;
+inline constexpr int kSmartVoicingMaxTempoEvents = 128;
+inline constexpr int kSmartVoicingMaxBarEvents = 64;
+inline constexpr int kSmartVoicingEventNameBytes = 96;
+
+struct SharedKeySignatureEvent
+{
+    double position = 0.0;
+    std::int32_t root = 0;
+    std::uint8_t intervals[12] {};
+    char name[kSmartVoicingEventNameBytes] {};
+};
+
+struct SharedChordEvent
+{
+    double position = 0.0;
+    std::int32_t root = 0;
+    std::int32_t bass = 0;
+    std::uint8_t intervals[12] {};
+    char name[kSmartVoicingEventNameBytes] {};
+};
+
+struct SharedTempoEvent
+{
+    double timePosition = 0.0;
+    double quarterPosition = 0.0;
+};
+
+struct SharedBarSignatureEvent
+{
+    double position = 0.0;
+    std::int32_t numerator = 4;
+    std::int32_t denominator = 4;
+};
 
 struct SharedHarmonicContextSnapshot
 {
@@ -17,23 +55,31 @@ struct SharedHarmonicContextSnapshot
 
     bool keySignaturesAvailable = false;
     int keySignatureEventCount = 0;
+    int keySignatureStoredCount = 0;
+    SharedKeySignatureEvent keySignatures[kSmartVoicingMaxKeyEvents] {};
 
     bool sheetChordsAvailable = false;
     int sheetChordEventCount = 0;
+    int sheetChordStoredCount = 0;
+    SharedChordEvent sheetChords[kSmartVoicingMaxChordEvents] {};
 
     bool tempoEntriesAvailable = false;
     int tempoEntryEventCount = 0;
+    int tempoEntryStoredCount = 0;
+    SharedTempoEvent tempoEntries[kSmartVoicingMaxTempoEvents] {};
 
     bool barSignaturesAvailable = false;
     int barSignatureEventCount = 0;
+    int barSignatureStoredCount = 0;
+    SharedBarSignatureEvent barSignatures[kSmartVoicingMaxBarEvents] {};
 };
 
-// Very small bridge between Smart Voicing ARA.vst3 and Smart Voicing.vst3.
+// Lightweight bridge between Smart Voicing ARA.vst3 and Smart Voicing.vst3.
 //
-// Two different VST3 bundles are two different DLL modules, therefore ordinary
-// C++ statics are not shared between them. On Windows 0.0c uses a named memory
-// mapping so the ARA/Event FX can publish a tiny immutable-style snapshot and
-// the Instrument can read it without polling the host or doing file I/O.
+// Separate VST3 bundles are separate DLL modules, therefore ordinary C++
+// statics are not shared between them. On Windows the proof of concept uses a
+// named memory mapping. ARA writes complete immutable-style snapshots on model
+// updates, while the Instrument performs lock-free seqlock reads.
 class SharedHarmonicContextBridge final
 {
 public:
@@ -81,14 +127,34 @@ public:
         block->connected = snapshot.connected ? 1u : 0u;
         block->hostContentAccessAvailable = snapshot.hostContentAccessAvailable ? 1u : 0u;
         block->musicalContextCount = snapshot.musicalContextCount;
+
         block->keySignaturesAvailable = snapshot.keySignaturesAvailable ? 1u : 0u;
         block->keySignatureEventCount = snapshot.keySignatureEventCount;
+        block->keySignatureStoredCount = std::clamp(snapshot.keySignatureStoredCount, 0, kSmartVoicingMaxKeyEvents);
+        std::memcpy(block->keySignatures,
+                    snapshot.keySignatures,
+                    static_cast<std::size_t>(block->keySignatureStoredCount) * sizeof(SharedKeySignatureEvent));
+
         block->sheetChordsAvailable = snapshot.sheetChordsAvailable ? 1u : 0u;
         block->sheetChordEventCount = snapshot.sheetChordEventCount;
+        block->sheetChordStoredCount = std::clamp(snapshot.sheetChordStoredCount, 0, kSmartVoicingMaxChordEvents);
+        std::memcpy(block->sheetChords,
+                    snapshot.sheetChords,
+                    static_cast<std::size_t>(block->sheetChordStoredCount) * sizeof(SharedChordEvent));
+
         block->tempoEntriesAvailable = snapshot.tempoEntriesAvailable ? 1u : 0u;
         block->tempoEntryEventCount = snapshot.tempoEntryEventCount;
+        block->tempoEntryStoredCount = std::clamp(snapshot.tempoEntryStoredCount, 0, kSmartVoicingMaxTempoEvents);
+        std::memcpy(block->tempoEntries,
+                    snapshot.tempoEntries,
+                    static_cast<std::size_t>(block->tempoEntryStoredCount) * sizeof(SharedTempoEvent));
+
         block->barSignaturesAvailable = snapshot.barSignaturesAvailable ? 1u : 0u;
         block->barSignatureEventCount = snapshot.barSignatureEventCount;
+        block->barSignatureStoredCount = std::clamp(snapshot.barSignatureStoredCount, 0, kSmartVoicingMaxBarEvents);
+        std::memcpy(block->barSignatures,
+                    snapshot.barSignatures,
+                    static_cast<std::size_t>(block->barSignatureStoredCount) * sizeof(SharedBarSignatureEvent));
 
         MemoryBarrier();
         InterlockedIncrement64(&block->sequence);
@@ -97,22 +163,18 @@ public:
             ReleaseMutex(writeMutex);
 #else
         localSnapshot = snapshot;
-        localSnapshot.revision++;
+        localSnapshot.revision = ++localRevision;
 #endif
     }
 
     SharedHarmonicContextSnapshot read()
     {
 #if JUCE_WINDOWS
-        SharedHarmonicContextSnapshot result;
         if (! ensureReader())
-            return result;
+            return {};
 
         for (int attempt = 0; attempt < 8; ++attempt)
         {
-            // InterlockedCompareExchange64 is an atomic read implemented as a
-            // read-modify-write operation. Therefore the mapped view must be
-            // writable even though the Instrument never changes the payload.
             const auto before = static_cast<std::uint64_t>(
                 InterlockedCompareExchange64(&block->sequence, 0, 0));
 
@@ -121,19 +183,49 @@ public:
 
             MemoryBarrier();
 
+            SharedHarmonicContextSnapshot result;
             const auto magic = block->magic;
             const auto version = block->abiVersion;
-            const auto connected = block->connected;
-            const auto hostContentAccessAvailable = block->hostContentAccessAvailable;
-            const auto musicalContextCount = block->musicalContextCount;
-            const auto keySignaturesAvailable = block->keySignaturesAvailable;
-            const auto keySignatureEventCount = block->keySignatureEventCount;
-            const auto sheetChordsAvailable = block->sheetChordsAvailable;
-            const auto sheetChordEventCount = block->sheetChordEventCount;
-            const auto tempoEntriesAvailable = block->tempoEntriesAvailable;
-            const auto tempoEntryEventCount = block->tempoEntryEventCount;
-            const auto barSignaturesAvailable = block->barSignaturesAvailable;
-            const auto barSignatureEventCount = block->barSignatureEventCount;
+
+            result.connected = block->connected != 0;
+            result.hostContentAccessAvailable = block->hostContentAccessAvailable != 0;
+            result.musicalContextCount = block->musicalContextCount;
+
+            result.keySignaturesAvailable = block->keySignaturesAvailable != 0;
+            result.keySignatureEventCount = block->keySignatureEventCount;
+            result.keySignatureStoredCount = std::clamp(static_cast<int>(block->keySignatureStoredCount),
+                                                        0,
+                                                        kSmartVoicingMaxKeyEvents);
+            std::memcpy(result.keySignatures,
+                        block->keySignatures,
+                        static_cast<std::size_t>(result.keySignatureStoredCount) * sizeof(SharedKeySignatureEvent));
+
+            result.sheetChordsAvailable = block->sheetChordsAvailable != 0;
+            result.sheetChordEventCount = block->sheetChordEventCount;
+            result.sheetChordStoredCount = std::clamp(static_cast<int>(block->sheetChordStoredCount),
+                                                      0,
+                                                      kSmartVoicingMaxChordEvents);
+            std::memcpy(result.sheetChords,
+                        block->sheetChords,
+                        static_cast<std::size_t>(result.sheetChordStoredCount) * sizeof(SharedChordEvent));
+
+            result.tempoEntriesAvailable = block->tempoEntriesAvailable != 0;
+            result.tempoEntryEventCount = block->tempoEntryEventCount;
+            result.tempoEntryStoredCount = std::clamp(static_cast<int>(block->tempoEntryStoredCount),
+                                                      0,
+                                                      kSmartVoicingMaxTempoEvents);
+            std::memcpy(result.tempoEntries,
+                        block->tempoEntries,
+                        static_cast<std::size_t>(result.tempoEntryStoredCount) * sizeof(SharedTempoEvent));
+
+            result.barSignaturesAvailable = block->barSignaturesAvailable != 0;
+            result.barSignatureEventCount = block->barSignatureEventCount;
+            result.barSignatureStoredCount = std::clamp(static_cast<int>(block->barSignatureStoredCount),
+                                                        0,
+                                                        kSmartVoicingMaxBarEvents);
+            std::memcpy(result.barSignatures,
+                        block->barSignatures,
+                        static_cast<std::size_t>(result.barSignatureStoredCount) * sizeof(SharedBarSignatureEvent));
 
             MemoryBarrier();
 
@@ -144,24 +236,13 @@ public:
                 continue;
 
             if (magic != magicValue || version != abiVersion)
-                return result;
+                return {};
 
-            result.connected = connected != 0;
             result.revision = after / 2u;
-            result.hostContentAccessAvailable = hostContentAccessAvailable != 0;
-            result.musicalContextCount = musicalContextCount;
-            result.keySignaturesAvailable = keySignaturesAvailable != 0;
-            result.keySignatureEventCount = keySignatureEventCount;
-            result.sheetChordsAvailable = sheetChordsAvailable != 0;
-            result.sheetChordEventCount = sheetChordEventCount;
-            result.tempoEntriesAvailable = tempoEntriesAvailable != 0;
-            result.tempoEntryEventCount = tempoEntryEventCount;
-            result.barSignaturesAvailable = barSignaturesAvailable != 0;
-            result.barSignatureEventCount = barSignatureEventCount;
             return result;
         }
 
-        return result;
+        return {};
 #else
         return localSnapshot;
 #endif
@@ -179,20 +260,32 @@ private:
         std::uint32_t connected = 0;
         std::uint32_t hostContentAccessAvailable = 0;
         std::int32_t musicalContextCount = 0;
+
         std::uint32_t keySignaturesAvailable = 0;
         std::int32_t keySignatureEventCount = 0;
+        std::int32_t keySignatureStoredCount = 0;
+        SharedKeySignatureEvent keySignatures[kSmartVoicingMaxKeyEvents] {};
+
         std::uint32_t sheetChordsAvailable = 0;
         std::int32_t sheetChordEventCount = 0;
+        std::int32_t sheetChordStoredCount = 0;
+        SharedChordEvent sheetChords[kSmartVoicingMaxChordEvents] {};
+
         std::uint32_t tempoEntriesAvailable = 0;
         std::int32_t tempoEntryEventCount = 0;
+        std::int32_t tempoEntryStoredCount = 0;
+        SharedTempoEvent tempoEntries[kSmartVoicingMaxTempoEvents] {};
+
         std::uint32_t barSignaturesAvailable = 0;
         std::int32_t barSignatureEventCount = 0;
+        std::int32_t barSignatureStoredCount = 0;
+        SharedBarSignatureEvent barSignatures[kSmartVoicingMaxBarEvents] {};
     };
 
     static constexpr std::uint32_t magicValue = 0x53564D52; // "SVMR"
-    static constexpr std::uint32_t abiVersion = 1;
-    static constexpr const wchar_t* mappingName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_v1";
-    static constexpr const wchar_t* mutexName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_Write_v1";
+    static constexpr std::uint32_t abiVersion = 2;
+    static constexpr const wchar_t* mappingName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_v2";
+    static constexpr const wchar_t* mutexName = L"Local\\MoonRiverStudio_SmartVoicing_HarmonicContext_Write_v2";
 
     bool ensureWriter()
     {
@@ -229,7 +322,9 @@ private:
             return false;
         }
 
-        writeMutex = CreateMutexW(nullptr, FALSE, mutexName);
+        if (writeMutex == nullptr)
+            writeMutex = CreateMutexW(nullptr, FALSE, mutexName);
+
         writer = true;
         return true;
     }
@@ -239,9 +334,9 @@ private:
         if (block != nullptr)
             return true;
 
-        // Important: InterlockedCompareExchange64 used by read() performs an
-        // atomic read-modify-write, so FILE_MAP_READ is not sufficient and may
-        // cause an access violation in the host. Map the tiny block writable.
+        // InterlockedCompareExchange64 performs an atomic read-modify-write,
+        // therefore the view must be writable even though Instrument does not
+        // change payload fields.
         mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, mappingName);
         if (mapping == nullptr)
             return false;
@@ -265,5 +360,6 @@ private:
     bool writer = false;
 #else
     SharedHarmonicContextSnapshot localSnapshot;
+    std::uint64_t localRevision = 0;
 #endif
 };
