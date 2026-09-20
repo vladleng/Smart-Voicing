@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.2.2
+    VERSION 0.2.3
     DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
 
@@ -64,6 +64,8 @@ target_sources(SmartVoicing
         src/HarmonicContext.h
         src/ChordModel.cpp
         src/ChordModel.h
+        src/CloseVoicingHarmonizer.cpp
+        src/CloseVoicingHarmonizer.h
         src/ARAContextProvider.cpp
         src/ARAContextProvider.h
         src/InstrumentPluginProcessor.cpp
@@ -130,8 +132,7 @@ foreach(target SmartVoicing SmartVoicingARA)
 endforeach()
 
 # -----------------------------------------------------------------------------
-# Host-neutral Harmony Core tests. These deliberately do not link JUCE or ARA;
-# they exercise the same ChordModel source that the Instrument uses.
+# Host-neutral Harmony Core tests. These deliberately do not link JUCE or ARA.
 add_executable(SmartVoicingCoreTests
     tests/ChordModelTests.cpp
     src/ChordModel.cpp
@@ -142,8 +143,22 @@ add_executable(SmartVoicingCoreTests
 target_include_directories(SmartVoicingCoreTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(SmartVoicingCoreTests PRIVATE cxx_std_20)
 
+add_executable(SmartVoicingHarmonizerTests
+    tests/CloseVoicingHarmonizerTests.cpp
+    src/ChordModel.cpp
+    src/ChordModel.h
+    src/CloseVoicingHarmonizer.cpp
+    src/CloseVoicingHarmonizer.h
+    src/HarmonicContext.h
+)
+
+target_include_directories(SmartVoicingHarmonizerTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingHarmonizerTests PRIVATE cxx_std_20)
+
 if(MSVC)
     target_compile_options(SmartVoicingCoreTests PRIVATE /utf-8)
+    target_compile_options(SmartVoicingHarmonizerTests PRIVATE /utf-8)
 endif()
 
 add_test(NAME SmartVoicingCoreTests COMMAND SmartVoicingCoreTests)
+add_test(NAME SmartVoicingHarmonizerTests COMMAND SmartVoicingHarmonizerTests)
