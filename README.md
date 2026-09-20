@@ -29,7 +29,7 @@ Smart Voicing
 Проект находится на стадии **pre-alpha**.
 
 Последняя завершённая версия: **Smart Voicing 0.1**.  
-Текущая рабочая версия: **Smart Voicing 0.1a**.  
+Текущая рабочая версия: **Smart Voicing 0.1b**.  
 **Этап 1 — ARA Context Proof of Concept завершён.**  
 **Текущий этап: Этап 2 — MIDI Router.**
 
@@ -47,7 +47,11 @@ Smart Voicing
 - Context Monitor показывает текущий аккорд, тональность, размер, темп и позицию;
 - transport publication работает change-driven: в STOP revision остаётся стабильным;
 - сохранение и повторное открытие проекта проверено;
-- границы Chord / Key / Time Signature обрабатываются как start-inclusive с малым floating-point tolerance, поэтому визуальная граница в Studio Pro соответствует новому событию.
+- границы Chord / Key / Time Signature обрабатываются как start-inclusive с малым floating-point tolerance, поэтому визуальная граница в Studio Pro соответствует новому событию;
+- MIDI output `Smart Voicing` можно выбрать источником для других Instrument Tracks;
+- несколько destination instruments могут одновременно получать один MIDI output Smart Voicing;
+- Studio Pro предоставляет отдельные MIDI Input 1–16 для разделения downstream-потока по каналам;
+- CC / automation и Pitch Bend проходят через MIDI output Smart Voicing к destination instruments.
 
 ## Архитектура 0.1
 
@@ -165,11 +169,30 @@ Voice 1 / Voice 2 / Voice 3 / Voice 4
 - UI показывает Note On / Note Off / CC / Pitch Bend, последний MIDI channel и обнаруженные каналы;
 - ARA Context Monitor продолжает работать одновременно;
 - проверяется реальный MIDI/Event output workflow Studio Pro;
-- базовый кандидат для Voice 1–4 — один VST3 Event output с разделением по MIDI Channels 1–4.
+- подтверждено, что один VST3 Event output Smart Voicing можно направить на несколько downstream Instrument Tracks.
 
 JUCE VST3 wrapper в текущей архитектуре предоставляет один Event/MIDI output bus; поддержка нескольких независимых VST3 Event buses потребовала бы отдельной модификации wrapper и на этом этапе не используется.
 
 Контрольный тест: [`docs/TEST-0.1a.md`](docs/TEST-0.1a.md).
+
+### Smart Voicing 0.1b
+
+Вторая итерация Этапа 2 — первый рабочий **Direct 4 Voice Router**:
+
+- удерживаемые ноты сортируются сверху вниз;
+- Voice 1 → MIDI Channel 1 — верхняя нота;
+- Voice 2 → MIDI Channel 2;
+- Voice 3 → MIDI Channel 3;
+- Voice 4 → MIDI Channel 4 — четвёртая сверху;
+- при 1–3 нотах активны только нужные верхние Voice;
+- при более чем 4 удерживаемых нотах маршрутизируются четыре верхние;
+- при изменении состава удерживаемых нот Voice assignments пересчитываются, старые назначения получают Note Off, новые — Note On;
+- channel MIDI-сообщения, включая CC и Pitch Bend, дублируются на Channels 1–4;
+- системные MIDI-сообщения сохраняются без изменения;
+- MIDI Router UI показывает текущие V1–V4 и реальные cumulative input/output counters;
+- исправлено отображение числовых счётчиков Probe, ранее некоторые значения могли интерпретироваться как символы.
+
+Контрольный тест: [`docs/TEST-0.1b.md`](docs/TEST-0.1b.md).
 
 Текущие задачи ведутся в [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
 
