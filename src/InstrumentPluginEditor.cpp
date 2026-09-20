@@ -23,7 +23,7 @@ void configureContextLabel(juce::Label& label)
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.0f - Context Monitor", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.0g - Context Monitor", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -141,9 +141,6 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
             tempo = juce::String(bpm, 2) + " BPM";
     }
 
-    // Use explicit Unicode literals here. JUCE renders Cyrillic correctly,
-    // but narrow-string concatenation can pass through an ANSI conversion path
-    // on Windows and produce mojibake even with /utf-8 enabled.
     chordLabel.setText(juce::String(L"\u0410\u043a\u043a\u043e\u0440\u0434: ") + chord,
                        juce::dontSendNotification);
     keyLabel.setText(juce::String(L"\u0422\u043e\u043d\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u044c: ") + key,
@@ -162,12 +159,12 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     juce::String positionText;
     positionText << "Позиция: ";
     if (ppq >= 0.0)
-        positionText << "PPQ " << juce::String(ppq, 3);
+        positionText << "PPQ " << juce::String(ppq, 6);
     else
         positionText << "n/a";
 
     if (seconds >= 0.0)
-        positionText << " | " << juce::String(seconds, 3) << " sec";
+        positionText << " | " << juce::String(seconds, 6) << " sec";
 
     positionText << " | источник: " << (useBridgeTransport ? "Smart Voicing ARA" : "Instrument");
     if (context.transportAvailable)
@@ -187,7 +184,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "Tempo Entries: "
               << availabilityText(context.tempoEntriesAvailable, context.tempoEntryEventCount) << "\n";
     debugText << "Bar Signatures: "
-              << availabilityText(context.barSignaturesAvailable, context.barSignatureEventCount) << "\n\n";
+              << availabilityText(context.barSignaturesAvailable, context.barSignatureEventCount) << "\n";
+    debugText << smartvoicing::debug::boundaryDiagnostics(context, ppq) << "\n\n";
     debugText << smartvoicing::debug::timelinePreview(context);
 
     debugLabel.setText(debugText, juce::dontSendNotification);
