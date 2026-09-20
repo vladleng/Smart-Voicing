@@ -17,7 +17,7 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing ARA 0.0f", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing ARA 0.0g", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -81,12 +81,13 @@ void SmartVoicingAudioProcessorEditor::refreshDebugText()
 
     const auto seconds = processor.getLastPositionSecondsForDebug();
     const auto ppq = processor.getLastPpqPositionForDebug();
-    text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 3) : "n/a") << "\n";
-    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 3) : "n/a") << "\n";
+    text << "Transport seconds: " << (seconds >= 0.0 ? juce::String(seconds, 6) : "n/a") << "\n";
+    text << "Transport PPQ: " << (ppq >= 0.0 ? juce::String(ppq, 9) : "n/a") << "\n";
     text << "Shared transport: "
          << (context.transportAvailable ? "AVAILABLE" : "n/a")
          << " | " << (context.transportPlaying ? "PLAY" : "STOP") << "\n";
-    text << "Transport publish: changes only\n\n";
+    text << "Transport publish: changes only\n";
+    text << smartvoicing::debug::boundaryDiagnostics(context, ppq) << "\n\n";
 
     text << smartvoicing::debug::activeContextText(context, ppq) << "\n";
     text << smartvoicing::debug::timelinePreview(context) << "\n";
