@@ -157,6 +157,20 @@ Voice 1 / Voice 2 / Voice 3 / Voice 4
 
 На этом этапе гармонизация ещё не нужна. Сначала требуется надёжно определить модель распределения и маршрутизации независимых MIDI-голосов в Studio Pro и сделать её пригодной для дальнейшего harmonizer engine.
 
+### Smart Voicing 0.1a
+
+Первая итерация Этапа 2 — диагностический MIDI Router Probe:
+
+- входящий MIDI проходит через Smart Voicing без изменений;
+- UI показывает Note On / Note Off / CC / Pitch Bend, последний MIDI channel и обнаруженные каналы;
+- ARA Context Monitor продолжает работать одновременно;
+- проверяется реальный MIDI/Event output workflow Studio Pro;
+- базовый кандидат для Voice 1–4 — один VST3 Event output с разделением по MIDI Channels 1–4.
+
+JUCE VST3 wrapper в текущей архитектуре предоставляет один Event/MIDI output bus; поддержка нескольких независимых VST3 Event buses потребовала бы отдельной модификации wrapper и на этом этапе не используется.
+
+Контрольный тест: [`docs/TEST-0.1a.md`](docs/TEST-0.1a.md).
+
 Текущие задачи ведутся в [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
 
 ## Roadmap
