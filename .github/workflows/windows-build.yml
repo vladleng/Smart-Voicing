@@ -5,13 +5,14 @@ on:
     branches:
       - main
       - stage-2-midi-router
+      - stage-3-chord-harmonizer
 
 jobs:
   build:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.2"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.2a"
 
     steps:
       - name: Checkout
@@ -35,5 +36,5 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.2-Windows
+          name: Smart-Voicing-0.2a-Windows
           path: "package"
