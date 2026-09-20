@@ -141,10 +141,17 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
             tempo = juce::String(bpm, 2) + " BPM";
     }
 
-    chordLabel.setText("Аккорд: " + chord, juce::dontSendNotification);
-    keyLabel.setText("Тональность: " + key, juce::dontSendNotification);
-    timeSignatureLabel.setText("Размер: " + timeSignature, juce::dontSendNotification);
-    tempoLabel.setText("Темп: " + tempo, juce::dontSendNotification);
+    // Use explicit Unicode literals here. JUCE renders Cyrillic correctly,
+    // but narrow-string concatenation can pass through an ANSI conversion path
+    // on Windows and produce mojibake even with /utf-8 enabled.
+    chordLabel.setText(juce::String(L"\u0410\u043a\u043a\u043e\u0440\u0434: ") + chord,
+                       juce::dontSendNotification);
+    keyLabel.setText(juce::String(L"\u0422\u043e\u043d\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u044c: ") + key,
+                     juce::dontSendNotification);
+    timeSignatureLabel.setText(juce::String(L"\u0420\u0430\u0437\u043c\u0435\u0440: ") + timeSignature,
+                               juce::dontSendNotification);
+    tempoLabel.setText(juce::String(L"\u0422\u0435\u043c\u043f: ") + tempo,
+                       juce::dontSendNotification);
 
     juce::String bridgeText;
     bridgeText << "Smart Voicing ARA: " << (context.connected ? "CONNECTED" : "WAITING")
