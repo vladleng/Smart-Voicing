@@ -28,9 +28,10 @@ Smart Voicing
 
 Проект находится на стадии **pre-alpha**.
 
-Текущая завершённая версия: **Smart Voicing 0.1**.  
+Последняя завершённая версия: **Smart Voicing 0.1**.  
+Текущая рабочая версия: **Smart Voicing 0.1a**.  
 **Этап 1 — ARA Context Proof of Concept завершён.**  
-Следующий этап: **Этап 2 — MIDI Router**.
+**Текущий этап: Этап 2 — MIDI Router.**
 
 Версия 0.1 фиксирует полностью проверенный ARA-контекст и двухкомпонентную архитектуру после последовательных рабочих сборок 0.0b–0.0g.
 
@@ -135,9 +136,12 @@ IHarmonicContextProvider
 └── ManualContextProvider
 ```
 
-## Следующий этап: MIDI Router
+## Этап 2: MIDI Router
 
-Этап 2 должен превратить основной `Smart Voicing` из Context Monitor в первый реально работающий MIDI-маршрутизатор.
+Этап 2 превращает основной `Smart Voicing` из Context Monitor в первый реально работающий MIDI-маршрутизатор.
+
+Стартовая рабочая версия этапа: **0.1a**.  
+Целевая завершённая версия этапа: **0.2**.
 
 Базовая цель:
 
@@ -153,11 +157,13 @@ Voice 1 / Voice 2 / Voice 3 / Voice 4
 
 На этом этапе гармонизация ещё не нужна. Сначала требуется надёжно определить модель распределения и маршрутизации независимых MIDI-голосов в Studio Pro и сделать её пригодной для дальнейшего harmonizer engine.
 
+Текущие задачи ведутся в [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
+
 ## Roadmap
 
 - **Этап 0** — каркас проекта и базовая сборка. ✅
 - **Этап 1** — ARA Context Proof of Concept. ✅ → `0.1`
-- **Этап 2** — MIDI Router. ← текущий следующий этап
+- **Этап 2** — MIDI Router. 🚧 → `0.1a ... 0.2`
 - **Этап 3** — Chord-aware harmonizer.
 - **Этап 4** — Key-aware engine.
 - **Этап 5** — Jazz voicing.
