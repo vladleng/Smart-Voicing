@@ -106,7 +106,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.1e - Distribution Modes + Gesture Classifier",
+    titleLabel.setText("Smart Voicing 0.2 - MIDI Router",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -147,7 +147,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Router 0.1e | Gesture Classifier | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Router 0.2 | Distribution + Gesture Classifier | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -340,7 +340,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << "Техническая диагностика\n";
-    debugText << "MIDI input/output: YES / YES | 0.1e Distribution Modes + Gesture Classifier\n";
+    debugText << "MIDI input/output: YES / YES | 0.2 completed MIDI Router\n";
     debugText << "Chord Gesture: short note group -> max 4-Voice frame; fifth+ chord pitches are ignored\n";
     debugText << "Voice Gesture: later single/few notes -> nearest stable Voice with same-channel legato overlap\n";
     debugText << "Fill 4: 1 note = unison x4; 2 notes = 2+2; 3 notes = V4 doubles V3\n";
