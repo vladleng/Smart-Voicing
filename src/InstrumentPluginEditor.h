@@ -26,6 +26,8 @@ private:
     juce::Label timeSignatureLabel;
     juce::Label tempoLabel;
     juce::Label positionLabel;
+    juce::Label distributionModeLabel;
+    juce::ComboBox distributionModeBox;
     juce::Label midiProbeTitleLabel;
     juce::Label midiProbeLabel;
     juce::TextButton resetMidiStatsButton;
