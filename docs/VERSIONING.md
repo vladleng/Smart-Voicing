@@ -8,21 +8,23 @@
 - После успешного завершения этапа версия повышается до следующего числового значения.
 - Имя продукта и идентификаторы плагинов остаются стабильными, а номер версии используется в имени внешней папки сборки и в документации.
 
-## Текущая последовательность
+## История версий
 
 - `Smart Voicing 0.0a` — базовый VST3-каркас, первая рабочая сборка. Этап 0.
-- `Smart Voicing 0.0b` — первая рабочая ARA-сборка и проверка ролей Event FX / Instrument. Этап 1.
-- `Smart Voicing 0.0c` — двухкомпонентная рабочая сборка: основной Instrument + отдельный ARA reader. Этап 1.
-- `Smart Voicing 0.1` — готовая версия после успешного завершения этапа ARA Context Proof of Concept.
+- `Smart Voicing 0.0b` — первая рабочая ARA-сборка и проверка ролей Event FX / Instrument.
+- `Smart Voicing 0.0c` — двухкомпонентная архитектура: основной Instrument + отдельный ARA reader.
+- `Smart Voicing 0.0d` — реальные карты Chord / Key / Tempo / Time Signature через bridge.
+- `Smart Voicing 0.0e` — Context Monitor и shared transport.
+- `Smart Voicing 0.0f` — change-driven transport и полный интеграционный тест Studio Pro.
+- `Smart Voicing 0.0g` — boundary hardening Chord / Key / Time Signature.
+- `Smart Voicing 0.1` — **завершённый Этап 1: ARA Context Proof of Concept**.
 
-## Структура пакета сборки
+## Текущая структура пакета
 
 Номер версии указывается **не в имени VST3 bundle**, а в имени внешней папки пакета.
 
-Текущая структура для `0.0c`:
-
 ```text
-Smart Voicing 0.0c/
+Smart Voicing 0.1/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -38,24 +40,11 @@ Smart Voicing 0.0c/
 
 Оба компонента устанавливаются вместе и считаются одной версией Smart Voicing.
 
-Для предыдущей базовой сборки:
+## Следующий этап
 
-```text
-Smart Voicing 0.0a/
-└── Smart Voicing.vst3/
-```
+После `0.1` начинается Этап 2 — MIDI Router.
 
-Для готовой версии этапа структура двух компонентов сохраняется, если тест 0.0c подтвердит архитектуру:
-
-```text
-Smart Voicing 0.1/
-├── Smart Voicing.vst3/
-└── Smart Voicing ARA.vst3/
-```
-
-## Далее
-
-После `0.1` следующий этап начинается с промежуточной версии вида:
+Промежуточные версии Этапа 2:
 
 - `0.1a`
 - при необходимости `0.1b`, `0.1c` и т. д.
@@ -74,5 +63,5 @@ Smart Voicing 0.1/
 - имени внешней папки пакета сборки;
 - имени CI-артефакта/архива;
 - debug UI;
-- Release/PR/Issue;
+- PR / Issue;
 - документации проекта.
