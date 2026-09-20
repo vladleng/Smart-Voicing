@@ -25,9 +25,10 @@ DAW остаётся **источником гармонической исти�
 Проект находится на стадии **pre-alpha**.
 
 Последняя завершённая версия: **Smart Voicing 0.1**.  
-Текущая рабочая версия: **Smart Voicing 0.1e**.  
+Текущая подтверждённая рабочая версия: **Smart Voicing 0.1e**.  
 **Этап 1 — ARA Context Proof of Concept завершён.**  
-**Текущий этап: Этап 2 — MIDI Router.**
+**Текущий этап: Этап 2 — MIDI Router.**  
+**Следующая итерация: 0.1f — Router Hardening → 0.2.**
 
 ## Подтверждено в Studio Pro
 
@@ -42,6 +43,9 @@ DAW остаётся **источником гармонической исти�
 - Voice 1–4 реально разведены по MIDI Channels/Input 1–4 на четыре отдельных SWAM-инструмента;
 - CC / automation / Pitch Bend проходят downstream;
 - Voice Stack, legato/portamento gesture и смена аккордов под Sustain подтверждены практическим тестом;
+- три Distribution Modes работают: `Сверху вниз`, `Снизу вверх`, `Заполнить 4 голоса`;
+- Gesture Classifier разделяет Chord Gesture и Voice Gesture;
+- routed MIDI записывается на downstream-дорожки;
 - ARA Context и MIDI Router работают параллельно.
 
 ## Пакет
@@ -102,7 +106,6 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 
 ### 0.1b — Direct 4 Voice Router
 
-- ноты распределяются сверху вниз;
 - Voice 1 → Ch1, Voice 2 → Ch2, Voice 3 → Ch3, Voice 4 → Ch4;
 - channel MIDI messages broadcast на Ch1–4;
 - подтверждено реальное разделение четырёх SWAM-инструментов.
@@ -112,14 +115,14 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 ### 0.1c — Stable Voice Ownership + Sustain
 
 - Voice slots сохраняют channel identity;
-- движение одного голоса больше не пересортировывает соседние Voice;
+- движение одного голоса не пересортировывает соседние Voice;
 - Router учитывает CC64 во внутреннем ownership state.
 
 Тест: [`docs/TEST-0.1c.md`](docs/TEST-0.1c.md).
 
 ### 0.1d — Voice Stack / Legato + Sustain Chord Morph
 
-- каждый Voice имеет фиксированный note stack;
+- каждый Voice имеет собственный fixed Voice Stack;
 - overlap `Note On` остаётся на том же Voice/channel и даёт mono-инструментам legato/portamento cue;
 - Sustain не замораживает voicing: следующий аккорд можно сыграть до pedal-up;
 - pedal-up удаляет только физически отпущенные старые ноты;
@@ -137,12 +140,6 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 3. Заполнить 4 голоса
 ```
 
-Правила первых двух режимов:
-
-- `Сверху вниз`: при 1–4 нотах заполняются V1, V2, V3, V4 сверху вниз;
-- `Снизу вверх`: при 1–4 нотах заполняются V4, V3, V2, V1 снизу вверх;
-- при chord gesture из 5+ нот в output остаются максимум четыре независимых Voice.
-
 `Заполнить 4 голоса`:
 
 ```text
@@ -152,28 +149,39 @@ Bridge ABI v3 разделяет harmonic snapshot и transport snapshot. Transp
 4 ноты → по одной ноте на V1–V4
 ```
 
-Внутренняя ownership-модель использует `note → Voice mask`, поэтому одна физическая нота может корректно управлять несколькими Voice одновременно.
+Ownership-модель использует `note → Voice mask`, поэтому одна физическая нота может управлять несколькими Voice одновременно.
 
 Gesture Classifier различает:
 
-- **Chord Gesture** — короткая группа нот (окно около 45 ms): формируется максимум четырёхголосный frame; пятая и последующие chord-notes не превращаются в дополнительную ноту внутри одного Voice;
-- **Voice Gesture** — более поздняя отдельная нота: трактуется как continuation ближайшего Voice и сохраняет same-channel legato/portamento behaviour;
-- **Sustain Chord Morph** — новый chord gesture может заменить текущий frame при pedal-down, старые sustain-held ноты остаются только как внутренний stack до pedal-up.
+- **Chord Gesture** — короткая группа нот: максимум четырёхголосный frame;
+- **Voice Gesture** — более поздняя отдельная нота: continuation ближайшего Voice с same-channel legato/portamento;
+- **Sustain Chord Morph** — новый chord gesture может заменить текущий frame при pedal-down.
 
-Выбранный режим сохраняется в plugin state и восстанавливается при повторном открытии проекта.
+Пятая и последующие chord-notes не создают пятого самостоятельного Voice. Тонкие настройки classifier, включая окно около 45 ms, считаются tuning и будут корректироваться по реальной игре.
 
 Тест: [`docs/TEST-0.1e.md`](docs/TEST-0.1e.md).
+
+### 0.1f — Router Hardening
+
+Последняя инженерная итерация перед 0.2. Новых музыкальных функций не планируется:
+
+- host-agnostic `VoiceOutput` abstraction;
+- явный Panic / All Notes Off и безопасный reset;
+- stop / restart / seek / reactivation tests;
+- Save / Close / Reopen state test;
+- длительный stress test 4–6 нот + legato + Sustain + mode switching;
+- финальный regression test ARA + Router.
 
 Текущие задачи: [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
 
 ## Архитектурные принципы
 
-- musical core не должен зависеть от конкретной DAW;
+- musical core не зависит от конкретной DAW;
 - host capabilities определяются по возможностям, а не имени приложения;
 - ARA-контекст кэшируется вне real-time audio thread;
-- MIDI processing должен оставаться real-time safe;
+- MIDI processing остаётся real-time safe;
 - CPU и память используются экономно;
-- UI остаётся диагностическим и минимальным до стабилизации engine;
+- UI остаётся диагностическим до стабилизации engine;
 - итог Smart Voicing — редактируемый MIDI-скелет, а не автоматически законченная аранжировка.
 
 Планируемый слой harmonic context:
@@ -185,23 +193,30 @@ IHarmonicContextProvider
 └── ManualContextProvider
 ```
 
-## Roadmap
+## Актуальный Roadmap
 
 - **Этап 0** — каркас проекта и базовая сборка. ✅
 - **Этап 1** — ARA Context Proof of Concept. ✅ → `0.1`
-- **Этап 2** — MIDI Router. 🚧 → `0.1a ... 0.2`
-- **Этап 3** — Chord-aware harmonizer.
-- **Этап 4** — Key-aware engine.
-- **Этап 5** — Jazz voicing.
-- **Этап 6** — Voice leading.
-- **Этап 7** — Instrument profiles / presets.
+- **Этап 2** — MIDI Router. 🚧 → `0.1a ... 0.1f → 0.2`
+- **Этап 3** — Chord-aware Harmonizer + Harmonic Context abstraction. → `0.2a ... 0.3`
+- **Этап 4** — Key-aware Engine и гармонические функции. → `0.3a ... 0.4`
+- **Этап 5** — Jazz Voicing Engine. → `0.4a ... 0.5`
+- **Этап 6** — Voice Leading. → `0.5a ... 0.6`
+- **Этап 7** — Instrument Profiles и диапазоны. → `0.6a ... 0.7`
+- **Этап 8** — Presets и Performance Configurations. → `0.7a ... 0.8`
+- **Этап 9** — Host Compatibility и fallback-провайдеры. → `0.8a ... 0.9`
+- **Этап 10** — Recording / Capture результатов в DAW. → `0.9a ... 1.0-rc1`
+- **Этап 11** — Оптимизация, стабильность и финальный UI. → `1.0`
+
+Актуальные Issues: #17, #3, #8, #9, #10, #11, #12, #4, #13, #14. Старые #5, #6 и #7 закрыты как поглощённые новой структурой roadmap.
 
 ## Версионирование
 
 Рабочие версии этапа используют буквенные суффиксы:
 
 ```text
-0.1a → 0.1b → 0.1c → 0.1d → 0.1e → ... → 0.2
+0.1a → 0.1b → 0.1c → 0.1d → 0.1e → 0.1f → 0.2
+0.2a → 0.2b → ... → 0.3
 ```
 
 Внутренний CMake version остаётся числовым (`0.1e` → `0.1.5`). Подробно: [`docs/VERSIONING.md`](docs/VERSIONING.md).
