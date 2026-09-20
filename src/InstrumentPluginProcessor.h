@@ -1,6 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ARAContextProvider.h"
+
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -26,6 +28,12 @@ public:
         fillFour
     };
 
+    enum class HarmonyMode : int
+    {
+        directRouter = 0,
+        melodyHarmonize
+    };
+
     struct MidiProbeSnapshot
     {
         std::uint32_t revision = 0;
@@ -39,6 +47,7 @@ public:
         std::uint32_t channelMask = 0;
         MidiProbeEventType lastEventType = MidiProbeEventType::none;
         DistributionMode distributionMode = DistributionMode::topDown;
+        HarmonyMode harmonyMode = HarmonyMode::directRouter;
         int lastChannel = 0;
         int lastData1 = 0;
         int lastData2 = 0;
@@ -85,6 +94,9 @@ public:
     void setDistributionMode(DistributionMode mode) noexcept;
     DistributionMode getDistributionMode() const noexcept;
 
+    void setHarmonyMode(HarmonyMode mode) noexcept;
+    HarmonyMode getHarmonyMode() const noexcept;
+
 private:
     static constexpr int midiNoteCount = 128;
     static constexpr int voiceCount = 4;
@@ -96,6 +108,10 @@ private:
     bool updateHeldNoteFromEvent(const juce::MidiMessageMetadata&, std::int64_t absoluteSample) noexcept;
     bool shouldClearHeldNotes(const juce::MidiMessageMetadata&) const noexcept;
     void clearHeldNotes() noexcept;
+
+    void processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages);
+    void startMelodyVoicing(int melodyNote, int velocity, int samplePosition);
+    void stopMelodyVoicing(int samplePosition);
 
     void applyVoiceState(int samplePosition);
     void applyChordDistributionFrame(int samplePosition);
@@ -143,6 +159,7 @@ private:
     std::atomic<bool> sustainDownForUi { false };
     std::atomic<bool> stableOwnershipForUi { false };
     std::atomic<int> requestedDistributionMode { static_cast<int>(DistributionMode::topDown) };
+    std::atomic<int> requestedHarmonyMode { static_cast<int>(HarmonyMode::directRouter) };
     std::array<std::atomic<int>, voiceCount> voiceNotesForUi;
     std::array<std::atomic<int>, voiceCount> voiceStackDepthsForUi;
 
@@ -159,15 +176,19 @@ private:
     std::array<int, voiceCount> chordFrameNotes { -1, -1, -1, -1 };
 
     int heldDistinctNoteCount = 0;
+    int activeMelodyInputNote = -1;
     bool sustainDown = false;
     bool stableOwnership = false;
     bool pendingChordFrame = false;
     DistributionMode activeDistributionMode = DistributionMode::topDown;
+    HarmonyMode activeHarmonyMode = HarmonyMode::directRouter;
 
     double currentSampleRate = 44100.0;
     std::int64_t processedSampleCounter = 0;
     std::int64_t chordGestureStartSample = -1;
     std::int64_t chordGestureWindowSamples = 1985; // 45 ms at 44.1 kHz; recalculated in prepareToPlay.
+
+    smartvoicing::harmony::ARAContextProvider harmonicContextProvider;
 
     // Reused/preallocated output buffer to avoid per-block allocation in the normal path.
     juce::MidiBuffer routedMidi;
