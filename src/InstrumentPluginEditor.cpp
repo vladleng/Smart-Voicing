@@ -94,7 +94,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.1b - Direct 4 Voice Router", juce::dontSendNotification);
+    titleLabel.setText("Smart Voicing 0.1c - Stable Voice + Sustain", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
@@ -116,7 +116,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     positionLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(positionLabel);
 
-    midiProbeTitleLabel.setText("MIDI Router 0.1b | Direct 4 Voice | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Router 0.1c | Stable Voice Ownership | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -273,10 +273,12 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     const auto midiProbe = processor.getMidiProbeSnapshot();
     juce::String midiText;
-    midiText << "Router: ACTIVE | events in/out: " << counterText(midiProbe.totalInputEvents)
+    midiText << "Router: ACTIVE | mode: " << (midiProbe.stableOwnership ? "STABLE" : "RANKING")
+             << " | sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
+             << " | keys held: " << midiProbe.heldNoteCount << "\n";
+    midiText << "events in/out: " << counterText(midiProbe.totalInputEvents)
              << " / " << counterText(midiProbe.totalOutputEvents)
-             << " | input channels seen: " << channelsText(midiProbe.channelMask)
-             << " | held: " << midiProbe.heldNoteCount << "\n";
+             << " | input channels seen: " << channelsText(midiProbe.channelMask) << "\n";
     midiText << "V1/Ch1: " << noteText(midiProbe.voiceNotes[0])
              << " | V2/Ch2: " << noteText(midiProbe.voiceNotes[1]) << "\n";
     midiText << "V3/Ch3: " << noteText(midiProbe.voiceNotes[2])
@@ -292,8 +294,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << "Техническая диагностика\n";
-    debugText << "MIDI input/output: YES / YES | Direct 4 Voice: highest->Ch1, next->Ch2, next->Ch3, next->Ch4\n";
-    debugText << "Channel messages: broadcast to Ch1-4 | >4 held notes: top four routed\n";
+    debugText << "MIDI input/output: YES / YES | 0.1c Stable Voice Ownership + sustain-aware state\n";
+    debugText << "Bootstrap: pitch ranking | locked voices keep Ch1-4 identity while edited\n";
+    debugText << "CC64: physical Note Off forwarded, Voice slot reserved until pedal-up\n";
+    debugText << "Channel messages: broadcast to Ch1-4 | extra notes do not steal locked voices\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
     debugText << "Key Signatures: "
