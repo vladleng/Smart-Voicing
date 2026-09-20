@@ -1,8 +1,10 @@
 #include "ChordModel.h"
 
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <string>
+#include <utility>
 
 using namespace smartvoicing::harmony;
 
