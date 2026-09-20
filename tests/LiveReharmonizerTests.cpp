@@ -123,7 +123,7 @@ void testSequenceCanBeAppliedWithoutStaleVoices()
 {
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
     const auto fmaj7 = normalizeChord(chord(-1, -1, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
-    const auto dm7 = normalizeChord(chord(-5, -5, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+    const auto dm7 = normalizeChord(chord(2, 2, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
     const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
 
     auto current = buildCloseVoicing(67, cmaj7);
