@@ -29,7 +29,7 @@ Smart Voicing
 Проект находится на стадии **pre-alpha**.
 
 Последняя завершённая версия: **Smart Voicing 0.1**.  
-Текущая рабочая версия: **Smart Voicing 0.1b**.  
+Текущая рабочая версия: **Smart Voicing 0.1c**.  
 **Этап 1 — ARA Context Proof of Concept завершён.**  
 **Текущий этап: Этап 2 — MIDI Router.**
 
@@ -51,7 +51,8 @@ Smart Voicing
 - MIDI output `Smart Voicing` можно выбрать источником для других Instrument Tracks;
 - несколько destination instruments могут одновременно получать один MIDI output Smart Voicing;
 - Studio Pro предоставляет отдельные MIDI Input 1–16 для разделения downstream-потока по каналам;
-- CC / automation и Pitch Bend проходят через MIDI output Smart Voicing к destination instruments.
+- CC / automation и Pitch Bend проходят через MIDI output Smart Voicing к destination instruments;
+- в 0.1b подтверждено реальное разделение Voice 1–4 по MIDI Channels 1–4 на четыре отдельных SWAM-инструмента.
 
 ## Архитектура 0.1
 
@@ -193,6 +194,29 @@ JUCE VST3 wrapper в текущей архитектуре предоставл�
 - исправлено отображение числовых счётчиков Probe, ранее некоторые значения могли интерпретироваться как символы.
 
 Контрольный тест: [`docs/TEST-0.1b.md`](docs/TEST-0.1b.md).
+
+### Smart Voicing 0.1c
+
+Третья итерация Этапа 2 исправляет два ограничения, обнаруженных при реальной игре четырьмя SWAM-инструментами.
+
+**Stable Voice Ownership**:
+
+- начальный набор нот по-прежнему формируется в pitch-ranking режиме;
+- после формирования четырёхголосного voicing или начала редактирования аккорда Voice 1–4 получают устойчивую идентичность;
+- отпускание и замена, например, верхней ноты больше не заставляет Voice 2–4 перескакивать на соседние каналы;
+- новый Note On занимает освободившийся Voice slot;
+- это позволяет удерживать гармонию и вести отдельный верхний, внутренний или нижний голос как независимую линию;
+- дополнительные ноты при занятых четырёх Voice не крадут уже закреплённые слоты и ждут освобождения Voice.
+
+**Sustain-aware state**:
+
+- `CC64 down` блокирует voice ownership;
+- физический Note Off всё равно отправляется downstream-инструменту, но Voice slot остаётся зарезервированным до `CC64 up`;
+- поэтому при отпускании клавиш под педалью остальные голоса не «съезжают» вниз;
+- повторное нажатие sustain-held ноты использует тот же Voice/channel;
+- Router Monitor показывает `RANKING/STABLE`, состояние Sustain и физически удерживаемые клавиши отдельно от Voice slots.
+
+Контрольный тест: [`docs/TEST-0.1c.md`](docs/TEST-0.1c.md).
 
 Текущие задачи ведутся в [Issue #17 — Этап 2: MIDI Router](https://github.com/vladleng/Smart-Voicing/issues/17).
 
