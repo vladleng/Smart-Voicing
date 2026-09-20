@@ -154,7 +154,7 @@ inline int findNearestEventIndex(const Event* events, int count, double ppq)
         return -1;
 
     int nearest = 0;
-    auto bestDistance = std::numeric_limits<double>::max();
+    auto bestDistance = (std::numeric_limits<double>::max)();
 
     for (int i = 0; i < count; ++i)
     {
