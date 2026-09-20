@@ -162,8 +162,9 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
                 }
                 else
                 {
-                    // Release sustain-held ownership before CC64-up reaches the synth.
-                    // Physical Note Offs were already sent while the pedal was down.
+                    // Emit deferred Note Offs and free sustain-held ownership before
+                    // CC64-up reaches the destination instrument. This makes Sustain
+                    // work even when the destination plug-in itself ignores CC64.
                     applyVoiceState(metadata.samplePosition);
                 }
             }
@@ -293,6 +294,7 @@ void SmartVoicingInstrumentProcessor::rebuildRankedAssignments(int samplePositio
         {
             activeVoiceNotes[index] = newNote;
             voiceNoteOnActive[index] = false;
+            voiceReleasedUnderSustain[index] = false;
         }
 
         if (newNote >= 0)
@@ -308,9 +310,9 @@ void SmartVoicingInstrumentProcessor::rebuildRankedAssignments(int samplePositio
 
 void SmartVoicingInstrumentProcessor::reconcileStableAssignments(int samplePosition)
 {
-    // Keep each already-owned note on the same Voice channel. A physical Note Off
-    // is still forwarded immediately. With CC64 down the slot remains reserved so
-    // that neighbouring voices cannot collapse into it.
+    // Once stable, each Voice keeps its channel identity. Sustain is implemented
+    // inside the router: physical key release is remembered, but downstream Note Off
+    // is deferred until pedal-up so this behaviour does not depend on the synth.
     for (int voice = 0; voice < voiceCount; ++voice)
     {
         const auto index = static_cast<std::size_t>(voice);
@@ -322,17 +324,31 @@ void SmartVoicingInstrumentProcessor::reconcileStableAssignments(int samplePosit
 
         if (physicallyHeld)
         {
-            // Retriggering a note that was released under sustain reuses the same Voice.
-            if (! voiceNoteOnActive[index])
+            if (voiceReleasedUnderSustain[index])
+            {
+                // Re-articulate a sustain-held note on the same Voice/channel.
+                sendVoiceNoteOff(voice, samplePosition);
                 sendVoiceNoteOn(voice, samplePosition);
+                voiceReleasedUnderSustain[index] = false;
+            }
+            else if (! voiceNoteOnActive[index])
+            {
+                sendVoiceNoteOn(voice, samplePosition);
+            }
+            continue;
+        }
+
+        if (sustainDown)
+        {
+            voiceReleasedUnderSustain[index] = true;
             continue;
         }
 
         if (voiceNoteOnActive[index])
             sendVoiceNoteOff(voice, samplePosition);
 
-        if (! sustainDown)
-            clearVoiceOwnership(voice);
+        voiceReleasedUnderSustain[index] = false;
+        clearVoiceOwnership(voice);
     }
 
     assignUnownedHeldNotes(samplePosition);
@@ -363,6 +379,7 @@ void SmartVoicingInstrumentProcessor::assignUnownedHeldNotes(int samplePosition)
         activeVoiceNotes[voiceIndex] = candidate;
         noteVoiceOwners[static_cast<std::size_t>(candidate)] = voice;
         voiceNoteOnActive[voiceIndex] = false;
+        voiceReleasedUnderSustain[voiceIndex] = false;
         voiceNotesForUi[voiceIndex].store(candidate, std::memory_order_relaxed);
         sendVoiceNoteOn(voice, samplePosition);
     }
@@ -387,6 +404,7 @@ void SmartVoicingInstrumentProcessor::sendVoiceNoteOn(int voice, int samplePosit
 
     addOutputEvent(bytes, 3, samplePosition);
     voiceNoteOnActive[index] = true;
+    voiceReleasedUnderSustain[index] = false;
 }
 
 void SmartVoicingInstrumentProcessor::sendVoiceNoteOff(int voice, int samplePosition)
@@ -429,6 +447,7 @@ void SmartVoicingInstrumentProcessor::clearVoiceOwnership(int voice) noexcept
 
     activeVoiceNotes[index] = -1;
     voiceNoteOnActive[index] = false;
+    voiceReleasedUnderSustain[index] = false;
     voiceNotesForUi[index].store(-1, std::memory_order_relaxed);
 }
 
@@ -495,6 +514,7 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
     noteVoiceOwners.fill(-1);
     activeVoiceNotes.fill(-1);
     voiceNoteOnActive.fill(false);
+    voiceReleasedUnderSustain.fill(false);
     heldDistinctNoteCount = 0;
     sustainDown = false;
     stableOwnership = false;
