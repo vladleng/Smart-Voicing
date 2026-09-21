@@ -231,7 +231,10 @@ int tensionRolePenalty(int midiNote,
             switch (context.tensionLevel)
             {
                 case TensionLevel::clean: return 18;
-                case TensionLevel::color: return 1;
+                // Level 2 should be able to choose a Preferred colour when the
+                // rest of the Closed voicing is equally strong. Keep the reward
+                // deliberately tiny so Color does not become "always add 9/13".
+                case TensionLevel::color: return -1;
                 case TensionLevel::rich:  return -1;
             }
             break;
