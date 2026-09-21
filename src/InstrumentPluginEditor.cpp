@@ -118,7 +118,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.2d - Live Chord Reharmonization",
+    titleLabel.setText("Smart Voicing 0.2e - Sustain / Voice Stack Integration",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -176,7 +176,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.2d | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.2e | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -406,7 +406,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 3 / 0.2d: ARAContextProvider -> NormalizedChord -> CloseVoicing -> LiveReharmonizer -> VoiceOutput[4]\n";
+    debugText << "Stage 3 / 0.2e: ARAContextProvider -> NormalizedChord -> Harmonizer -> Voice Stack / Sustain -> VoiceOutput[4]\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -436,8 +436,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
               << " | V1 melody is immutable | V2-V4 follow current chord live\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
-              << " | current implementation updates at audio-block boundaries\n";
-    debugText << "0.2d limits: basic Close voicing only; no voice-leading engine; full Sustain/VoiceStack integration comes in 0.2e\n";
+              << " | chord boundaries are scheduled inside the current audio block\n";
+    debugText << "0.2e focus: sustain-owned melody release, shared Voice Stack path, state + Router regression\n";
     debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
