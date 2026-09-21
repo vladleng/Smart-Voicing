@@ -30,6 +30,8 @@ private:
     juce::Label positionLabel;
     juce::Label harmonyModeLabel;
     juce::ComboBox harmonyModeBox;
+    juce::Label tensionLevelLabel;
+    juce::ComboBox tensionLevelBox;
     juce::Label distributionModeLabel;
     juce::ComboBox distributionModeBox;
     juce::Label midiProbeTitleLabel;
