@@ -120,7 +120,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.3b - Closed Voicing MVP",
+    titleLabel.setText("Smart Voicing 0.3c - Resolution-aware Function",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -178,7 +178,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.3b | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.3c | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -287,7 +287,19 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     const auto normalizedChord = smartvoicing::harmony::normalizeChord(neutralContext.chord);
     const auto normalizedSymbol = smartvoicing::harmony::normalizedChordSymbol(normalizedChord);
     const auto normalizedKey = smartvoicing::harmony::normalizeKey(neutralContext.key);
-    const auto harmonicAnalysis = smartvoicing::harmony::analyzeHarmonicFunction(normalizedChord, normalizedKey);
+
+    const auto nextChordPpq = ppq >= 0.0
+        ? harmonicContextProvider.nextChordStartAfter(ppq)
+        : -1.0;
+    const auto nextContext = nextChordPpq >= 0.0
+        ? harmonicContextProvider.contextAt(nextChordPpq)
+        : smartvoicing::harmony::HarmonicContext {};
+    const auto nextChord = smartvoicing::harmony::normalizeChord(nextContext.chord);
+    const auto nextSymbol = smartvoicing::harmony::normalizedChordSymbol(nextChord);
+
+    const auto harmonicAnalysis = nextChord.valid
+        ? smartvoicing::harmony::analyzeHarmonicFunction(normalizedChord, normalizedKey, nextChord)
+        : smartvoicing::harmony::analyzeHarmonicFunction(normalizedChord, normalizedKey);
 
     juce::String chord = "n/a";
     juce::String hostChord = "n/a";
@@ -411,7 +423,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 4 / 0.3b: Melody Harmonize -> candidate-based Closed Voicing; Key/Function analysis retained\n";
+    debugText << "Stage 4 / 0.3c: Resolution-aware Function + Modal Interchange Candidate; Closed 0.3b retained\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -453,16 +465,35 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
                   << " | relation " << smartvoicing::harmony::harmonicRelationName(harmonicAnalysis.relation);
 
         if (harmonicAnalysis.appliedDominantCandidate)
-            debugText << " | applied candidate V/"
-                      << smartvoicing::harmony::scaleDegreeName(harmonicAnalysis.appliedTargetScaleDegree);
+        {
+            debugText << " | applied V/"
+                      << smartvoicing::harmony::scaleDegreeName(harmonicAnalysis.appliedTargetScaleDegree)
+                      << " " << (harmonicAnalysis.appliedDominantConfirmed ? "CONFIRMED" : "candidate");
+        }
+
+        if (harmonicAnalysis.modalInterchangeCandidate)
+        {
+            debugText << " | modal interchange candidate: parallel "
+                      << smartvoicing::harmony::keyModeName(harmonicAnalysis.modalInterchangeSource);
+        }
     }
     debugText << "\n";
 
+    debugText << "Resolution context: ";
+    if (nextChord.valid)
+        debugText << "next @ PPQ " << juce::String(nextChordPpq, 6)
+                  << " = " << nextSymbol
+                  << " | root PC " << nextChord.rootPitchClass;
+    else
+        debugText << "no next chord";
+    debugText << "\n";
+
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
-    debugText << "Priority: Played/Melody > Chord > Key > Function > Voicing preferences\n";
+    debugText << "Priority: Played/Melody > Chord > Key > Function > musical policy\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
               << " | V1 melody immutable | V2-V4 candidate-based Closed vertical\n";
     debugText << "Closed policy: guide tones + contextual root/fifth omission + soft Upper Voice Spacing\n";
+    debugText << "Resolution policy: static candidate != confirmed; next Chord Track root supplies confirmation evidence\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
               << " | chord boundaries are scheduled inside the current audio block\n";
     debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
