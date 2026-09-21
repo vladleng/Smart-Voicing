@@ -46,6 +46,8 @@ Smart Voicing 0.3/
 
 - Windows artifact: `Smart-Voicing-0.3-Windows`.
 
+Release candidate подготовлен на commit `6dc62e45641c8a7c7b0a5fc7ec571f35768f2d3c`; этот документальный commit запускает финальный Windows CI уже с тем же 0.3 code/package содержимым.
+
 ## Критерий выпуска
 
 Так как 0.3 меняет только номер стабильной версии, package metadata, UI/debug version text и документацию поверх уже подтверждённой 0.2e, повторный полный Studio Pro regression не требуется. Для выпуска 0.3 необходим зелёный Windows CI текущего 0.3 HEAD.
