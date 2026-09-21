@@ -155,6 +155,15 @@ int main()
     expect(noKeyPolicy.tone(2).role == TensionRole::unavailable,
            "without Key/Function no inferred 9 is invented on Cmaj7");
 
+    HarmonicAnalysis dominantWithoutKey;
+    dominantWithoutKey.valid = true;
+    dominantWithoutKey.effectiveFunction = HarmonicFunction::dominant;
+    const auto noKeyDominantPolicy = buildTensionPolicy(g7, missingKey, dominantWithoutKey);
+    expect(noKeyDominantPolicy.tone(2).role == TensionRole::unavailable,
+           "without Key context dominant function alone does not invent a Mixolydian 9");
+    expect(noKeyDominantPolicy.tone(9).role == TensionRole::unavailable,
+           "without Key context dominant function alone does not invent a Mixolydian 13");
+
     std::cout << "SmartVoicingTensionPolicyTests 0.3d: OK\n";
     return 0;
 }
