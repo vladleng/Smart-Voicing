@@ -1,5 +1,7 @@
 #include "InstrumentPluginEditor.h"
 #include "ChordModel.h"
+#include "KeyModel.h"
+#include "HarmonicFunction.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
 
@@ -118,7 +120,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.3 - Chord-aware Harmonizer",
+    titleLabel.setText("Smart Voicing 0.3a - Key-aware Function MVP",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -176,7 +178,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.3 | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.3a | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -284,6 +286,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
         : harmonicContextProvider.currentContext();
     const auto normalizedChord = smartvoicing::harmony::normalizeChord(neutralContext.chord);
     const auto normalizedSymbol = smartvoicing::harmony::normalizedChordSymbol(normalizedChord);
+    const auto normalizedKey = smartvoicing::harmony::normalizeKey(neutralContext.key);
+    const auto harmonicAnalysis = smartvoicing::harmony::analyzeHarmonicFunction(normalizedChord, normalizedKey);
 
     juce::String chord = "n/a";
     juce::String hostChord = "n/a";
@@ -337,6 +341,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     bridgeText << "Smart Voicing ARA: " << (context.connected ? "CONNECTED" : "WAITING")
                << " | Neutral provider: " << (neutralContext.providerConnected ? "READY" : "WAITING")
                << " | Chord model: " << (normalizedChord.valid ? "READY" : "N/A")
+               << " | Key model: " << (normalizedKey.valid ? "READY" : "N/A")
                << " | Harmony rev: " << juce::String(static_cast<juce::int64>(neutralContext.harmonicRevision))
                << " | Transport rev: " << juce::String(static_cast<juce::int64>(neutralContext.transportRevision));
     bridgeLabel.setText(bridgeText, juce::dontSendNotification);
@@ -406,7 +411,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 3 / 0.3: ARAContextProvider -> NormalizedChord -> Harmonizer -> Voice Stack / Sustain -> VoiceOutput[4]\n";
+    debugText << "Stage 4 / 0.3a: Chord + Key -> Degree / Function analysis; voicing output remains 0.3-compatible\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -432,12 +437,33 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << " | slash " << (normalizedChord.slashBass ? "YES" : "NO")
               << " | ext flags " << normalizedChord.extensions
               << " | alt flags " << normalizedChord.alterations << "\n";
+
+    debugText << "Key model: " << (normalizedKey.valid ? "VALID" : "N/A");
+    if (normalizedKey.valid)
+        debugText << " | root PC " << normalizedKey.rootPitchClass
+                  << " | mode " << smartvoicing::harmony::keyModeName(normalizedKey.mode);
+    debugText << "\n";
+
+    debugText << "Function analysis: " << (harmonicAnalysis.valid ? "VALID" : "N/A");
+    if (harmonicAnalysis.valid)
+    {
+        debugText << " | degree " << smartvoicing::harmony::scaleDegreeName(harmonicAnalysis.rootScaleDegree)
+                  << " | root function " << smartvoicing::harmony::harmonicFunctionName(harmonicAnalysis.rootFunction)
+                  << " | effective " << smartvoicing::harmony::harmonicFunctionName(harmonicAnalysis.effectiveFunction)
+                  << " | relation " << smartvoicing::harmony::harmonicRelationName(harmonicAnalysis.relation);
+
+        if (harmonicAnalysis.appliedDominantCandidate)
+            debugText << " | applied candidate V/"
+                      << smartvoicing::harmony::scaleDegreeName(harmonicAnalysis.appliedTargetScaleDegree);
+    }
+    debugText << "\n";
+
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
+    debugText << "Priority: Played/Melody > Chord > Key > Function; 0.3a analysis does not rewrite Chord Track\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
-              << " | V1 melody is immutable | V2-V4 follow current chord live\n";
+              << " | V1 melody is immutable | V2-V4 still use stable 0.3 Close voicing\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
               << " | chord boundaries are scheduled inside the current audio block\n";
-    debugText << "0.3 stable: Sustain / Voice Stack / State integration confirmed; Direct Router 0.2 retained\n";
     debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
     debugText << "Host content access: " << (context.hostContentAccessAvailable ? "YES" : "NO")
               << " | Musical contexts: " << context.musicalContextCount << "\n";
