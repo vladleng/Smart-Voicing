@@ -166,7 +166,7 @@ Fm7         = modal interchange candidate: parallel minor
 
 ## 5. Live ClosedVoicingContext integration
 
-Начиная с финальной части 0.3c, `Melody Harmonize` больше не должен использовать context-free compatibility path `buildCloseVoicing()`.
+`Melody Harmonize` больше не использует context-free compatibility path `buildCloseVoicing()`.
 
 Для каждой новой melody note и для live reharmonization удержанной melody строится:
 
@@ -200,9 +200,9 @@ Modal Interchange Candidate
 
 ---
 
-## 6. Финальный Studio Pro regression после live integration
+## 6. Финальный Studio Pro regression
 
-Использовать тест:
+Использован тест:
 
 ```text
 Key: C major
@@ -211,17 +211,14 @@ D7 | G7 | D7 | Am7 | C7 | Fmaj7 | Fm7 | Cmaj7
  A | G  | A  | A   | G  | A     | Ab  | G
 ```
 
-Проверить:
+Подтверждено:
 
-- V1 всегда совпадает с сыгранной melody;
-- explicit Chord Track не переписывается Key/Function context;
-- `D7 + A` остаётся корректным compact Closed;
-- удержанная melody корректно reharmonize на chord boundaries;
-- diagnostics сохраняют результаты из раздела 4;
-- Sustain работает;
-- `(no chord) -> chord` работает;
-- нет stuck notes;
-- Direct Router не изменился.
+- V1 совпадает с сыгранной melody;
+- explicit Chord Track остаётся авторитетным;
+- `D7 + A` даёт корректный compact Closed;
+- live reharmonization работает на chord boundaries;
+- diagnostics сохраняет resolution/modal evidence;
+- Closed 0.3b regression не нарушена.
 
 Дополнительная регрессия 0.3b:
 
@@ -229,7 +226,7 @@ D7 | G7 | D7 | Am7 | C7 | Fmaj7 | Fm7 | Cmaj7
 Cmaj7 + C D E F G A B C
 ```
 
-Ожидание: те же принятые compact Closed voicings, включая:
+сохраняет принятые compact Closed voicings, включая:
 
 ```text
 C -> C-B-G-E
@@ -252,7 +249,7 @@ Transport STOPPED
 
 Финальный пользовательский тест 2026-09-21 подтвердил исправление: melody была размещена на дорожке Smart Voicing точно на границах Chord Track, затем четыре generated voices были записаны на инструментальные дорожки. При совпадении Note On с границей аккорда короткие transient notes отсутствуют.
 
-Также отдельно подтверждено ожидаемое поведение: если новая melody note реально начинается **раньше** следующего Chord Track event, Smart Voicing на этом коротком участке правомерно гармонизирует новую melody ещё по старому chord, а на фактической границе делает reharmonization. Такой короткий voicing является отражением реальных MIDI/Chord Track таймингов и не считается boundary bug.
+Отдельно подтверждено ожидаемое поведение: если новая melody note реально начинается **раньше** следующего Chord Track event, Smart Voicing на этом коротком участке правомерно гармонизирует новую melody ещё по старому chord, а на фактической границе делает reharmonization. Такой короткий voicing отражает реальные MIDI/Chord Track тайминги и не является boundary bug.
 
 Итоговая temporal policy:
 
