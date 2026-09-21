@@ -1,19 +1,17 @@
 # Smart Voicing 0.3c — Resolution-aware Harmonic Function
 
-Цель версии: перестать считать dominant-form chord окончательно интерпретированным только по `Chord + Key` и добавить **timeline evidence** из следующего Chord Track event.
+## Status
 
-0.3c также добавляет первый безопасный `Modal Interchange Candidate` для borrowing из parallel major/minor и передаёт этот контекст в live `ClosedVoicingContext`.
+**ACCEPTED / Studio Pro confirmed — 2026-09-21**
 
----
+0.3c adds resolution-aware harmonic function, modal-interchange evidence, live `ClosedVoicingContext`, and exact realtime Chord Track boundary handling.
 
-## 1. Основная модель
+## Core behavior
 
 ```text
 Current Chord + Key
         ↓
 Static Harmonic Analysis
-        ↓
-Applied Dominant Candidate
         +
 Next Chord Track event
         ↓
@@ -26,47 +24,26 @@ ClosedVoicingContext
 Closed Engine
 ```
 
-- `candidate` и `confirmed` — разные признаки;
-- non-matching next chord не стирает candidate;
-- Melody и explicit Chord остаются выше Key / Function / Resolution evidence;
-- реальные tension differences относятся к 0.3d.
-
-## 2. Host-neutral tests
+Priority remains:
 
 ```text
-C major: D7 static -> V/V candidate
-C major: D7 -> G   -> V/V CONFIRMED
-C major: D7 -> Am  -> V/V candidate, not confirmed
-C major: C7 -> F   -> V/IV CONFIRMED
-C major: G7 -> C   -> primary Dominant, not Applied Dominant
-G major: D7        -> primary Dominant, not Applied Dominant
+Played Melody > Explicit Chord > Key > Function > musical policy
 ```
 
-## 3. Modal Interchange Candidate MVP
+## Confirmed harmonic cases
 
 ```text
-C major: Fm7 / Ebmaj7 -> parallel minor
-C minor: F major -> parallel major
+C major: D7 -> G7    = V/V candidate + CONFIRMED
+C major: D7 -> Am7   = V/V candidate, NOT CONFIRMED
+C major: C7 -> Fmaj7 = V/IV candidate + CONFIRMED
+C major: Fm7         = modal interchange candidate: parallel minor
 ```
 
-## 4. Studio Pro diagnostics — подтверждено
+Primary dominant remains distinct from applied dominant.
 
-Практический тест 2026-09-21:
+## Live integration
 
-```text
-D7 | G7 | D7 | Am7 | C7 | Fmaj7 | Fm7 | Cmaj7
-```
-
-Подтверждено:
-
-```text
-D7 -> G7    = V/V candidate + CONFIRMED
-D7 -> Am7   = V/V candidate, NOT CONFIRMED
-C7 -> Fmaj7 = V/IV candidate + CONFIRMED
-Fm7         = modal interchange candidate: parallel minor
-```
-
-## 5. Live ClosedVoicingContext integration
+`Melody Harmonize` uses:
 
 ```text
 Chord + Key + Next Chord
@@ -78,56 +55,64 @@ ClosedVoicingContext
 buildClosedVoicing(...)
 ```
 
-Closed Engine получает Key, Function, Diatonic/Chromatic relation, Applied Dominant Candidate/Confirmed и Modal Interchange Candidate.
+The engine receives Function, relation, Applied Dominant Candidate/Confirmed, and Modal Interchange Candidate. Tension selection differences belong to 0.3d.
 
-## 6. Boundary regression
+## Closed regression
 
-Первый полный Studio Pro test выявил микроскопические generated notes из-за использования stopped-UI PPQ tolerance в realtime path.
+The accepted 0.3b Closed behavior remains intact, including:
 
-Начиная с `e7009da`:
+```text
+Cmaj7 + C -> C-B-G-E
+Cmaj7 + D -> D-B-G-E
+```
+
+V1 remains performer-owned melody.
+
+## Realtime boundary fix
+
+Initial full Studio Pro testing exposed micro transient generated notes around chord boundaries because the stopped-cursor/UI PPQ tolerance was also influencing realtime context lookup.
+
+From fix `e7009da`:
 
 ```text
 Transport PLAYING
-→ exact ARA event boundary + numerical epsilon only
+→ exact ARA chord boundary + numerical epsilon only
 
 Transport STOPPED
-→ UI/cursor diagnostics keeps small PPQ tolerance
+→ small UI/cursor tolerance retained
 ```
 
-Финальный пользовательский test 2026-09-21 подтвердил исправление: melody была размещена на дорожке Smart Voicing точно на границах Chord Track, затем generated voices записаны на инструментальные дорожки. При совпадении Note On с chord boundary короткие transient notes отсутствуют.
-
-Если melody начинается раньше следующего chord event, короткий промежуточный voicing является корректным результатом реального тайминга:
+Final Studio Pro test confirmed:
 
 ```text
-melody Note On раньше chord boundary
-→ новая melody + старый chord
-→ на chord boundary reharmonization
-
-melody Note On точно на chord boundary
-→ одна чистая смена voicing
+melody Note On exactly at chord boundary
+→ one clean voicing transition
+→ no micro transient generated notes
 ```
 
-## 7. Что сознательно НЕ входит в 0.3c
+If melody genuinely starts earlier than the next chord:
 
-- полный chord-progression grammar;
-- все deceptive resolutions;
-- полный borrowed-chord taxonomy;
-- melodic approach-note analysis;
-- Tension Policy / chord scales — 0.3d;
-- Voice Leading — Stage 6.
+```text
+new melody + old current chord
+→ chord boundary
+→ reharmonization
+```
 
-## 8. Итог принятия 0.3c — ПРИНЯТО
+This is correct timeline behavior, not a bug.
 
-Подтверждено 2026-09-21:
+## CI / acceptance
 
-1. host-neutral tests проходят;
-2. Windows Build #259 — success;
-3. diagnostics в Studio Pro различает candidate/confirmed;
-4. modal-interchange MVP подтверждён;
-5. live Melody Harmonize использует `ClosedVoicingContext`;
-6. Closed 0.3b regression сохранена;
-7. realtime boundary bug исправлен;
-8. при точном совпадении melody и chord boundary transient notes отсутствуют;
-9. ранняя melody note корректно остаётся под старым chord до его фактической смены.
+- Windows Build #259 — success for boundary-fix line;
+- host-neutral Harmony Core tests — pass;
+- Studio Pro diagnostics — pass;
+- exact-boundary generated MIDI test — pass;
+- 0.3b Closed regression — pass.
 
-**Статус 0.3c: ACCEPTED / Studio Pro confirmed.**
+Final documentation-only HEAD may trigger another CI run; the current HEAD must also be green before starting 0.3d under the project workflow.
+
+## Out of scope for 0.3c
+
+- Tension Policy / Harmonic Candidate Pool — 0.3d;
+- melodic approach-note analysis — future Melodic Context Engine;
+- Voice Leading — Stage 6;
+- full borrowed-chord / deceptive-resolution taxonomy.
