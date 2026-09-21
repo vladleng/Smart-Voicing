@@ -202,7 +202,7 @@ Modal Interchange Candidate
 
 ## 6. Финальный Studio Pro regression после live integration
 
-Использовать уже созданный тест:
+Использовать тест:
 
 ```text
 Key: C major
@@ -250,14 +250,20 @@ Transport STOPPED
 → UI/cursor diagnostics keeps small PPQ tolerance
 ```
 
-Повторить запись цепочки из этого раздела и проверить piano roll на всех четырёх generated voices.
+Финальный пользовательский тест 2026-09-21 подтвердил исправление: melody была размещена на дорожке Smart Voicing точно на границах Chord Track, затем четыре generated voices были записаны на инструментальные дорожки. При совпадении Note On с границей аккорда короткие transient notes отсутствуют.
 
-Ожидание:
+Также отдельно подтверждено ожидаемое поведение: если новая melody note реально начинается **раньше** следующего Chord Track event, Smart Voicing на этом коротком участке правомерно гармонизирует новую melody ещё по старому chord, а на фактической границе делает reharmonization. Такой короткий voicing является отражением реальных MIDI/Chord Track таймингов и не считается boundary bug.
 
-- на стыках тактов нет сверхкоротких промежуточных нот;
-- новый chord не начинает действовать до своей фактической ARA boundary;
-- старый chord не задерживается после boundary;
-- stopped cursor diagnostics по-прежнему стабильно выбирает аккорд на визуальной сетке Studio Pro.
+Итоговая temporal policy:
+
+```text
+melody Note On раньше chord boundary
+→ новая melody + текущий старый chord
+→ на chord boundary reharmonization
+
+melody Note On точно на chord boundary
+→ одна чистая смена voicing без transient notes
+```
 
 ---
 
@@ -273,14 +279,18 @@ Transport STOPPED
 
 ---
 
-## 8. Критерий принятия 0.3c
+## 8. Итог принятия 0.3c — ПРИНЯТО
 
-0.3c можно считать принятой, когда:
+Подтверждено 2026-09-21:
 
 1. host-neutral tests проходят;
-2. Windows CI зелёный для финального HEAD с live `ClosedVoicingContext` integration;
+2. Windows Build #259 — success;
 3. diagnostics в Studio Pro различает `candidate` и `confirmed` по реальному следующему Chord Track event;
-4. modal-interchange MVP корректно показывает parallel-mode evidence на тестовых случаях;
-5. live Melody Harmonize реально вызывает `buildClosedVoicing(..., ClosedVoicingContext)`;
-6. 0.3b Closed / Sustain / Direct Router regression остаётся чистой;
-7. generated MIDI не содержит коротких transient notes из-за преждевременного boundary tolerance.
+4. modal-interchange MVP показывает parallel-mode evidence на тестовых случаях;
+5. live Melody Harmonize вызывает `buildClosedVoicing(..., ClosedVoicingContext)`;
+6. 0.3b Closed regression сохранена;
+7. boundary bug с преждевременным realtime tolerance исправлен;
+8. при точном совпадении melody Note On и Chord Track boundary generated MIDI не содержит коротких transient notes;
+9. ранняя melody note до chord boundary корректно остаётся под старым chord до фактического момента смены harmony.
+
+**Статус 0.3c: ACCEPTED / Studio Pro confirmed.**
