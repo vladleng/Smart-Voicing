@@ -13,7 +13,7 @@
 - существующие `pushNoteToVoice / clearVoiceStack` остаются единым нижним Voice Stack/Router слоем для Direct Router и Melody Harmonize;
 - сохранение `HarmonyMode` и `DistributionMode` остаётся через plugin state;
 - CMake mapping: `0.2e → 0.2.5`;
-- Windows package: `Smart Voicing 0.2e`.
+- Windows package / artifact: `Smart Voicing 0.2e` / `Smart-Voicing-0.2e-Windows`.
 
 ## Автоматические тесты
 
