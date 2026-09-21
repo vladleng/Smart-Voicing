@@ -99,6 +99,34 @@ bool chordHasSeventhRole(const NormalizedChord& chord) noexcept
     return false;
 }
 
+bool allowsInferredTensions(const NormalizedChord& chord) noexcept
+{
+    // 0.3d deliberately keeps plain triads conservative. Seventh harmony and
+    // explicitly extended sonorities are rich enough to admit inferred tension
+    // candidates without silently turning every triad into add9/add13.
+    return chordHasSeventhRole(chord)
+        || chord.hasExtension(ChordExtension::ninth)
+        || chord.hasExtension(ChordExtension::eleventh)
+        || chord.hasExtension(ChordExtension::thirteenth);
+}
+
+bool isGeneratedHarmonyCandidate(int midiNote,
+                                 const NormalizedChord& chord,
+                                 const ClosedVoicingContext& context) noexcept
+{
+    if (midiNote < 0 || midiNote > 127 || ! chord.valid)
+        return false;
+
+    const auto relative = relativeToChordRoot(midiNote, chord);
+    if (chord.hasTone(relative))
+        return true;
+
+    if (! context.tension.valid || ! allowsInferredTensions(chord))
+        return false;
+
+    return context.tension.isHarmonyCandidate(relative);
+}
+
 bool selectedRole(const std::array<int, kVoiceCount>& notes,
                   const NormalizedChord& chord,
                   bool (*predicate)(int, const NormalizedChord&) noexcept) noexcept
@@ -181,6 +209,69 @@ int colourToneReward(const std::array<int, kVoiceCount>& notes,
     return reward;
 }
 
+int tensionRolePenalty(int midiNote,
+                       const NormalizedChord& chord,
+                       const ClosedVoicingContext& context) noexcept
+{
+    if (! context.tension.valid || midiNote < 0)
+        return 0;
+
+    const auto relative = relativeToChordRoot(midiNote, chord);
+    switch (context.tension.tone(relative).role)
+    {
+        case TensionRole::chordTone:       return 0;
+        case TensionRole::explicitTension: return -3;
+        case TensionRole::preferred:       return -2;
+        case TensionRole::available:       return 2;
+        case TensionRole::contextual:      return 6;
+        case TensionRole::avoidAsHarmony:
+        case TensionRole::unavailable:     return 24;
+    }
+
+    return 0;
+}
+
+bool isExplicitTensionNote(int midiNote,
+                           const NormalizedChord& chord,
+                           const ClosedVoicingContext& context) noexcept
+{
+    if (! context.tension.valid || midiNote < 0)
+        return false;
+
+    const auto relative = relativeToChordRoot(midiNote, chord);
+    return context.tension.tone(relative).role == TensionRole::explicitTension;
+}
+
+int minorNinthPenalty(const std::array<int, kVoiceCount>& notes,
+                      const NormalizedChord& chord,
+                      const ClosedVoicingContext& context) noexcept
+{
+    int penalty = 0;
+    for (int upper = 0; upper < kVoiceCount; ++upper)
+    {
+        for (int lower = upper + 1; lower < kVoiceCount; ++lower)
+        {
+            const auto upperNote = notes[static_cast<std::size_t>(upper)];
+            const auto lowerNote = notes[static_cast<std::size_t>(lower)];
+            if (upperNote < 0 || lowerNote < 0)
+                continue;
+
+            const auto distance = upperNote - lowerNote;
+            if (distance < 13 || (distance % 12) != 1)
+                continue;
+
+            // Explicit altered tensions such as b9/b13 are intentional evidence
+            // from Chord Track and bypass the generic minor-ninth penalty.
+            if (isExplicitTensionNote(upperNote, chord, context)
+                || isExplicitTensionNote(lowerNote, chord, context))
+                continue;
+
+            penalty += 10;
+        }
+    }
+    return penalty;
+}
+
 int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
                          const NormalizedChord& chord,
                          const ClosedVoicingContext& context) noexcept
@@ -194,7 +285,8 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
         || !(melody > v2 && v2 > v3 && v3 > v4))
         return kInvalidScore;
 
-    if (! isChordTone(v2, chord) || ! isChordTone(v3, chord))
+    if (! isGeneratedHarmonyCandidate(v2, chord, context)
+        || ! isGeneratedHarmonyCandidate(v3, chord, context))
         return kInvalidScore;
 
     if (chord.slashBass)
@@ -202,7 +294,7 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
         if (midiPitchClass(v4) != chord.bassPitchClass)
             return kInvalidScore;
     }
-    else if (! isChordTone(v4, chord))
+    else if (! isGeneratedHarmonyCandidate(v4, chord, context))
     {
         return kInvalidScore;
     }
@@ -218,14 +310,18 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
         score += (totalSpan - 12) * 7;
 
     score += duplicatePitchClassPenalty(notes);
+    score += minorNinthPenalty(notes, chord, context);
+
+    for (int voice = 1; voice < kVoiceCount; ++voice)
+        score += tensionRolePenalty(notes[static_cast<std::size_t>(voice)], chord, context);
 
     const auto hasThird = chordHasThirdRole(chord);
     const auto hasSeventh = chordHasSeventhRole(chord);
     const auto selectedThird = selectedRole(notes, chord, isThirdRole);
     const auto selectedSeventh = selectedRole(notes, chord, isSeventhRole);
 
-    // Guide tones are especially important on dominant-function chords. This is
-    // the first 0.3b use of the 0.3a harmonic analysis in voicing candidate rank.
+    // Guide tones are especially important on dominant-function chords. Tension
+    // Policy may colour the vertical, but it must not casually replace 3/7.
     const auto dominantFunction = context.harmonic.valid
                                && context.harmonic.effectiveFunction == HarmonicFunction::dominant;
     const auto guidePenalty = dominantFunction ? 32 : 22;
@@ -236,8 +332,7 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
         score += guidePenalty;
 
     // Root omission is normal for seventh/extended harmony. For a plain triad,
-    // however, retaining the root helps preserve identity until richer Tension
-    // Policy / style profiles arrive in later iterations.
+    // however, retaining the root helps preserve identity.
     if (! hasSeventh && ! selectedRoot(notes, chord))
         score += 16;
 
@@ -310,6 +405,15 @@ VoiceOutput buildClosedVoicing(int melodyNote,
     if (! chord.valid)
         return output;
 
+    auto resolvedContext = context;
+    if (! resolvedContext.tension.valid)
+    {
+        resolvedContext.tension = buildTensionPolicy(chord,
+                                                     resolvedContext.key,
+                                                     resolvedContext.harmonic,
+                                                     melodyNote);
+    }
+
     const auto lowerLimit = (melodyNote - kClosedSearchDepthSemitones > 0)
         ? melodyNote - kClosedSearchDepthSemitones
         : 0;
@@ -319,12 +423,12 @@ VoiceOutput buildClosedVoicing(int melodyNote,
 
     for (int v2 = melodyNote - 1; v2 >= lowerLimit; --v2)
     {
-        if (! isChordTone(v2, chord))
+        if (! isGeneratedHarmonyCandidate(v2, chord, resolvedContext))
             continue;
 
         for (int v3 = v2 - 1; v3 >= lowerLimit; --v3)
         {
-            if (! isChordTone(v3, chord))
+            if (! isGeneratedHarmonyCandidate(v3, chord, resolvedContext))
                 continue;
 
             for (int v4 = v3 - 1; v4 >= lowerLimit; --v4)
@@ -334,13 +438,13 @@ VoiceOutput buildClosedVoicing(int melodyNote,
                     if (midiPitchClass(v4) != chord.bassPitchClass)
                         continue;
                 }
-                else if (! isChordTone(v4, chord))
+                else if (! isGeneratedHarmonyCandidate(v4, chord, resolvedContext))
                 {
                     continue;
                 }
 
                 const std::array<int, kVoiceCount> candidate { melodyNote, v2, v3, v4 };
-                const auto score = scoreClosedCandidate(candidate, chord, context);
+                const auto score = scoreClosedCandidate(candidate, chord, resolvedContext);
                 if (score < bestScore)
                 {
                     bestScore = score;
