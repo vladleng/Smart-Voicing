@@ -79,6 +79,13 @@ juce::String harmonyModeText(SmartVoicingInstrumentProcessor::HarmonyMode mode)
     }
 }
 
+juce::String tensionLevelText(smartvoicing::harmony::TensionLevel level)
+{
+    juce::String result;
+    result << static_cast<int>(level) << " - " << smartvoicing::harmony::tensionLevelName(level);
+    return result;
+}
+
 juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeSnapshot& snapshot)
 {
     using Type = SmartVoicingInstrumentProcessor::MidiProbeEventType;
@@ -120,7 +127,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.3d - Tension Policy",
+    titleLabel.setText("Smart Voicing 0.3d - Tension Level",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -159,6 +166,27 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
         refreshContextMonitor();
     };
     addAndMakeVisible(harmonyModeBox);
+
+    tensionLevelLabel.setText("Tensions:", juce::dontSendNotification);
+    tensionLevelLabel.setJustificationType(juce::Justification::centredLeft);
+    tensionLevelLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    addAndMakeVisible(tensionLevelLabel);
+
+    tensionLevelBox.addItem("1 - Clean", static_cast<int>(smartvoicing::harmony::TensionLevel::clean));
+    tensionLevelBox.addItem("2 - Color", static_cast<int>(smartvoicing::harmony::TensionLevel::color));
+    tensionLevelBox.addItem("3 - Rich", static_cast<int>(smartvoicing::harmony::TensionLevel::rich));
+    tensionLevelBox.setSelectedId(static_cast<int>(processor.getTensionLevel()),
+                                  juce::dontSendNotification);
+    tensionLevelBox.onChange = [this]
+    {
+        const auto value = juce::jlimit(
+            static_cast<int>(smartvoicing::harmony::TensionLevel::clean),
+            static_cast<int>(smartvoicing::harmony::TensionLevel::rich),
+            tensionLevelBox.getSelectedId());
+        processor.setTensionLevel(static_cast<smartvoicing::harmony::TensionLevel>(value));
+        refreshContextMonitor();
+    };
+    addAndMakeVisible(tensionLevelBox);
 
     distributionModeLabel.setText(juce::String::fromUTF8("Распределение:"), juce::dontSendNotification);
     distributionModeLabel.setJustificationType(juce::Justification::centredLeft);
@@ -200,7 +228,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     debugLabel.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(debugLabel);
 
-    setSize(900, 1075);
+    setSize(900, 1117);
     refreshContextMonitor();
     startTimerHz(8);
 }
@@ -222,7 +250,7 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.drawRoundedRectangle(contextArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(52);
-    auto modeArea = area.removeFromTop(92);
+    auto modeArea = area.removeFromTop(134);
     g.drawRoundedRectangle(modeArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(12);
@@ -250,6 +278,10 @@ void SmartVoicingInstrumentEditor::resized()
     auto harmonyRow = area.removeFromTop(42).reduced(12, 4);
     harmonyModeLabel.setBounds(harmonyRow.removeFromLeft(130));
     harmonyModeBox.setBounds(harmonyRow.removeFromLeft(280));
+
+    auto tensionRow = area.removeFromTop(42).reduced(12, 4);
+    tensionLevelLabel.setBounds(tensionRow.removeFromLeft(130));
+    tensionLevelBox.setBounds(tensionRow.removeFromLeft(280));
 
     auto distributionRow = area.removeFromTop(42).reduced(12, 4);
     distributionModeLabel.setBounds(distributionRow.removeFromLeft(130));
@@ -381,6 +413,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     if (harmonyModeBox.getSelectedId() != desiredHarmonyId)
         harmonyModeBox.setSelectedId(desiredHarmonyId, juce::dontSendNotification);
 
+    const auto desiredTensionId = static_cast<int>(midiProbe.tensionLevel);
+    if (tensionLevelBox.getSelectedId() != desiredTensionId)
+        tensionLevelBox.setSelectedId(desiredTensionId, juce::dontSendNotification);
+
     const auto desiredDistributionId = static_cast<int>(midiProbe.distributionMode) + 1;
     if (distributionModeBox.getSelectedId() != desiredDistributionId)
         distributionModeBox.setSelectedId(desiredDistributionId, juce::dontSendNotification);
@@ -388,13 +424,16 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     const auto directRouter = midiProbe.harmonyMode == SmartVoicingInstrumentProcessor::HarmonyMode::directRouter;
     distributionModeBox.setEnabled(directRouter);
     distributionModeLabel.setEnabled(directRouter);
+    tensionLevelBox.setEnabled(! directRouter);
+    tensionLevelLabel.setEnabled(! directRouter);
 
     juce::String midiText;
     midiText << "Mode: " << harmonyModeText(midiProbe.harmonyMode);
     if (directRouter)
         midiText << " | distribution: " << distributionModeText(midiProbe.distributionMode);
     else
-        midiText << " | Closed Voicing + live Chord Track reharmonization";
+        midiText << " | Closed Voicing | tension: " << tensionLevelText(midiProbe.tensionLevel)
+                 << " | live Chord Track reharmonization";
     midiText << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
     midiText << "sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
              << " | keys held: " << midiProbe.heldNoteCount
@@ -423,7 +462,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 4 / 0.3d: Tension Policy + Harmonic Candidate Pool + Resolution-aware Function\n";
+    debugText << "Stage 4 / 0.3d: Tension Policy + Tension Level + Harmonic Candidate Pool + Resolution-aware Function\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -489,11 +528,13 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "\n";
 
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
-    debugText << "Priority: Played/Melody > Chord > Key > Function > Tension Policy > Voicing Strategy\n";
+    debugText << "Priority: Played/Melody > Chord > Key > Function > Tension Level/Policy > Voicing Strategy\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
+              << " | Tension Level: " << tensionLevelText(midiProbe.tensionLevel)
               << " | V1 melody immutable | V2-V4 candidate-based Closed vertical\n";
     debugText << "Closed policy: guide tones + contextual root/fifth omission + soft Upper Voice Spacing\n";
-    debugText << "Tension policy: Explicit/Preferred/Available/Contextual pool; Avoid/Unavailable excluded from generated V2-V4\n";
+    debugText << "Tension levels: Clean=chord-tone priority | Color=Preferred/Available when voicing improves | Rich=contextual/altered freedom\n";
+    debugText << "Tension policy: Explicit always authoritative; Avoid/Unavailable excluded from generated V2-V4\n";
     debugText << "Resolution policy: static candidate != confirmed; next Chord Track root supplies confirmation evidence\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
               << " | chord boundaries are scheduled inside the current audio block\n";
