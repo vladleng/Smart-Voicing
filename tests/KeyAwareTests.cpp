@@ -77,6 +77,7 @@ int main()
     expect(cAnalysis.rootFunction == HarmonicFunction::tonic, "I is tonic family");
     expect(cAnalysis.relation == HarmonicRelation::diatonic, "Cmaj7 is diatonic in C major");
     expect(! cAnalysis.appliedDominantCandidate, "Cmaj7 is not applied dominant");
+    expect(! cAnalysis.modalInterchangeCandidate, "diatonic Cmaj7 is not modal interchange");
 
     const auto dMin7 = normalizeChord(makeChord(2, { 0, 3, 7, 10 })); // D = +2 fifths
     const auto dMinAnalysis = analyzeHarmonicFunction(dMin7, cMajor);
@@ -98,6 +99,7 @@ int main()
     expect(d7InC.appliedDominantCandidate, "D7 in C is applied-dominant candidate");
     expect(d7InC.appliedTargetScaleDegree == 5, "D7 targets scale degree V (G)");
     expect(d7InC.effectiveFunction == HarmonicFunction::dominant, "applied dominant candidate has dominant effective function");
+    expect(! d7InC.appliedDominantConfirmed, "static D7 analysis is not resolution-confirmed");
 
     const auto a7 = normalizeChord(makeChord(3, { 0, 4, 7, 10 }));
     const auto a7InC = analyzeHarmonicFunction(a7, cMajor);
@@ -110,11 +112,56 @@ int main()
     expect(d7InG.relation == HarmonicRelation::diatonic, "D7 is diatonic in G major");
     expect(! d7InG.appliedDominantCandidate, "D7 in G is primary dominant, not applied");
 
+    // 0.3c: direct resolution confirms the candidate rather than inferring from shape alone.
+    const auto gMajorTriad = normalizeChord(makeChord(1, { 0, 4, 7 }));
+    const auto d7ToG = analyzeHarmonicFunction(d7, cMajor, gMajorTriad);
+    expect(d7ToG.nextChordAvailable, "D7->G sees next chord");
+    expect(d7ToG.nextChordRootPitchClass == 7, "D7->G next root is G");
+    expect(d7ToG.appliedDominantCandidate, "D7->G remains V/V candidate");
+    expect(d7ToG.appliedDominantConfirmed, "D7->G confirms V/V resolution");
+
+    // A different next root does not confirm the candidate, but does not erase it either.
+    const auto aMinorTriad = normalizeChord(makeChord(3, { 0, 3, 7 }));
+    const auto d7ToAm = analyzeHarmonicFunction(d7, cMajor, aMinorTriad);
+    expect(d7ToAm.nextChordAvailable, "D7->Am sees next chord");
+    expect(d7ToAm.appliedDominantCandidate, "D7->Am keeps static candidate evidence");
+    expect(! d7ToAm.appliedDominantConfirmed, "D7->Am does not confirm V/V");
+
+    // Ambiguous tonic dominant becomes a confirmed V/IV only when it resolves to F.
+    const auto c7 = normalizeChord(makeChord(0, { 0, 4, 7, 10 }));
+    const auto fMajorTriad = normalizeChord(makeChord(-1, { 0, 4, 7 }));
+    const auto c7Static = analyzeHarmonicFunction(c7, cMajor);
+    expect(c7Static.appliedDominantCandidate, "C7 in C can be V/IV candidate");
+    expect(! c7Static.appliedDominantConfirmed, "C7 static analysis remains unconfirmed");
+    const auto c7ToF = analyzeHarmonicFunction(c7, cMajor, fMajorTriad);
+    expect(c7ToF.appliedTargetScaleDegree == 4, "C7 targets IV (F)");
+    expect(c7ToF.appliedDominantConfirmed, "C7->F confirms V/IV instead of tonic-dominant guess");
+
+    // 0.3c modal-interchange MVP: a chromatic chord whose whole pitch set belongs
+    // to the parallel mode is exposed as borrowing evidence.
+    const auto fMin7 = normalizeChord(makeChord(-1, { 0, 3, 7, 10 }));
+    const auto fMinInC = analyzeHarmonicFunction(fMin7, cMajor);
+    expect(fMinInC.relation == HarmonicRelation::chromatic, "Fm7 is chromatic in C major");
+    expect(fMinInC.modalInterchangeCandidate, "Fm7 in C major fits parallel C minor");
+    expect(fMinInC.modalInterchangeSource == KeyMode::minor, "Fm7 borrowing source is parallel minor");
+
+    const auto eFlatMaj7 = normalizeChord(makeChord(-3, { 0, 4, 7, 11 }));
+    const auto eFlatInC = analyzeHarmonicFunction(eFlatMaj7, cMajor);
+    expect(eFlatInC.modalInterchangeCandidate, "Ebmaj7 in C major fits parallel minor collection");
+
+    const auto cMinor = normalizeKey(makeKey(0, true));
+    const auto fMajorInCMinor = analyzeHarmonicFunction(fMajorTriad, cMinor);
+    expect(fMajorInCMinor.relation == HarmonicRelation::chromatic, "F major is chromatic in C natural minor");
+    expect(fMajorInCMinor.modalInterchangeCandidate, "F major in C minor fits parallel C major");
+    expect(fMajorInCMinor.modalInterchangeSource == KeyMode::major, "F major borrowing source is parallel major");
+
+    expect(! d7InC.modalInterchangeCandidate, "D7 in C is secondary-dominant evidence, not parallel-mode borrowing");
+
     KeyContext missingKey;
     const auto noKey = normalizeKey(missingKey);
     expect(! noKey.valid, "missing Key must stay invalid");
     expect(! analyzeHarmonicFunction(d7, noKey).valid, "analysis safely falls back when Key is missing");
 
-    std::cout << "SmartVoicingKeyAwareTests: OK\n";
+    std::cout << "SmartVoicingKeyAwareTests 0.3c: OK\n";
     return 0;
 }
