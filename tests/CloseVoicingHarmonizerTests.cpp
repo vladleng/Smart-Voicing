@@ -38,6 +38,23 @@ ChordContext chord(std::int32_t rootFifths,
     return result;
 }
 
+KeyContext key(std::int32_t rootFifths, bool minor)
+{
+    KeyContext result;
+    result.available = true;
+    result.defined = true;
+    result.root = rootFifths;
+
+    const int majorIntervals[] = { 0, 2, 4, 5, 7, 9, 11 };
+    const int minorIntervals[] = { 0, 2, 3, 5, 7, 8, 10 };
+    const auto* values = minor ? minorIntervals : majorIntervals;
+
+    for (int i = 0; i < 7; ++i)
+        result.intervals.values[static_cast<std::size_t>(values[i])] = 0xFFu;
+
+    return result;
+}
+
 ClosedVoicingContext context(HarmonicFunction function = HarmonicFunction::undefined)
 {
     ClosedVoicingContext result;
@@ -74,9 +91,6 @@ void testMaj7RootMelodyPrefersTrueClosedSpan()
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
     const auto output = buildClosedVoicing(60, cmaj7, context()); // C4 root melody
 
-    // Studio Pro scale-walk test exposed an overly strong semitone penalty that
-    // preferred C-G-E-B across a major ninth. In four-way close, C-B-G-E is the
-    // more compact valid result; the upper minor second is contextual, not illegal.
     expectVoice(output, 0, 60, "Cmaj7 root melody C4 preserved");
     expectVoice(output, 1, 59, "Cmaj7 root melody V2 B3 seventh");
     expectVoice(output, 2, 55, "Cmaj7 root melody V3 G3 fifth");
@@ -119,6 +133,43 @@ void testDominantGuideTonesPermitRootOmission()
 
     for (const auto& voice : output.voices)
         expect(voice.midiNote % 12 != 7, "G7/9 root G may be omitted when 3rd/7th define harmony");
+}
+
+void testResolutionAwareContextKeepsMelodyAndChordAuthoritative()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto d7 = normalizeChord(chord(2, 2, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto am7 = normalizeChord(chord(3, 3, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+
+    ClosedVoicingContext confirmed;
+    confirmed.key = cMajor;
+    confirmed.harmonic = analyzeHarmonicFunction(d7, cMajor, g7);
+    expect(confirmed.harmonic.appliedDominantConfirmed,
+           "D7->G carries confirmed V/V evidence into Closed context");
+
+    ClosedVoicingContext candidateOnly;
+    candidateOnly.key = cMajor;
+    candidateOnly.harmonic = analyzeHarmonicFunction(d7, cMajor, am7);
+    expect(candidateOnly.harmonic.appliedDominantCandidate,
+           "D7->Am keeps V/V candidate evidence");
+    expect(! candidateOnly.harmonic.appliedDominantConfirmed,
+           "D7->Am is not falsely confirmed");
+
+    const auto confirmedOutput = buildClosedVoicing(69, d7, confirmed); // A4
+    const auto candidateOutput = buildClosedVoicing(69, d7, candidateOnly);
+
+    expectVoice(confirmedOutput, 0, 69, "confirmed D7 V1 melody A4");
+    expectVoice(confirmedOutput, 1, 66, "confirmed D7 V2 F#4");
+    expectVoice(confirmedOutput, 2, 62, "confirmed D7 V3 D4");
+    expectVoice(confirmedOutput, 3, 60, "confirmed D7 V4 C4");
+
+    for (int voice = 0; voice < 4; ++voice)
+    {
+        const auto index = static_cast<std::size_t>(voice);
+        expect(confirmedOutput.voices[index].midiNote == candidateOutput.voices[index].midiNote,
+               "0.3c resolution evidence is carried without inventing a premature tension-policy difference");
+    }
 }
 
 void testTriadStillRetainsRootIdentity()
@@ -178,6 +229,7 @@ int main()
     testNinthMelodyBuildsMusicalClosedVertical();
     testMinorNinthMelodyUsesThirdAndSeventh();
     testDominantGuideTonesPermitRootOmission();
+    testResolutionAwareContextKeepsMelodyAndChordAuthoritative();
     testTriadStillRetainsRootIdentity();
     testSlashBassOwnsV4();
     testNoChordFallback();
@@ -189,6 +241,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.3b Closed Voicing tests passed.\n";
+    std::cout << "All Smart Voicing 0.3c Closed Voicing tests passed.\n";
     return EXIT_SUCCESS;
 }
