@@ -1,6 +1,6 @@
 # Smart Voicing 0.3d — Tension Policy + Harmonic Candidate Pool
 
-Статус: **IN DEVELOPMENT**.
+Статус: **IN DEVELOPMENT — live Closed integration started**.
 
 Цель версии: добавить отдельный музыкальный слой между `Chord + Key + Function` и `VoicingStrategy`, который классифицирует возможные гармонические краски и не смешивает их с performer-owned melody.
 
@@ -21,7 +21,7 @@ Tension Policy
       ↓
 Harmonic Candidate Pool
       ↓
-Voicing Strategy
+Closed Voicing Strategy
 ```
 
 Tension Policy не имеет права переписывать explicit Chord Track или "исправлять" сыгранную melody.
@@ -136,8 +136,6 @@ F  = Unavailable
 F# = Chord Tone
 ```
 
-Explicit altered tensions позже могут заменить этот baseline без конфликта.
-
 ---
 
 ## 6. Modal Interchange
@@ -153,64 +151,115 @@ source = parallel C minor
 
 ---
 
-## 7. Host-neutral tests
+## 7. Реализованный live slice
 
-`SmartVoicingTensionPolicyTests` должен проверять минимум:
+`ClosedVoicingContext` теперь содержит `TensionPolicy`.
 
-- Cmaj7 / C major: `9 preferred`, `11 avoid`, `13 preferred`;
-- avoid note может быть `Melody-imposed`;
-- Dm7 / C major: 9/11/13 доступны как preferred baseline;
-- G7 / C major: 9 и 13 preferred, natural 11 avoid;
-- D7 -> G / C major: applied dominant не наследует F-natural из global key;
-- explicit `#11` и `b9` имеют приоритет над inference;
-- Fm7 / C major использует parallel-minor evidence;
-- при отсутствии Key/Function Smart Voicing не изобретает inferred tensions.
-
----
-
-## 8. Что пока НЕ подключено
-
-Первый slice 0.3d создаёт host-neutral `TensionPolicy` и `Harmonic Candidate Pool` + tests.
-
-До следующего slice **не меняется live Closed output**. То есть пользовательская сборка остаётся маркированной как принятая 0.3c, пока Tension Policy не будет реально подключена в `ClosedVoicingContext` и candidate scoring.
-
-Это сделано специально, чтобы не выдавать промежуточную архитектурную заготовку как готовую пользовательскую 0.3d.
-
----
-
-## 9. Следующий slice
+Если live caller передал только `Key + HarmonicAnalysis`, `buildClosedVoicing()` сам строит policy для текущей melody без дополнительной DAW-зависимости:
 
 ```text
-TensionPolicy
-      ↓
-ClosedVoicingContext
-      ↓
-V2-V4 candidate generation
-      ↓
-role-aware scoring
+Chord + Key + HarmonicAnalysis + Melody
+                ↓
+         buildTensionPolicy()
+                ↓
+     Closed Harmonic Candidate Pool
+                ↓
+       role-aware candidate scoring
 ```
 
-Правила интеграции:
+Generated V2–V4 теперь могут использовать:
 
-- structural chord tones и guide tones остаются основой chord identity;
-- inferred tensions не должны вытеснять 3/7 без музыкальной причины;
-- `Avoid-as-harmony` не используется в generated lower voices;
-- `Explicit` имеет высокий приоритет;
-- `Preferred / Available / Contextual` получают разные веса;
-- minor ninth становится context-aware negative weight, а не hard ban;
-- plain triads должны оставаться консервативными и не превращаться автоматически в add9/13 без достаточного scoring evidence.
+```text
+Explicit
+Preferred
+Available
+Contextual
+```
+
+`Avoid-as-harmony` и `Unavailable` в generated lower harmony не допускаются.
+
+Scoring 0.3d:
+
+- structural guide tones 3/7 остаются приоритетными;
+- `Explicit` получает сильный положительный приоритет;
+- `Preferred` получает небольшой reward;
+- `Available` допускается с небольшим penalty;
+- `Contextual` допускается более осторожно;
+- plain triads остаются chord-tone-only;
+- fifth остаётся первым кандидатом на omission;
+- root omission сохраняется для seventh/extended harmony;
+- minor ninth получает отрицательный вес, а не hard ban;
+- explicit altered tension может bypass generic minor-ninth penalty.
 
 ---
 
-## 10. Acceptance 0.3d
+## 8. Host-neutral regressions
+
+`SmartVoicingTensionPolicyTests` проверяет policy-классификацию.
+
+`SmartVoicingHarmonizerTests` дополнительно проверяет уже музыкальное применение policy:
+
+```text
+Cmaj7 / C major + melody G
+→ G-E-D-B
+```
+
+То есть Preferred 9 может заменить менее важный structural tone, но 3 и 7 сохраняются.
+
+Также проверяется:
+
+- Cmaj7 + melody F: F остаётся V1 как Melody-imposed Avoid;
+- generated lower voices не дублируют avoid F;
+- D7 -> G: Preferred 9 входит в Closed pool, F-natural не наследуется из C major;
+- D7 -> Am сохраняет ту же conservative dominant baseline до более глубокой resolution policy;
+- plain C major triad не превращается автоматически в add9/13.
+
+---
+
+## 9. Regression foundation
+
+Перед началом musical integration пользователь подтвердил 0.3d foundation regression в Studio Pro:
+
+- ARA / Chord / Key context работает;
+- 0.3c resolution diagnostics не деградировали;
+- Closed / Sustain / Direct Router / no-chord behavior работают;
+- boundary transient notes отсутствуют при точном Note On на chord boundary.
+
+Это считается baseline перед новым tension-aware output.
+
+---
+
+## 10. Следующий test slice
+
+После green CI текущего HEAD нужно проверить в Studio Pro уже изменившийся музыкальный результат:
+
+```text
+Cmaj7 / C major
+melody G  -> ожидается G-E-D-B
+melody F  -> F остаётся V1, lower harmony не генерирует F
+
+D7 -> G / C major
+melody A  -> ожидается A-F#-E-C
+
+C major triad / C major
+melody G  -> остаётся G-E-C-G
+```
+
+Отдельно проверить explicit `#11` и `b9` после того, как Studio Pro Chord Track корректно передаёт их degree metadata.
+
+---
+
+## 11. Acceptance 0.3d
 
 0.3d можно принять только после:
 
-1. green host-neutral `SmartVoicingTensionPolicyTests`;
-2. Tension Policy подключена в live `ClosedVoicingContext`;
-3. Closed Engine умеет использовать Harmonic Candidate Pool без потери chord identity;
+1. green `SmartVoicingTensionPolicyTests`;
+2. green `SmartVoicingHarmonizerTests` с live candidate-pool logic;
+3. Tension Policy реально влияет на Closed output;
 4. explicit tensions из Chord Track имеют приоритет;
 5. melody-imposed avoid/outside note остаётся V1;
 6. context-aware minor-ninth penalty протестирован;
-7. Windows Build зелёный для финального 0.3d HEAD;
-8. Studio Pro regression подтверждает 0.3b/0.3c behavior и новые tension cases.
+7. plain triads не получают inferred tensions автоматически;
+8. Windows Build зелёный для финального 0.3d HEAD;
+9. Studio Pro regression подтверждает 0.3b/0.3c behavior и новые tension cases;
+10. UI / diagnostics синхронизированы с 0.3d перед финальным acceptance.
