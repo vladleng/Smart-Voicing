@@ -120,7 +120,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.3c - Resolution-aware Function",
+    titleLabel.setText("Smart Voicing 0.3d - Tension Policy",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -178,7 +178,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.3c | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.3d | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -423,7 +423,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 4 / 0.3c: Resolution-aware Function + Modal Interchange Candidate; Closed 0.3b retained\n";
+    debugText << "Stage 4 / 0.3d: Tension Policy + Harmonic Candidate Pool + Resolution-aware Function\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -489,10 +489,11 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "\n";
 
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
-    debugText << "Priority: Played/Melody > Chord > Key > Function > musical policy\n";
+    debugText << "Priority: Played/Melody > Chord > Key > Function > Tension Policy > Voicing Strategy\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
               << " | V1 melody immutable | V2-V4 candidate-based Closed vertical\n";
     debugText << "Closed policy: guide tones + contextual root/fifth omission + soft Upper Voice Spacing\n";
+    debugText << "Tension policy: Explicit/Preferred/Available/Contextual pool; Avoid/Unavailable excluded from generated V2-V4\n";
     debugText << "Resolution policy: static candidate != confirmed; next Chord Track root supplies confirmation evidence\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
               << " | chord boundaries are scheduled inside the current audio block\n";
