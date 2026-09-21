@@ -33,16 +33,38 @@ struct HarmonicAnalysis
     HarmonicRelation relation = HarmonicRelation::undefined;
     bool chordTonesDiatonic = false;
 
-    // 0.3a deliberately calls this a candidate. From current Chord + Key alone
-    // D7 in C can strongly suggest V/V, but a resolution-aware stage is needed
-    // before claiming that every dominant-form chord actually functions that way.
+    // Dominant-form chord interpreted from the current Chord + Key.
+    // Candidate remains true even when the following chord is unavailable or
+    // does not confirm the expected target; confirmation is separate evidence.
     bool appliedDominantCandidate = false;
     int appliedTargetPitchClass = -1;
     int appliedTargetScaleDegree = 0;
+
+    // 0.3c timeline evidence. A valid next chord can confirm the predicted
+    // applied-dominant target without turning a non-confirming next chord into
+    // an automatic rejection: delayed/deceptive resolutions remain possible.
+    bool nextChordAvailable = false;
+    int nextChordRootPitchClass = -1;
+    bool appliedDominantConfirmed = false;
+
+    // Parallel-mode borrowing MVP. This is deliberately a candidate layer:
+    // if a chromatic chord's complete pitch set belongs to the parallel major
+    // or minor collection, expose that as modal-interchange evidence without
+    // rewriting the explicit Chord Track.
+    bool modalInterchangeCandidate = false;
+    KeyMode modalInterchangeSource = KeyMode::undefined;
 };
 
+// 0.3a-compatible static analysis from the currently active Chord + Key only.
 HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
                                          const NormalizedKey& key) noexcept;
+
+// 0.3c resolution-aware overload. The following Chord Track event is evidence
+// used to confirm an applied/secondary dominant candidate when its root matches
+// the predicted target.
+HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
+                                         const NormalizedKey& key,
+                                         const NormalizedChord& nextChord) noexcept;
 
 const char* harmonicFunctionName(HarmonicFunction function) noexcept;
 const char* harmonicRelationName(HarmonicRelation relation) noexcept;
