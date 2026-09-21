@@ -2,7 +2,7 @@
 
 Цель версии: перестать считать dominant-form chord окончательно интерпретированным только по `Chord + Key` и добавить **timeline evidence** из следующего Chord Track event.
 
-0.3c также добавляет первый безопасный `Modal Interchange Candidate` для borrowing из parallel major/minor.
+0.3c также добавляет первый безопасный `Modal Interchange Candidate` для borrowing из parallel major/minor и передаёт этот контекст в live `ClosedVoicingContext`.
 
 ---
 
@@ -20,6 +20,10 @@ Next Chord Track event
 Resolution Evidence
         ↓
 Candidate / Confirmed
+        ↓
+ClosedVoicingContext
+        ↓
+Closed Engine
 ```
 
 Важно:
@@ -27,7 +31,9 @@ Candidate / Confirmed
 - `candidate` и `confirmed` — разные признаки;
 - несовпадающий следующий chord **не означает**, что candidate автоматически ложный;
 - возможны delayed / deceptive resolutions;
-- Smart Voicing не переписывает Chord Track.
+- Smart Voicing не переписывает Chord Track;
+- Melody и explicit Chord остаются выше Key / Function / Resolution evidence;
+- в 0.3c resolution evidence ещё не должна искусственно создавать разные tensions — это задача 0.3d.
 
 ---
 
@@ -137,80 +143,102 @@ F major -> candidate from parallel major
 
 ---
 
-## 4. Studio Pro diagnostics
+## 4. Studio Pro diagnostics — подтверждено
 
-После интеграции UI проверить Chord Track в **C major**:
-
-```text
-D7 | G7 | Cmaj7
-```
-
-На D7 diagnostics должны показывать примерно:
+Практический тест 2026-09-21:
 
 ```text
-Root degree: II
-Relation: Chromatic
-Applied: V/V
-Resolution: CONFIRMED
-Next chord: G...
+D7 | G7 | D7 | Am7 | C7 | Fmaj7 | Fm7 | Cmaj7
 ```
 
-Затем заменить G7 на Am:
+Подтверждено:
 
 ```text
-D7 | Am | ...
+D7 -> G7    = V/V candidate + CONFIRMED
+D7 -> Am7   = V/V candidate, NOT CONFIRMED
+C7 -> Fmaj7 = V/IV candidate + CONFIRMED
+Fm7         = modal interchange candidate: parallel minor
 ```
 
-Ожидание:
-
-```text
-Applied: V/V candidate
-Resolution: not confirmed
-```
-
-Проверить:
-
-```text
-C7 | Fmaj7
-```
-
-Ожидание:
-
-```text
-Applied: V/IV
-Resolution: CONFIRMED
-```
-
-Проверить modal interchange:
-
-```text
-Fm7 | Cmaj7
-Ebmaj7 | Cmaj7
-```
-
-Ожидание: diagnostics показывает candidate из parallel minor.
+Также подтверждены C major Key Track и корректные `degree / root function / effective function / relation` в diagnostics.
 
 ---
 
-## 5. Melody Harmonize regression
+## 5. Live ClosedVoicingContext integration
 
-Resolution-aware analysis не должен сам по себе ломать уже принятую 0.3b Closed-логику.
+Начиная с финальной части 0.3c, `Melody Harmonize` больше не должен использовать context-free compatibility path `buildCloseVoicing()`.
+
+Для каждой новой melody note и для live reharmonization удержанной melody строится:
+
+```text
+Current HarmonicContext
+├ Chord
+├ Key
+└ timeline position
+      +
+Next Chord Track event
+      ↓
+HarmonicAnalysis
+      ↓
+ClosedVoicingContext
+      ↓
+buildClosedVoicing(...)
+```
+
+То есть Closed Engine реально получает:
+
+```text
+Key
+root/effective Function
+Diatonic/Chromatic relation
+Applied Dominant Candidate
+Applied Dominant Confirmed
+Modal Interchange Candidate
+```
+
+При этом 0.3c **не обязана** давать разные ноты для `D7 -> G` и `D7 -> Am`: до Tension Policy оба explicit D7 могут закономерно получить одинаковый Closed voicing. Важно, что evidence уже находится внутри музыкального контекста движка и готово для 0.3d.
+
+---
+
+## 6. Финальный Studio Pro regression после live integration
+
+Использовать уже созданный тест:
+
+```text
+Key: C major
+
+D7 | G7 | D7 | Am7 | C7 | Fmaj7 | Fm7 | Cmaj7
+ A | G  | A  | A   | G  | A     | Ab  | G
+```
 
 Проверить:
 
-- Cmaj7 + `C D E F G A B C` сохраняет корректные compact Closed voicings;
-- V1 остаётся melody;
-- chord changes reharmonize только lower voices;
+- V1 всегда совпадает с сыгранной melody;
+- explicit Chord Track не переписывается Key/Function context;
+- `D7 + A` остаётся корректным compact Closed;
+- удержанная melody корректно reharmonize на chord boundaries;
+- diagnostics сохраняют результаты из раздела 4;
 - Sustain работает;
 - `(no chord) -> chord` работает;
 - нет stuck notes;
 - Direct Router не изменился.
 
-Особенно проверить, что новая Function/Resolution information является **context/scoring evidence**, а не командой заменить явные chord tones.
+Дополнительная регрессия 0.3b:
+
+```text
+Cmaj7 + C D E F G A B C
+```
+
+Ожидание: те же принятые compact Closed voicings, включая:
+
+```text
+C -> C-B-G-E
+D -> D-B-G-E
+```
 
 ---
 
-## 6. Что сознательно НЕ входит в 0.3c
+## 7. Что сознательно НЕ входит в 0.3c
 
 - полный chord-progression grammar;
 - автоматическое распознавание всех deceptive resolutions;
@@ -222,12 +250,13 @@ Resolution-aware analysis не должен сам по себе ломать у
 
 ---
 
-## 7. Критерий принятия 0.3c
+## 8. Критерий принятия 0.3c
 
 0.3c можно считать принятой, когда:
 
 1. host-neutral tests проходят;
-2. Windows CI зелёный для финального HEAD;
+2. Windows CI зелёный для финального HEAD с live `ClosedVoicingContext` integration;
 3. diagnostics в Studio Pro различает `candidate` и `confirmed` по реальному следующему Chord Track event;
 4. modal-interchange MVP корректно показывает parallel-mode evidence на тестовых случаях;
-5. 0.3b Closed / Sustain / Direct Router regression остаётся чистой.
+5. live Melody Harmonize реально вызывает `buildClosedVoicing(..., ClosedVoicingContext)`;
+6. 0.3b Closed / Sustain / Direct Router regression остаётся чистой.
