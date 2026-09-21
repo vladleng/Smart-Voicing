@@ -69,6 +69,22 @@ void testMaj7ClosedVoicingKeepsStage3Reference()
     expectVoice(output, 3, 59, "Cmaj7 V4 B3");
 }
 
+void testMaj7RootMelodyPrefersTrueClosedSpan()
+{
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto output = buildClosedVoicing(60, cmaj7, context()); // C4 root melody
+
+    // Studio Pro scale-walk test exposed an overly strong semitone penalty that
+    // preferred C-G-E-B across a major ninth. In four-way close, C-B-G-E is the
+    // more compact valid result; the upper minor second is contextual, not illegal.
+    expectVoice(output, 0, 60, "Cmaj7 root melody C4 preserved");
+    expectVoice(output, 1, 59, "Cmaj7 root melody V2 B3 seventh");
+    expectVoice(output, 2, 55, "Cmaj7 root melody V3 G3 fifth");
+    expectVoice(output, 3, 52, "Cmaj7 root melody V4 E3 third");
+    expect(output.voices[0].midiNote - output.voices[3].midiNote <= 12,
+           "Cmaj7 root melody stays within one-octave Closed span");
+}
+
 void testNinthMelodyBuildsMusicalClosedVertical()
 {
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
@@ -158,6 +174,7 @@ void testLegacyEntryPointUsesSameClosedEngine()
 int main()
 {
     testMaj7ClosedVoicingKeepsStage3Reference();
+    testMaj7RootMelodyPrefersTrueClosedSpan();
     testNinthMelodyBuildsMusicalClosedVertical();
     testMinorNinthMelodyUsesThirdAndSeventh();
     testDominantGuideTonesPermitRootOmission();
