@@ -192,6 +192,7 @@ private:
     DistributionMode activeDistributionMode = DistributionMode::topDown;
     HarmonyMode activeHarmonyMode = HarmonyMode::directRouter;
     smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
+    smartvoicing::harmony::MelodyGateState melodyGate;
 
     double currentSampleRate = 44100.0;
     double currentBlockStartSeconds = -1.0;

@@ -324,7 +324,12 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             }
             else if (isNoteOff && note == activeMelodyInputNote)
             {
-                stopMelodyVoicing(metadata.samplePosition);
+                const auto decision = melodyGate.endNote(note);
+                heldDistinctNoteCount = melodyGate.keyDown() ? 1 : 0;
+                heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
+
+                if (decision.releaseVoicing)
+                    stopMelodyVoicing(metadata.samplePosition);
             }
 
             continue;
@@ -333,10 +338,16 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
         bool newSustainState = false;
         if (getSustainState(metadata, newSustainState))
         {
-            // 0.2d still forwards Sustain to every output Voice. Full sustain-aware
-            // ownership of generated Voice stacks remains the dedicated 0.2e task.
+            const auto decision = melodyGate.setSustain(newSustainState);
             sustainDown = newSustainState;
             sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
+
+            // For a sustain-owned melody, send the current Voice Note Offs before
+            // CC64-up at the same sample. The receiver then releases both the old
+            // sustain-held harmony and the current generated Voice set together.
+            if (decision.releaseVoicing)
+                stopMelodyVoicing(metadata.samplePosition);
+
             routeNonNoteEvent(metadata);
             continue;
         }
@@ -370,6 +381,7 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     // Stage 3 remains intentionally monophonic at the Melody Harmonize input.
     // A new melody Note On owns the four generated Voices immediately.
     stopMelodyVoicing(samplePosition);
+    melodyGate.beginNote(melodyNote);
 
     const auto ppq = ppqForSamplePosition(samplePosition);
     const auto context = ppq >= 0.0
@@ -499,6 +511,7 @@ void SmartVoicingInstrumentProcessor::stopMelodyVoicing(int samplePosition)
     for (int voice = 0; voice < voiceCount; ++voice)
         clearVoiceStack(voice, samplePosition);
 
+    melodyGate.releaseMelody();
     activeMelodyInputNote = -1;
     activeMelodyVelocity = 0;
     activeMelodyVoicing.clear();
@@ -539,25 +552,19 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
 
         if (wasPhysicallyUp)
         {
-            // A first physical key after all keys were released starts a new Chord
-            // Gesture even if Sustain is still holding the previous Voice stacks.
             if (heldDistinctNoteCount == 0)
             {
                 chordGestureStartSample = absoluteSample;
                 pendingChordFrame = true;
-                chordFrameNotes.fill(-1); // old sustain-held chord becomes background stack state.
+                chordFrameNotes.fill(-1);
             }
             else if (chordGestureStartSample >= 0
                      && absoluteSample - chordGestureStartSample <= chordGestureWindowSamples)
             {
-                // Notes arriving inside the short gesture window belong to the same
-                // chord frame, not to independent legato continuations.
                 pendingChordFrame = true;
             }
             else
             {
-                // A later note is a Voice Gesture. It will be resolved to the nearest
-                // existing Voice and may create a same-channel legato overlap.
                 chordGestureStartSample = -1;
             }
 
@@ -570,8 +577,6 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
 
         heldNoteVelocities[noteIndex] = static_cast<std::uint8_t>(velocity);
 
-        // Re-pressing a sustain-held note re-articulates every Voice currently using
-        // that physical pitch (needed for Fill 4 Voices unison/duplication mode).
         if (wasPhysicallyUp && noteVoiceMasks[noteIndex] != 0)
             retriggerPending[noteIndex] = true;
 
@@ -1131,6 +1136,7 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
     activeMelodyInputNote = -1;
     activeMelodyVelocity = 0;
     activeMelodyVoicing.clear();
+    melodyGate.reset();
     sustainDown = false;
     stableOwnership = false;
     pendingChordFrame = false;

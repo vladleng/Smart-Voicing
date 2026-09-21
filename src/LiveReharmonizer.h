@@ -20,6 +20,34 @@ struct ReharmonizationPlan
     bool lowerVoicesChanged = false;
 };
 
+// Small host-neutral ownership state for Melody Harmonize. It mirrors the
+// musical meaning of a physical key plus Sustain without knowing anything
+// about JUCE, MIDI channels or the Router implementation.
+struct MelodyGateDecision
+{
+    bool releaseVoicing = false;
+};
+
+class MelodyGateState
+{
+public:
+    void reset() noexcept;
+    void beginNote(int midiNote) noexcept;
+    MelodyGateDecision endNote(int midiNote) noexcept;
+    MelodyGateDecision setSustain(bool down) noexcept;
+    void releaseMelody() noexcept;
+
+    int activeNote() const noexcept { return currentNote; }
+    bool keyDown() const noexcept { return physicalKeyDown; }
+    bool sustainDown() const noexcept { return pedalDown; }
+    bool ownsVoicing() const noexcept { return currentNote >= 0; }
+
+private:
+    int currentNote = -1;
+    bool physicalKeyDown = false;
+    bool pedalDown = false;
+};
+
 // Build a transition from the currently sounding Melody Harmonize voicing to
 // the desired one. V1 is deliberately immutable here: the played melody owns
 // V1, while only generated V2..V4 may be replaced by a Chord Track change.

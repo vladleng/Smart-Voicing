@@ -24,6 +24,57 @@ int roundedSampleOffset(double exactSamples, int blockSamples) noexcept
 }
 }
 
+void MelodyGateState::reset() noexcept
+{
+    currentNote = -1;
+    physicalKeyDown = false;
+    pedalDown = false;
+}
+
+void MelodyGateState::beginNote(int midiNote) noexcept
+{
+    currentNote = midiNote;
+    physicalKeyDown = midiNote >= 0;
+}
+
+MelodyGateDecision MelodyGateState::endNote(int midiNote) noexcept
+{
+    MelodyGateDecision decision;
+    if (midiNote != currentNote || currentNote < 0)
+        return decision;
+
+    physicalKeyDown = false;
+    if (! pedalDown)
+    {
+        decision.releaseVoicing = true;
+        releaseMelody();
+    }
+
+    return decision;
+}
+
+MelodyGateDecision MelodyGateState::setSustain(bool down) noexcept
+{
+    MelodyGateDecision decision;
+    if (pedalDown == down)
+        return decision;
+
+    pedalDown = down;
+    if (! pedalDown && currentNote >= 0 && ! physicalKeyDown)
+    {
+        decision.releaseVoicing = true;
+        releaseMelody();
+    }
+
+    return decision;
+}
+
+void MelodyGateState::releaseMelody() noexcept
+{
+    currentNote = -1;
+    physicalKeyDown = false;
+}
+
 ReharmonizationPlan planLowerVoiceReharmonization(const VoiceOutput& current,
                                                   const VoiceOutput& desired) noexcept
 {

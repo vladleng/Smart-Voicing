@@ -141,9 +141,6 @@ void testSequenceCanBeAppliedWithoutStaleVoices()
     plan = planLowerVoiceReharmonization(current, g);
     expect(plan.lowerVoicesChanged, "sequence step G7 changes");
 
-    // Dm7 -> G7 keeps F4 and D4 as common tones in the same Voice slots.
-    // Only V4 must move C4 -> B3; this is the first anti-retrigger rule for
-    // live reharmonization, not yet the later voice-leading engine.
     expectNoTransition(plan, 1, "shared F4 stays sounding");
     expectNoTransition(plan, 2, "shared D4 stays sounding");
     expectTransition(plan, 3, 60, 59, "C4 -> B3 replacement");
@@ -169,6 +166,56 @@ void testSampleAccurateBoundaryScheduling()
     expect(sampleOffsetFromPpq(4.0, 3.99, 120.0, sampleRate, blockSamples) == -1,
            "past PPQ boundary must not be scheduled in current block");
 }
+
+void testMelodyGateImmediateReleaseWithoutSustain()
+{
+    MelodyGateState gate;
+    gate.beginNote(67);
+    expect(gate.ownsVoicing() && gate.keyDown(), "gate owns played melody");
+
+    const auto decision = gate.endNote(67);
+    expect(decision.releaseVoicing, "note off without sustain releases voicing");
+    expect(! gate.ownsVoicing(), "released gate owns no melody");
+}
+
+void testMelodyGateSustainKeepsVoicingUntilPedalUp()
+{
+    MelodyGateState gate;
+    gate.beginNote(67);
+    expect(! gate.setSustain(true).releaseVoicing, "pedal down does not release");
+
+    const auto noteOff = gate.endNote(67);
+    expect(! noteOff.releaseVoicing, "note off under sustain keeps voicing");
+    expect(gate.ownsVoicing() && ! gate.keyDown(), "sustain owns released melody");
+
+    const auto pedalUp = gate.setSustain(false);
+    expect(pedalUp.releaseVoicing, "pedal up releases sustain-owned melody");
+    expect(! gate.ownsVoicing(), "pedal-up leaves no melody ownership");
+}
+
+void testMelodyGateNewNoteDuringSustainBecomesPhysicalOwner()
+{
+    MelodyGateState gate;
+    gate.beginNote(67);
+    gate.setSustain(true);
+    gate.endNote(67);
+
+    gate.beginNote(69);
+    expect(gate.activeNote() == 69 && gate.keyDown(), "new note replaces sustain-owned melody");
+
+    const auto pedalUp = gate.setSustain(false);
+    expect(! pedalUp.releaseVoicing, "pedal up must not release physically held new note");
+    expect(gate.ownsVoicing() && gate.keyDown(), "new physical melody remains owned");
+}
+
+void testMelodyGateIgnoresUnrelatedNoteOff()
+{
+    MelodyGateState gate;
+    gate.beginNote(67);
+    const auto decision = gate.endNote(65);
+    expect(! decision.releaseVoicing, "unrelated note off does not release active melody");
+    expect(gate.activeNote() == 67 && gate.keyDown(), "active melody survives unrelated note off");
+}
 }
 
 int main()
@@ -179,13 +226,17 @@ int main()
     testChordReturnsAfterFallback();
     testSequenceCanBeAppliedWithoutStaleVoices();
     testSampleAccurateBoundaryScheduling();
+    testMelodyGateImmediateReleaseWithoutSustain();
+    testMelodyGateSustainKeepsVoicingUntilPedalUp();
+    testMelodyGateNewNoteDuringSustainBecomesPhysicalOwner();
+    testMelodyGateIgnoresUnrelatedNoteOff();
 
     if (failures != 0)
     {
-        std::cerr << failures << " live-reharmonization test(s) failed.\n";
+        std::cerr << failures << " live-reharmonization/integration test(s) failed.\n";
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.2d live-reharmonization tests passed.\n";
+    std::cout << "All Smart Voicing 0.2e integration tests passed.\n";
     return EXIT_SUCCESS;
 }
