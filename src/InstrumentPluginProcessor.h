@@ -1,6 +1,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ARAContextProvider.h"
+#include "LiveReharmonizer.h"
+
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -26,6 +29,12 @@ public:
         fillFour
     };
 
+    enum class HarmonyMode : int
+    {
+        directRouter = 0,
+        melodyHarmonize
+    };
+
     struct MidiProbeSnapshot
     {
         std::uint32_t revision = 0;
@@ -37,13 +46,16 @@ public:
         std::uint32_t pitchBendEvents = 0;
         std::uint32_t otherEvents = 0;
         std::uint32_t channelMask = 0;
+        std::uint32_t reharmonizationCount = 0;
         MidiProbeEventType lastEventType = MidiProbeEventType::none;
         DistributionMode distributionMode = DistributionMode::topDown;
+        HarmonyMode harmonyMode = HarmonyMode::directRouter;
         int lastChannel = 0;
         int lastData1 = 0;
         int lastData2 = 0;
         int heldNoteCount = 0;
         int ignoredExtraNoteCount = 0;
+        double lastReharmonizationPpq = -1.0;
         bool sustainDown = false;
         bool stableOwnership = false;
         std::array<int, 4> voiceNotes { -1, -1, -1, -1 };
@@ -85,6 +97,9 @@ public:
     void setDistributionMode(DistributionMode mode) noexcept;
     DistributionMode getDistributionMode() const noexcept;
 
+    void setHarmonyMode(HarmonyMode mode) noexcept;
+    HarmonyMode getHarmonyMode() const noexcept;
+
 private:
     static constexpr int midiNoteCount = 128;
     static constexpr int voiceCount = 4;
@@ -96,6 +111,13 @@ private:
     bool updateHeldNoteFromEvent(const juce::MidiMessageMetadata&, std::int64_t absoluteSample) noexcept;
     bool shouldClearHeldNotes(const juce::MidiMessageMetadata&) const noexcept;
     void clearHeldNotes() noexcept;
+
+    void processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages, int blockSamples);
+    void startMelodyVoicing(int melodyNote, int velocity, int samplePosition);
+    void refreshMelodyHarmonyAtPpq(double ppq, int samplePosition);
+    void stopMelodyVoicing(int samplePosition);
+    double ppqForSamplePosition(int samplePosition) noexcept;
+    int samplePositionForPpq(double ppq) noexcept;
 
     void applyVoiceState(int samplePosition);
     void applyChordDistributionFrame(int samplePosition);
@@ -134,6 +156,8 @@ private:
     std::atomic<std::uint32_t> midiPitchBendEvents { 0 };
     std::atomic<std::uint32_t> midiOtherEvents { 0 };
     std::atomic<std::uint32_t> midiChannelMask { 0 };
+    std::atomic<std::uint32_t> reharmonizationCountForUi { 0 };
+    std::atomic<double> lastReharmonizationPpqForUi { -1.0 };
     std::atomic<int> lastMidiEventType { static_cast<int>(MidiProbeEventType::none) };
     std::atomic<int> lastMidiChannel { 0 };
     std::atomic<int> lastMidiData1 { 0 };
@@ -143,6 +167,7 @@ private:
     std::atomic<bool> sustainDownForUi { false };
     std::atomic<bool> stableOwnershipForUi { false };
     std::atomic<int> requestedDistributionMode { static_cast<int>(DistributionMode::topDown) };
+    std::atomic<int> requestedHarmonyMode { static_cast<int>(HarmonyMode::directRouter) };
     std::array<std::atomic<int>, voiceCount> voiceNotesForUi;
     std::array<std::atomic<int>, voiceCount> voiceStackDepthsForUi;
 
@@ -159,15 +184,26 @@ private:
     std::array<int, voiceCount> chordFrameNotes { -1, -1, -1, -1 };
 
     int heldDistinctNoteCount = 0;
+    int activeMelodyInputNote = -1;
+    int activeMelodyVelocity = 0;
     bool sustainDown = false;
     bool stableOwnership = false;
     bool pendingChordFrame = false;
     DistributionMode activeDistributionMode = DistributionMode::topDown;
+    HarmonyMode activeHarmonyMode = HarmonyMode::directRouter;
+    smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
+    smartvoicing::harmony::MelodyGateState melodyGate;
 
     double currentSampleRate = 44100.0;
+    double currentBlockStartSeconds = -1.0;
+    double currentBlockStartPpq = -1.0;
+    double currentBlockBpm = -1.0;
+    int currentBlockNumSamples = 0;
     std::int64_t processedSampleCounter = 0;
     std::int64_t chordGestureStartSample = -1;
     std::int64_t chordGestureWindowSamples = 1985; // 45 ms at 44.1 kHz; recalculated in prepareToPlay.
+
+    smartvoicing::harmony::ARAContextProvider harmonicContextProvider;
 
     // Reused/preallocated output buffer to avoid per-block allocation in the normal path.
     juce::MidiBuffer routedMidi;

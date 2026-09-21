@@ -24,14 +24,20 @@
 - `Smart Voicing 0.1c` — Stable Voice Ownership + sustain-aware state.
 - `Smart Voicing 0.1d` — Voice Stack + legato continuation + Sustain Chord Morph.
 - `Smart Voicing 0.1e` — Distribution Modes + Gesture Classifier + `note → Voice mask` + максимум 4 Voice для Chord Gesture.
-- `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**. Текущая базовая версия для дальнейшей разработки.
+- `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**.
+- `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`; пользовательский тест пройден.
+- `Smart Voicing 0.2b` — нормализованная `ChordModel`: pitch class из circle-of-fifths, chord quality, extensions, alterations и slash bass; добавлены host-neutral unit tests.
+- `Smart Voicing 0.2c` — первый `Melody Harmonize` + базовый Close voicing; подтверждено в Studio Pro.
+- `Smart Voicing 0.2d` — Live Chord Reharmonization + sample-accurate chord boundaries без plugin latency.
+- `Smart Voicing 0.2e` — интеграция Melody Harmonize с Sustain / Voice ownership / State и полная регрессия Router 0.2; подтверждено CI и пользовательским тестом в Studio Pro 2026-09-21.
+- `Smart Voicing 0.3` — **завершённый Этап 3: Chord-aware Harmonizer + Harmonic Context**. Стабильный checkpoint поверх подтверждённой 0.2e без новых музыкальных изменений.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.2/
+Smart Voicing 0.3/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -42,7 +48,7 @@ Smart Voicing 0.2/
 
 Назначение компонентов:
 
-- `Smart Voicing.vst3` — основной Instrument / MIDI engine.
+- `Smart Voicing.vst3` — основной Instrument / MIDI engine и Harmony Core.
 - `Smart Voicing ARA.vst3` — служебный ARA/Event FX reader harmonic context.
 
 Оба компонента устанавливаются вместе и считаются одной версией Smart Voicing.
@@ -52,7 +58,7 @@ Smart Voicing 0.2/
 ```text
 Этап 1: 0.0a ... 0.0g → 0.1
 Этап 2: 0.1a ... 0.1e → 0.2
-Этап 3: 0.2a ...      → 0.3
+Этап 3: 0.2a ... 0.2e → 0.3
 Этап 4: 0.3a ...      → 0.4
 Этап 5: 0.4a ...      → 0.5
 Этап 6: 0.5a ...      → 0.6
@@ -77,8 +83,13 @@ Smart Voicing 0.2/
 0.1e → 0.1.5
 0.2  → 0.2.0
 0.2a → 0.2.1
+0.2b → 0.2.2
+0.2c → 0.2.3
+0.2d → 0.2.4
+0.2e → 0.2.5
+0.3  → 0.3.0
 ```
 
 ## Отложенная стабилизация
 
-Функции, которые не блокируют переход к Chord-aware Harmonizer, не должны задерживать завершение музыкальных этапов. Например, отдельная UI-кнопка `Panic / All Notes Off`, расширенные stop/seek/reactivation regression tests и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0.
+Функции, которые не блокируют развитие музыкального ядра, не должны задерживать переход между этапами. Например, отдельная UI-кнопка `Panic / All Notes Off` и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0. Интеграционная регрессия Router / Sustain / State перед стабильной 0.3 выполнена в 0.2e.

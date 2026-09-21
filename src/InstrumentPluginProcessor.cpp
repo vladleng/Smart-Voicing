@@ -1,7 +1,11 @@
 #include "InstrumentPluginProcessor.h"
 #include "InstrumentPluginEditor.h"
+#include "ChordModel.h"
+#include "CloseVoicingHarmonizer.h"
+#include "LiveReharmonizer.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 
@@ -18,8 +22,9 @@ constexpr int sustainController = 64;
 constexpr int firstOutputChannel = 1;
 constexpr int midiOutputReserveBytes = 32768;
 constexpr double chordGestureWindowSeconds = 0.045;
+constexpr int maxChordBoundariesPerBlock = 16;
 constexpr int stateMagic = 0x53564D32; // "SVM2"
-constexpr int stateVersion = 2;
+constexpr int stateVersion = 3;
 
 bool isNoteMessage(const juce::MidiMessageMetadata& metadata) noexcept
 {
@@ -68,6 +73,8 @@ SmartVoicingInstrumentProcessor::SmartVoicingInstrumentProcessor()
 
     for (auto& depth : voiceStackDepthsForUi)
         depth.store(0, std::memory_order_relaxed);
+
+    activeMelodyVoicing.clear();
 }
 
 void SmartVoicingInstrumentProcessor::prepareToPlay(double sampleRate, int)
@@ -76,6 +83,10 @@ void SmartVoicingInstrumentProcessor::prepareToPlay(double sampleRate, int)
     chordGestureWindowSamples = (std::max<std::int64_t>)(1,
         static_cast<std::int64_t>(std::llround(currentSampleRate * chordGestureWindowSeconds)));
     processedSampleCounter = 0;
+    currentBlockStartSeconds = -1.0;
+    currentBlockStartPpq = -1.0;
+    currentBlockBpm = -1.0;
+    currentBlockNumSamples = 0;
 
     routedMidi.clear();
     routedMidi.ensureSize(static_cast<std::size_t>(midiOutputReserveBytes));
@@ -101,20 +112,56 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 {
     juce::ScopedNoDenormals noDenormals;
 
+    currentBlockStartSeconds = -1.0;
+    currentBlockStartPpq = -1.0;
+    currentBlockBpm = -1.0;
+    currentBlockNumSamples = buffer.getNumSamples();
+
     if (auto* playHead = getPlayHead())
     {
         if (const auto position = playHead->getPosition())
         {
             if (const auto seconds = position->getTimeInSeconds())
+            {
+                currentBlockStartSeconds = *seconds;
                 lastPositionSeconds.store(*seconds, std::memory_order_relaxed);
+            }
 
             if (const auto ppq = position->getPpqPosition())
+            {
+                currentBlockStartPpq = *ppq;
                 lastPpqPosition.store(*ppq, std::memory_order_relaxed);
+            }
+
+            if (const auto bpm = position->getBpm())
+                currentBlockBpm = *bpm;
         }
     }
 
     routedMidi.clear();
     const auto blockStartSample = processedSampleCounter;
+
+    const auto requestedHarmonyValue = juce::jlimit(0, 1, requestedHarmonyMode.load(std::memory_order_relaxed));
+    const auto requestedHarmony = static_cast<HarmonyMode>(requestedHarmonyValue);
+    if (requestedHarmony != activeHarmonyMode)
+    {
+        // Switching the musical engine is explicit. Stop every routed Voice first
+        // so Direct Router and Melody Harmonize can never leave mixed ownership.
+        for (int voice = 0; voice < voiceCount; ++voice)
+            clearVoiceStack(voice, 0);
+
+        clearHeldNotes();
+        activeHarmonyMode = requestedHarmony;
+    }
+
+    if (activeHarmonyMode == HarmonyMode::melodyHarmonize)
+    {
+        processMelodyHarmonizeMidi(midiMessages, buffer.getNumSamples());
+        midiMessages.swapWith(routedMidi);
+        processedSampleCounter += static_cast<std::int64_t>(buffer.getNumSamples());
+        buffer.clear();
+        return;
+    }
 
     const auto requestedModeValue = juce::jlimit(0, 2, requestedDistributionMode.load(std::memory_order_relaxed));
     const auto requestedMode = static_cast<DistributionMode>(requestedModeValue);
@@ -202,6 +249,281 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
     buffer.clear();
 }
 
+void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages,
+                                                                  int blockSamples)
+{
+    struct ScheduledChordBoundary
+    {
+        double ppq = -1.0;
+        int samplePosition = -1;
+    };
+
+    std::array<ScheduledChordBoundary, maxChordBoundariesPerBlock> boundaries {};
+    int boundaryCount = 0;
+
+    // First synchronise the currently sounding lower voices with the chord that is
+    // already active at sample 0. This also covers transport jumps and live edits.
+    if (activeMelodyInputNote >= 0)
+        refreshMelodyHarmonyAtPpq(currentBlockStartPpq, 0);
+
+    // The complete Chord Track is already available through ARA, so future chord
+    // boundaries inside this audio block can be scheduled now. No input MIDI is
+    // delayed and no plugin latency/lookahead is introduced.
+    if (currentBlockStartPpq >= 0.0 && blockSamples > 0)
+    {
+        auto cursorPpq = currentBlockStartPpq;
+        while (boundaryCount < maxChordBoundariesPerBlock)
+        {
+            const auto nextPpq = harmonicContextProvider.nextChordStartAfter(cursorPpq);
+            if (nextPpq < 0.0)
+                break;
+
+            const auto samplePosition = samplePositionForPpq(nextPpq);
+            if (samplePosition < 0 || samplePosition >= blockSamples)
+                break;
+
+            boundaries[static_cast<std::size_t>(boundaryCount++)] = { nextPpq, samplePosition };
+            cursorPpq = nextPpq;
+        }
+    }
+
+    int nextBoundary = 0;
+    const auto applyBoundariesBefore = [this, &boundaries, boundaryCount, &nextBoundary](int samplePosition)
+    {
+        while (nextBoundary < boundaryCount
+               && boundaries[static_cast<std::size_t>(nextBoundary)].samplePosition < samplePosition)
+        {
+            const auto& boundary = boundaries[static_cast<std::size_t>(nextBoundary++)];
+            if (activeMelodyInputNote >= 0)
+                refreshMelodyHarmonyAtPpq(boundary.ppq, boundary.samplePosition);
+        }
+    };
+
+    for (const auto metadata : midiMessages)
+    {
+        // Keep musical state chronological. A future Chord Track boundary is never
+        // applied before an earlier Note Off/Note On that happens in the same block.
+        // Events exactly on the boundary are handled first; startMelodyVoicing then
+        // queries the chord at that exact sample, and the boundary becomes a no-op.
+        applyBoundariesBefore(metadata.samplePosition);
+
+        recordMidiInputEventForProbe(metadata);
+
+        if (isNoteMessage(metadata) && metadata.data != nullptr && metadata.numBytes >= 2)
+        {
+            const auto status = metadata.data[0];
+            const auto type = static_cast<std::uint8_t>(status & statusMask);
+            const auto note = static_cast<int>(metadata.data[1]);
+            const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
+            const auto isNoteOn = type == noteOnStatus && velocity > 0;
+            const auto isNoteOff = type == noteOffStatus || (type == noteOnStatus && velocity == 0);
+
+            if (isNoteOn)
+            {
+                startMelodyVoicing(note, velocity, metadata.samplePosition);
+            }
+            else if (isNoteOff && note == activeMelodyInputNote)
+            {
+                const auto decision = melodyGate.endNote(note);
+                heldDistinctNoteCount = melodyGate.keyDown() ? 1 : 0;
+                heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
+
+                if (decision.releaseVoicing)
+                    stopMelodyVoicing(metadata.samplePosition);
+            }
+
+            continue;
+        }
+
+        bool newSustainState = false;
+        if (getSustainState(metadata, newSustainState))
+        {
+            const auto decision = melodyGate.setSustain(newSustainState);
+            sustainDown = newSustainState;
+            sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
+
+            // For a sustain-owned melody, send the current Voice Note Offs before
+            // CC64-up at the same sample. The receiver then releases both the old
+            // sustain-held harmony and the current generated Voice set together.
+            if (decision.releaseVoicing)
+                stopMelodyVoicing(metadata.samplePosition);
+
+            routeNonNoteEvent(metadata);
+            continue;
+        }
+
+        routeNonNoteEvent(metadata);
+
+        if (shouldClearHeldNotes(metadata))
+        {
+            stopMelodyVoicing(metadata.samplePosition);
+            clearHeldNotes();
+        }
+    }
+
+    // Boundaries at the same sample as the last MIDI event, and all later boundaries,
+    // are applied after that event. Their MIDI output still carries the exact offset.
+    while (nextBoundary < boundaryCount)
+    {
+        const auto& boundary = boundaries[static_cast<std::size_t>(nextBoundary++)];
+        if (activeMelodyInputNote >= 0)
+            refreshMelodyHarmonyAtPpq(boundary.ppq, boundary.samplePosition);
+    }
+}
+
+void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
+                                                          int velocity,
+                                                          int samplePosition)
+{
+    if (melodyNote < 0 || melodyNote >= midiNoteCount)
+        return;
+
+    // Stage 3 remains intentionally monophonic at the Melody Harmonize input.
+    // A new melody Note On owns the four generated Voices immediately.
+    stopMelodyVoicing(samplePosition);
+    melodyGate.beginNote(melodyNote);
+
+    const auto ppq = ppqForSamplePosition(samplePosition);
+    const auto context = ppq >= 0.0
+        ? harmonicContextProvider.contextAt(ppq)
+        : harmonicContextProvider.currentContext();
+    const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
+    const auto voicing = smartvoicing::harmony::buildCloseVoicing(melodyNote, chord);
+    const auto routedVelocity = juce::jlimit(1, 127, velocity);
+
+    for (int voice = 0; voice < voiceCount; ++voice)
+    {
+        const auto& slot = voicing.voices[static_cast<std::size_t>(voice)];
+        if (! slot.active || slot.midiNote < 0 || slot.midiNote >= midiNoteCount)
+            continue;
+
+        heldNoteVelocities[static_cast<std::size_t>(slot.midiNote)] =
+            static_cast<std::uint8_t>(routedVelocity);
+        pushNoteToVoice(voice, slot.midiNote, samplePosition);
+    }
+
+    activeMelodyInputNote = melodyNote;
+    activeMelodyVelocity = routedVelocity;
+    activeMelodyVoicing = voicing;
+    heldDistinctNoteCount = 1;
+    stableOwnership = getActiveVoiceCount() > 0;
+    heldNoteCountForUi.store(1, std::memory_order_relaxed);
+    stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
+    ignoredExtraNoteCountForUi.store(0, std::memory_order_relaxed);
+}
+
+void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
+                                                                 int samplePosition)
+{
+    if (activeMelodyInputNote < 0 || activeMelodyInputNote >= midiNoteCount)
+        return;
+
+    const auto context = ppq >= 0.0
+        ? harmonicContextProvider.contextAt(ppq)
+        : harmonicContextProvider.currentContext();
+    const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
+    const auto desired = smartvoicing::harmony::buildCloseVoicing(activeMelodyInputNote, chord);
+    const auto plan = smartvoicing::harmony::planLowerVoiceReharmonization(activeMelodyVoicing, desired);
+
+    if (! plan.lowerVoicesChanged)
+        return;
+
+    // Remove old generated notes before starting replacements. V1 is never part
+    // of this plan, so the performer-owned melody remains sounding continuously.
+    for (int voice = 1; voice < voiceCount; ++voice)
+    {
+        const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+        if (transition.noteOff)
+            clearVoiceStack(voice, samplePosition);
+    }
+
+    for (int voice = 1; voice < voiceCount; ++voice)
+    {
+        const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+        if (! transition.noteOn
+            || transition.newNote < 0
+            || transition.newNote >= midiNoteCount)
+            continue;
+
+        heldNoteVelocities[static_cast<std::size_t>(transition.newNote)] =
+            static_cast<std::uint8_t>((std::max)(1, activeMelodyVelocity));
+        pushNoteToVoice(voice, transition.newNote, samplePosition);
+    }
+
+    activeMelodyVoicing = desired;
+    stableOwnership = getActiveVoiceCount() > 0;
+    stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
+    reharmonizationCountForUi.fetch_add(1, std::memory_order_relaxed);
+    lastReharmonizationPpqForUi.store(context.positionAvailable ? context.ppq : ppq,
+                                      std::memory_order_relaxed);
+    midiRevision.fetch_add(1, std::memory_order_release);
+}
+
+double SmartVoicingInstrumentProcessor::ppqForSamplePosition(int samplePosition) noexcept
+{
+    if (samplePosition <= 0 && currentBlockStartPpq >= 0.0)
+        return currentBlockStartPpq;
+
+    if (currentBlockStartSeconds >= 0.0 && currentSampleRate > 0.0)
+    {
+        const auto seconds = currentBlockStartSeconds
+                           + static_cast<double>(samplePosition) / currentSampleRate;
+        const auto timelinePpq = harmonicContextProvider.ppqAtSeconds(seconds);
+        if (timelinePpq >= 0.0)
+            return timelinePpq;
+    }
+
+    if (currentBlockStartPpq >= 0.0 && currentBlockBpm > 0.0 && currentSampleRate > 0.0)
+    {
+        const auto seconds = static_cast<double>(samplePosition) / currentSampleRate;
+        return currentBlockStartPpq + seconds * currentBlockBpm / 60.0;
+    }
+
+    return currentBlockStartPpq;
+}
+
+int SmartVoicingInstrumentProcessor::samplePositionForPpq(double ppq) noexcept
+{
+    if (ppq < 0.0 || currentBlockNumSamples <= 0 || currentSampleRate <= 0.0)
+        return -1;
+
+    if (currentBlockStartSeconds >= 0.0)
+    {
+        const auto eventSeconds = harmonicContextProvider.secondsAtPpq(ppq);
+        if (eventSeconds >= 0.0)
+        {
+            return smartvoicing::harmony::sampleOffsetFromTimelineSeconds(currentBlockStartSeconds,
+                                                                          eventSeconds,
+                                                                          currentSampleRate,
+                                                                          currentBlockNumSamples);
+        }
+    }
+
+    return smartvoicing::harmony::sampleOffsetFromPpq(currentBlockStartPpq,
+                                                       ppq,
+                                                       currentBlockBpm,
+                                                       currentSampleRate,
+                                                       currentBlockNumSamples);
+}
+
+void SmartVoicingInstrumentProcessor::stopMelodyVoicing(int samplePosition)
+{
+    for (int voice = 0; voice < voiceCount; ++voice)
+        clearVoiceStack(voice, samplePosition);
+
+    melodyGate.releaseMelody();
+    activeMelodyInputNote = -1;
+    activeMelodyVelocity = 0;
+    activeMelodyVoicing.clear();
+    heldDistinctNoteCount = 0;
+    stableOwnership = false;
+    chordFrameNotes.fill(-1);
+
+    heldNoteCountForUi.store(0, std::memory_order_relaxed);
+    stableOwnershipForUi.store(false, std::memory_order_relaxed);
+    ignoredExtraNoteCountForUi.store(0, std::memory_order_relaxed);
+}
+
 bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMessageMetadata& metadata,
                                                                std::int64_t absoluteSample) noexcept
 {
@@ -230,25 +552,19 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
 
         if (wasPhysicallyUp)
         {
-            // A first physical key after all keys were released starts a new Chord
-            // Gesture even if Sustain is still holding the previous Voice stacks.
             if (heldDistinctNoteCount == 0)
             {
                 chordGestureStartSample = absoluteSample;
                 pendingChordFrame = true;
-                chordFrameNotes.fill(-1); // old sustain-held chord becomes background stack state.
+                chordFrameNotes.fill(-1);
             }
             else if (chordGestureStartSample >= 0
                      && absoluteSample - chordGestureStartSample <= chordGestureWindowSamples)
             {
-                // Notes arriving inside the short gesture window belong to the same
-                // chord frame, not to independent legato continuations.
                 pendingChordFrame = true;
             }
             else
             {
-                // A later note is a Voice Gesture. It will be resolved to the nearest
-                // existing Voice and may create a same-channel legato overlap.
                 chordGestureStartSample = -1;
             }
 
@@ -261,8 +577,6 @@ bool SmartVoicingInstrumentProcessor::updateHeldNoteFromEvent(const juce::MidiMe
 
         heldNoteVelocities[noteIndex] = static_cast<std::uint8_t>(velocity);
 
-        // Re-pressing a sustain-held note re-articulates every Voice currently using
-        // that physical pitch (needed for Fill 4 Voices unison/duplication mode).
         if (wasPhysicallyUp && noteVoiceMasks[noteIndex] != 0)
             retriggerPending[noteIndex] = true;
 
@@ -347,7 +661,7 @@ SmartVoicingInstrumentProcessor::buildDistributionFrame() const noexcept
     if (activeDistributionMode == DistributionMode::bottomUp)
     {
         const auto useCount = (std::min)(count, voiceCount);
-        const auto sourceStart = count - useCount; // choose the lowest four when >4 notes are chord input.
+        const auto sourceStart = count - useCount;
         const auto voiceStart = voiceCount - useCount;
         for (int i = 0; i < useCount; ++i)
             result[static_cast<std::size_t>(voiceStart + i)] =
@@ -355,8 +669,6 @@ SmartVoicingInstrumentProcessor::buildDistributionFrame() const noexcept
         return result;
     }
 
-    // Fill Four Voices: simple performance-friendly doubling before the later
-    // harmony-aware stages exist.
     if (count == 1)
     {
         result.fill(descending[0]);
@@ -388,8 +700,6 @@ void SmartVoicingInstrumentProcessor::applyChordDistributionFrame(int samplePosi
 {
     const auto desired = buildDistributionFrame();
 
-    // Remove only the provisional/current chord-frame layer. Older sustain-held
-    // notes from the previous chord stay underneath in the Voice stacks.
     for (int voice = 0; voice < voiceCount; ++voice)
     {
         const auto index = static_cast<std::size_t>(voice);
@@ -422,9 +732,6 @@ void SmartVoicingInstrumentProcessor::applyChordDistributionFrame(int samplePosi
         chordFrameNotes[index] = note;
     }
 
-    // A Chord Gesture is always limited to four output voices. Any fifth+ physical
-    // pitch not represented in the chosen frame is explicitly ignored until key-up;
-    // it must not accidentally become a second note in one Voice.
     std::array<bool, midiNoteCount> represented {};
     for (const auto note : desired)
     {
@@ -512,8 +819,6 @@ void SmartVoicingInstrumentProcessor::assignUnownedHeldNotes(int samplePosition)
         const auto voice = chooseNearestVoice(note, voiceUsed);
         if (voice < 0)
         {
-            // More than four simultaneous Voice Gestures in one sample frame are
-            // outside the four-voice contract; ignore the extras deterministically.
             ignoredChordNotes[noteIndex] = true;
             continue;
         }
@@ -550,8 +855,6 @@ int SmartVoicingInstrumentProcessor::chooseNearestVoice(int note,
     if (bestVoice >= 0)
         return bestVoice;
 
-    // Fallback is mainly for recovery after an All Notes Off/state change. Initial
-    // playing normally enters through a Chord Gesture and never needs this path.
     if (activeDistributionMode == DistributionMode::bottomUp)
     {
         for (int voice = voiceCount - 1; voice >= 0; --voice)
@@ -830,6 +1133,10 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
     chordFrameNotes.fill(-1);
 
     heldDistinctNoteCount = 0;
+    activeMelodyInputNote = -1;
+    activeMelodyVelocity = 0;
+    activeMelodyVoicing.clear();
+    melodyGate.reset();
     sustainDown = false;
     stableOwnership = false;
     pendingChordFrame = false;
@@ -942,6 +1249,8 @@ SmartVoicingInstrumentProcessor::MidiProbeSnapshot SmartVoicingInstrumentProcess
     snapshot.pitchBendEvents = midiPitchBendEvents.load(std::memory_order_relaxed);
     snapshot.otherEvents = midiOtherEvents.load(std::memory_order_relaxed);
     snapshot.channelMask = midiChannelMask.load(std::memory_order_relaxed);
+    snapshot.reharmonizationCount = reharmonizationCountForUi.load(std::memory_order_relaxed);
+    snapshot.lastReharmonizationPpq = lastReharmonizationPpqForUi.load(std::memory_order_relaxed);
     snapshot.lastEventType = static_cast<MidiProbeEventType>(lastMidiEventType.load(std::memory_order_relaxed));
     snapshot.lastChannel = lastMidiChannel.load(std::memory_order_relaxed);
     snapshot.lastData1 = lastMidiData1.load(std::memory_order_relaxed);
@@ -951,6 +1260,7 @@ SmartVoicingInstrumentProcessor::MidiProbeSnapshot SmartVoicingInstrumentProcess
     snapshot.sustainDown = sustainDownForUi.load(std::memory_order_relaxed);
     snapshot.stableOwnership = stableOwnershipForUi.load(std::memory_order_relaxed);
     snapshot.distributionMode = getDistributionMode();
+    snapshot.harmonyMode = getHarmonyMode();
 
     for (std::size_t i = 0; i < snapshot.voiceNotes.size(); ++i)
     {
@@ -972,6 +1282,8 @@ void SmartVoicingInstrumentProcessor::resetMidiProbeStatistics() noexcept
     midiPitchBendEvents.store(0, std::memory_order_relaxed);
     midiOtherEvents.store(0, std::memory_order_relaxed);
     midiChannelMask.store(0, std::memory_order_relaxed);
+    reharmonizationCountForUi.store(0, std::memory_order_relaxed);
+    lastReharmonizationPpqForUi.store(-1.0, std::memory_order_relaxed);
     lastMidiEventType.store(static_cast<int>(MidiProbeEventType::none), std::memory_order_relaxed);
     lastMidiChannel.store(0, std::memory_order_relaxed);
     lastMidiData1.store(0, std::memory_order_relaxed);
@@ -990,10 +1302,23 @@ SmartVoicingInstrumentProcessor::DistributionMode SmartVoicingInstrumentProcesso
     return static_cast<DistributionMode>(value);
 }
 
+void SmartVoicingInstrumentProcessor::setHarmonyMode(HarmonyMode mode) noexcept
+{
+    const auto value = juce::jlimit(0, 1, static_cast<int>(mode));
+    requestedHarmonyMode.store(value, std::memory_order_release);
+}
+
+SmartVoicingInstrumentProcessor::HarmonyMode SmartVoicingInstrumentProcessor::getHarmonyMode() const noexcept
+{
+    const auto value = juce::jlimit(0, 1, requestedHarmonyMode.load(std::memory_order_acquire));
+    return static_cast<HarmonyMode>(value);
+}
+
 void SmartVoicingInstrumentProcessor::resetRouterState() noexcept
 {
     clearHeldNotes();
     activeDistributionMode = getDistributionMode();
+    activeHarmonyMode = getHarmonyMode();
 }
 
 juce::AudioProcessorEditor* SmartVoicingInstrumentProcessor::createEditor()
@@ -1007,6 +1332,7 @@ void SmartVoicingInstrumentProcessor::getStateInformation(juce::MemoryBlock& des
     stream.writeInt(stateMagic);
     stream.writeInt(stateVersion);
     stream.writeInt(static_cast<int>(getDistributionMode()));
+    stream.writeInt(static_cast<int>(getHarmonyMode()));
 }
 
 void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int sizeInBytes)
@@ -1023,6 +1349,11 @@ void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int 
         return;
 
     setDistributionMode(static_cast<DistributionMode>(juce::jlimit(0, 2, stream.readInt())));
+
+    if (version >= 3 && sizeInBytes >= 16)
+        setHarmonyMode(static_cast<HarmonyMode>(juce::jlimit(0, 1, stream.readInt())));
+    else
+        setHarmonyMode(HarmonyMode::directRouter);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

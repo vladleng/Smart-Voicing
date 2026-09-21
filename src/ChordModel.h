@@ -1,0 +1,99 @@
+#pragma once
+
+#include "HarmonicContext.h"
+
+#include <array>
+#include <cstdint>
+#include <string>
+
+namespace smartvoicing::harmony
+{
+enum class ChordQuality : std::uint8_t
+{
+    undefined = 0,
+    major,
+    minor,
+    dominant,
+    diminished,
+    halfDiminished,
+    augmented,
+    suspended2,
+    suspended4,
+    power,
+    noThird,
+    unknown
+};
+
+enum class ChordExtension : std::uint16_t
+{
+    none = 0,
+    sixth = 1u << 0,
+    minorSeventh = 1u << 1,
+    majorSeventh = 1u << 2,
+    ninth = 1u << 3,
+    eleventh = 1u << 4,
+    thirteenth = 1u << 5
+};
+
+enum class ChordAlteration : std::uint16_t
+{
+    none = 0,
+    flatFifth = 1u << 0,
+    sharpFifth = 1u << 1,
+    flatNinth = 1u << 2,
+    sharpNinth = 1u << 3,
+    sharpEleventh = 1u << 4,
+    flatThirteenth = 1u << 5
+};
+
+constexpr std::uint16_t flag(ChordExtension value) noexcept
+{
+    return static_cast<std::uint16_t>(value);
+}
+
+constexpr std::uint16_t flag(ChordAlteration value) noexcept
+{
+    return static_cast<std::uint16_t>(value);
+}
+
+struct NormalizedChord
+{
+    bool valid = false;
+
+    // Preserve spelling/source identity while also exposing pitch classes that
+    // Harmony Core can use without knowing anything about ARA.
+    std::int32_t rootFifths = 0;
+    std::int32_t bassFifths = 0;
+    int rootPitchClass = 0;
+    int bassPitchClass = 0;
+    bool slashBass = false;
+
+    ChordQuality quality = ChordQuality::undefined;
+    std::uint16_t extensions = 0;
+    std::uint16_t alterations = 0;
+
+    // Pitch classes relative to the chord root. These are the authoritative
+    // chord tones for the first harmonizer; chord naming is descriptive only.
+    std::array<bool, kPitchClassCount> tones {};
+
+    // ARA-style optional diatonic degree annotation per chromatic interval.
+    // 0 = absent/unknown, 1..13 = explicit degree. Generic "used" values that
+    // do not carry a degree remain 0 here.
+    std::array<std::uint8_t, kPitchClassCount> degrees {};
+
+    bool hasTone(int semitones) const noexcept;
+    bool hasDegree(int degree) const noexcept;
+    bool hasExtension(ChordExtension extension) const noexcept;
+    bool hasAlteration(ChordAlteration alteration) const noexcept;
+};
+
+int circleOfFifthsToPitchClass(std::int32_t fifths) noexcept;
+NormalizedChord normalizeChord(const ChordContext& source) noexcept;
+const char* chordQualityName(ChordQuality quality) noexcept;
+
+// Diagnostic/UI helper. It is deliberately separate from normalizeChord()
+// because formatting may allocate and must never be used from the audio path.
+// The symbol is reconstructed from the normalized structural model rather
+// than from a host-provided display name, which can omit sus/extensions.
+std::string normalizedChordSymbol(const NormalizedChord& chord);
+}
