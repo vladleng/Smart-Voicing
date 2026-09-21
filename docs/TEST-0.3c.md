@@ -236,6 +236,29 @@ C -> C-B-G-E
 D -> D-B-G-E
 ```
 
+### Boundary regression — короткие MIDI-ноты на стыках
+
+В первом полном Studio Pro тесте 0.3c были обнаружены микроскопические generated notes на некоторых точных стыках Chord Track / melody. Причина: `kBoundaryTolerancePpq = 0.0001` был полезен для stopped cursor/UI diagnostics, но тот же tolerance попадал в realtime playback path и мог открыть следующий chord на несколько samples раньше его фактической границы.
+
+Начиная с исправления `e7009da` политика разделена:
+
+```text
+Transport PLAYING
+→ realtime boundary = exact ARA event position + numerical epsilon only
+
+Transport STOPPED
+→ UI/cursor diagnostics keeps small PPQ tolerance
+```
+
+Повторить запись цепочки из этого раздела и проверить piano roll на всех четырёх generated voices.
+
+Ожидание:
+
+- на стыках тактов нет сверхкоротких промежуточных нот;
+- новый chord не начинает действовать до своей фактической ARA boundary;
+- старый chord не задерживается после boundary;
+- stopped cursor diagnostics по-прежнему стабильно выбирает аккорд на визуальной сетке Studio Pro.
+
 ---
 
 ## 7. Что сознательно НЕ входит в 0.3c
@@ -259,4 +282,5 @@ D -> D-B-G-E
 3. diagnostics в Studio Pro различает `candidate` и `confirmed` по реальному следующему Chord Track event;
 4. modal-interchange MVP корректно показывает parallel-mode evidence на тестовых случаях;
 5. live Melody Harmonize реально вызывает `buildClosedVoicing(..., ClosedVoicingContext)`;
-6. 0.3b Closed / Sustain / Direct Router regression остаётся чистой.
+6. 0.3b Closed / Sustain / Direct Router regression остаётся чистой;
+7. generated MIDI не содержит коротких transient notes из-за преждевременного boundary tolerance.
