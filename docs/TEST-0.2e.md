@@ -2,7 +2,7 @@
 
 Цель версии: объединить Melody Harmonize с уже существующими Voice Stack / Sustain / State-механиками Router 0.2 и провести регрессию обоих режимов перед стабильной 0.3.
 
-## Что добавляется
+## Что добавлено
 
 - `MelodyGateState` — host-neutral ownership state для физической melody note и Sustain;
 - Note Off melody при нажатой педали больше не уничтожает внутренний voicing сразу: V1–V4 остаются sustain-owned;
@@ -26,55 +26,35 @@
 5. чужой Note Off не снимает активную melody;
 6. все тесты 0.2b–0.2d продолжают проходить.
 
-### CI
+## CI
 
 Основная реализация 0.2e: `2db64b3efe0a30103a9e9f1eb90cdb11933a802a`; debug UI: `4f8aa208b5e6ba93eb50797bab9d531eb2442cc3`.
 
-Windows CI запускается на каждом push ветки; финально учитывать нужно последний run текущего HEAD. До его успешного завершения CI считается **не подтверждённым**. Версия 0.2e остаётся **В РАБОТЕ** до зелёного последнего run и пользовательского теста в Studio Pro.
+Финальный Windows Build **#226** для HEAD `ce5595b2fe8287db68fd1582664a74020d745c08` завершён успешно 2026-09-21. Configure / Build / `ctest` / Prepare versioned package / Upload artifact прошли успешно.
 
-## Ручной тест в Studio Pro
+## Ручной тест в Studio Pro — 2026-09-21
 
-После зелёного Windows CI проверить оба режима.
+**Статус: ПРОЙДЕН.** Пользователь подтвердил полный контрольный прогон перед переходом на 0.3.
 
-### Melody Harmonize + Sustain
+Подтверждено:
 
-1. Включить `Melody Harmonize` и создать несколько смен Chord Track.
-2. Нажать melody note и Sustain.
-3. Отпустить физическую клавишу, не отпуская педаль.
-4. Подтвердить, что V1–V4 продолжают звучать и V2–V4 продолжают перестраиваться при следующих chord boundaries.
-5. Отпустить Sustain — все sustain-owned Voices должны корректно завершиться без stuck notes.
-6. Повторить, но до pedal-up нажать новую melody note: новая нота должна остаться после pedal-up, а старые sustain-held ноты должны освободиться.
-
-### State
-
-1. Выбрать `Melody Harmonize` и один из Distribution Mode.
-2. Сохранить проект / Show.
-3. Закрыть и снова открыть проект.
-4. Проверить восстановление выбранных режимов.
-5. Переключиться `Melody Harmonize → Direct Router → Melody Harmonize` во время работы; между режимами не должно оставаться старых Voice.
-
-### Direct Router 0.2 regression
-
-Проверить:
-
-- V1–V4 → MIDI Ch1–4;
-- Chord Gesture и стабильный Voice Ownership;
-- Fill 4 / Top Down / Bottom Up;
-- Voice Stack / legato continuation;
-- Sustain Chord Morph;
-- CC / Expression / Pitch Bend;
-- Note Off, CC120/123, Stop и отсутствие stuck notes.
-
-### Harmonic regression
-
-Проверить:
-
-- Melody Harmonize строит базовый Close voicing;
-- Live Chord Reharmonization 0.2d работает;
-- sample-accurate chord boundary не регрессировал;
-- `(no chord)` оставляет только V1, следующий chord возвращает V2–V4;
-- slash bass сохраняется.
+- Melody Harmonize + live Chord Reharmonization;
+- Sustain-owned melody: release физической клавиши под pedal-down не обрывает voicing;
+- reharmonization V2–V4 продолжается при удержанной педали;
+- pedal-up корректно освобождает sustain-owned Voices без stuck notes;
+- новая melody note, сыгранная до pedal-up, остаётся активной;
+- `(no chord)` fallback и возврат гармонии;
+- non-chord melody сохраняет authority V1;
+- slash bass работает в рамках текущего Close voicing;
+- `Melody Harmonize → Direct Router → Melody Harmonize` не оставляет старых Voice;
+- State восстанавливает Harmony Mode / Distribution Mode после сохранения и повторного открытия проекта;
+- Direct Router 0.2 regression: V1–V4/Ch1–4, Chord Gesture, Stable Voice Ownership, Top Down / Bottom Up / Fill 4, Voice Stack / legato, Sustain Chord Morph, CC / Expression / Pitch Bend;
+- Stop / Play, CC120/123 и отсутствие stuck notes;
+- sample-accurate chord boundary из 0.2d не регрессировал;
+- практический stress test не выявил новых проблем.
 
 ## Критерий прохождения 0.2e
 
-0.2e считается подтверждённой только после зелёного Windows CI и пользовательского теста в Studio Pro, где Sustain/State работают в Melody Harmonize, а Direct Router 0.2 проходит регрессию без stuck notes.
+0.2e считается подтверждённой после зелёного Windows CI и пользовательского теста в Studio Pro, где Sustain/State работают в Melody Harmonize, а Direct Router 0.2 проходит регрессию без stuck notes.
+
+**Критерий выполнен. Smart Voicing 0.2e подтверждена и является базой стабильной версии 0.3.**
