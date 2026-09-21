@@ -3,6 +3,7 @@
 #include "KeyModel.h"
 
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 
 using namespace smartvoicing::harmony;
