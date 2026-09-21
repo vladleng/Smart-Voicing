@@ -159,6 +159,8 @@ add_executable(SmartVoicingHarmonizerTests
     src/KeyModel.h
     src/HarmonicFunction.cpp
     src/HarmonicFunction.h
+    src/TensionPolicy.cpp
+    src/TensionPolicy.h
     src/CloseVoicingHarmonizer.cpp
     src/CloseVoicingHarmonizer.h
     src/HarmonicContext.h
@@ -171,6 +173,12 @@ add_executable(SmartVoicingLiveReharmonizerTests
     tests/LiveReharmonizerTests.cpp
     src/ChordModel.cpp
     src/ChordModel.h
+    src/KeyModel.cpp
+    src/KeyModel.h
+    src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/TensionPolicy.cpp
+    src/TensionPolicy.h
     src/CloseVoicingHarmonizer.cpp
     src/CloseVoicingHarmonizer.h
     src/LiveReharmonizer.cpp
