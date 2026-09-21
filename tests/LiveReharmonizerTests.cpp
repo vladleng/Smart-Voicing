@@ -72,20 +72,25 @@ void testSameChordProducesNoTransition()
         expectNoTransition(plan, voice, "same chord voice");
 }
 
-void testChordChangeKeepsMelodyAndChangesLowerVoices()
+void testChordChangeKeepsMelodyAndCommonClosedVoices()
 {
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
     const auto fmaj7 = normalizeChord(chord(-1, -1, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
 
-    const auto current = buildCloseVoicing(67, cmaj7); // G4 / E4 / C4 / B3
-    const auto desired = buildCloseVoicing(67, fmaj7); // G4 / F4 / E4 / C4
+    // 0.3b candidate-based Closed:
+    // Cmaj7 + G4 -> G4 / E4 / C4 / B3
+    // Fmaj7 + G4 -> G4 / E4 / C4 / A3
+    // E4 and C4 are valid common tones and must not be retriggered just because
+    // the chord changes. Only V4 moves B3 -> A3.
+    const auto current = buildCloseVoicing(67, cmaj7);
+    const auto desired = buildCloseVoicing(67, fmaj7);
     const auto plan = planLowerVoiceReharmonization(current, desired);
 
-    expect(plan.lowerVoicesChanged, "Cmaj7 -> Fmaj7 must reharmonize lower voices");
+    expect(plan.lowerVoicesChanged, "Cmaj7 -> Fmaj7 must reharmonize changed lower voice");
     expectNoTransition(plan, 0, "V1 melody");
-    expectTransition(plan, 1, 64, 65, "V2 Cmaj7 -> Fmaj7");
-    expectTransition(plan, 2, 60, 64, "V3 Cmaj7 -> Fmaj7");
-    expectTransition(plan, 3, 59, 60, "V4 Cmaj7 -> Fmaj7");
+    expectNoTransition(plan, 1, "V2 common E4 remains sounding");
+    expectNoTransition(plan, 2, "V3 common C4 remains sounding");
+    expectTransition(plan, 3, 59, 57, "V4 B3 -> A3");
 }
 
 void testNoChordFallbackClearsOnlyLowerVoices()
@@ -221,7 +226,7 @@ void testMelodyGateIgnoresUnrelatedNoteOff()
 int main()
 {
     testSameChordProducesNoTransition();
-    testChordChangeKeepsMelodyAndChangesLowerVoices();
+    testChordChangeKeepsMelodyAndCommonClosedVoices();
     testNoChordFallbackClearsOnlyLowerVoices();
     testChordReturnsAfterFallback();
     testSequenceCanBeAppliedWithoutStaleVoices();
@@ -237,6 +242,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.2e integration tests passed.\n";
+    std::cout << "All Smart Voicing 0.3b live-reharmonization/integration tests passed.\n";
     return EXIT_SUCCESS;
 }
