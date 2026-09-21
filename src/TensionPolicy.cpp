@@ -56,6 +56,23 @@ bool preferredTensionForQuality(const NormalizedChord& chord, int relative) noex
     return false;
 }
 
+bool isDominantColourContext(const NormalizedChord& chord,
+                             const NormalizedKey& key,
+                             const HarmonicAnalysis& harmonic) noexcept
+{
+    return key.valid
+        && chord.quality == ChordQuality::dominant
+        && (! harmonic.valid || harmonic.effectiveFunction == HarmonicFunction::dominant);
+}
+
+bool isDominantAlteredCandidate(int relative) noexcept
+{
+    // Common altered-dominant colours relative to the dominant root:
+    // b9, #9, #11/b5, b13/#5. They are not auto-selected; Level 3 merely makes
+    // them eligible with a conservative score when harmonic context supports it.
+    return relative == 1 || relative == 3 || relative == 6 || relative == 8;
+}
+
 void addMajorCollection(std::array<bool, kPitchClassCount>& absolute,
                         int tonicPitchClass) noexcept
 {
@@ -97,11 +114,7 @@ std::array<bool, kPitchClassCount> makeInferredCollection(const NormalizedChord&
     // D7 in C major must retain F# from the explicit chord and should not inherit
     // F-natural merely because it belongs to the global key. Explicit alterations
     // still override this inferred collection.
-    const auto dominantContext = key.valid
-        && chord.quality == ChordQuality::dominant
-        && (! harmonic.valid || harmonic.effectiveFunction == HarmonicFunction::dominant);
-
-    if (dominantContext)
+    if (isDominantColourContext(chord, key, harmonic))
     {
         addMixolydianCollection(result, chord.rootPitchClass);
         fromFunctionScale = true;
@@ -145,14 +158,29 @@ const TensionTonePolicy& TensionPolicy::tone(int relativeSemitones) const noexce
     return tones[static_cast<std::size_t>(relativeSemitones)];
 }
 
-bool TensionPolicy::isHarmonyCandidate(int relativeSemitones) const noexcept
+bool TensionPolicy::isHarmonyCandidate(int relativeSemitones, TensionLevel level) const noexcept
 {
-    const auto role = tone(relativeSemitones).role;
-    return role == TensionRole::chordTone
-        || role == TensionRole::explicitTension
-        || role == TensionRole::preferred
-        || role == TensionRole::available
-        || role == TensionRole::contextual;
+    const auto& policy = tone(relativeSemitones);
+
+    switch (policy.role)
+    {
+        case TensionRole::chordTone:
+        case TensionRole::explicitTension:
+            return true;
+
+        case TensionRole::preferred:
+        case TensionRole::available:
+            return level != TensionLevel::clean;
+
+        case TensionRole::contextual:
+            return level == TensionLevel::rich;
+
+        case TensionRole::avoidAsHarmony:
+        case TensionRole::unavailable:
+            return false;
+    }
+
+    return false;
 }
 
 TensionPolicy buildTensionPolicy(const NormalizedChord& chord,
@@ -168,6 +196,7 @@ TensionPolicy buildTensionPolicy(const NormalizedChord& chord,
 
     bool functionScale = false;
     const auto inferredAbsolute = makeInferredCollection(chord, key, harmonic, functionScale);
+    const auto dominantColourContext = isDominantColourContext(chord, key, harmonic);
 
     for (int relative = 0; relative < kPitchClassCount; ++relative)
     {
@@ -183,6 +212,18 @@ TensionPolicy buildTensionPolicy(const NormalizedChord& chord,
             tone.role = isExplicitTension(chord, relative)
                 ? TensionRole::explicitTension
                 : TensionRole::chordTone;
+            continue;
+        }
+
+        // Level 3 needs a wider candidate vocabulary than Mixolydian, but only
+        // where the harmonic context actually identifies dominant colour. These
+        // notes remain Contextual and alteredCandidate; they are not Preferred
+        // and therefore cannot enter Level 1/2 generated harmony automatically.
+        if (dominantColourContext && isDominantAlteredCandidate(relative))
+        {
+            tone.role = TensionRole::contextual;
+            tone.alteredCandidate = true;
+            tone.fromFunctionScale = true;
             continue;
         }
 
@@ -236,5 +277,17 @@ const char* tensionRoleName(TensionRole role) noexcept
     }
 
     return "Unavailable";
+}
+
+const char* tensionLevelName(TensionLevel level) noexcept
+{
+    switch (level)
+    {
+        case TensionLevel::clean: return "Clean";
+        case TensionLevel::color: return "Color";
+        case TensionLevel::rich:  return "Rich";
+    }
+
+    return "Clean";
 }
 }

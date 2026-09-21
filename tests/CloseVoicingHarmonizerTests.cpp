@@ -69,6 +69,7 @@ ClosedVoicingContext context(HarmonicFunction function = HarmonicFunction::undef
 ClosedVoicingContext keyAwareContext(const NormalizedChord& chordModel,
                                      const NormalizedKey& keyModel,
                                      int melodyNote,
+                                     TensionLevel level = TensionLevel::clean,
                                      const NormalizedChord* nextChord = nullptr)
 {
     ClosedVoicingContext result;
@@ -77,6 +78,7 @@ ClosedVoicingContext keyAwareContext(const NormalizedChord& chordModel,
         ? analyzeHarmonicFunction(chordModel, keyModel, *nextChord)
         : analyzeHarmonicFunction(chordModel, keyModel);
     result.tension = buildTensionPolicy(chordModel, keyModel, result.harmonic, melodyNote);
+    result.tensionLevel = level;
     return result;
 }
 
@@ -149,26 +151,39 @@ void testDominantGuideTonesPermitRootOmission()
         expect(voice.midiNote % 12 != 7, "G7/9 root G may be omitted when 3rd/7th define harmony");
 }
 
-void testTensionPolicyCanColourMaj7WithoutLosingGuides()
+void testTensionLevelsChangeColourWithoutChangingMelody()
 {
     const auto cMajor = normalizeKey(key(0, false));
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
-    const auto ctx = keyAwareContext(cmaj7, cMajor, 67); // G4
-    const auto output = buildClosedVoicing(67, cmaj7, ctx);
 
-    expect(ctx.tension.tone(2).role == TensionRole::preferred,
-           "Cmaj7 D/9 reaches Closed context as Preferred");
-    expectVoice(output, 0, 67, "0.3d Cmaj7 V1 G4");
-    expectVoice(output, 1, 64, "0.3d Cmaj7 V2 E4 guide tone");
-    expectVoice(output, 2, 62, "0.3d Cmaj7 V3 D4 preferred 9");
-    expectVoice(output, 3, 59, "0.3d Cmaj7 V4 B3 guide tone");
+    const auto cleanCtx = keyAwareContext(cmaj7, cMajor, 67, TensionLevel::clean);
+    const auto colorCtx = keyAwareContext(cmaj7, cMajor, 67, TensionLevel::color);
+    const auto richCtx = keyAwareContext(cmaj7, cMajor, 67, TensionLevel::rich);
+
+    const auto clean = buildClosedVoicing(67, cmaj7, cleanCtx);
+    const auto color = buildClosedVoicing(67, cmaj7, colorCtx);
+    const auto rich = buildClosedVoicing(67, cmaj7, richCtx);
+
+    expectVoice(clean, 0, 67, "Clean Cmaj7 V1 G4");
+    expectVoice(clean, 1, 64, "Clean Cmaj7 V2 E4");
+    expectVoice(clean, 2, 60, "Clean Cmaj7 V3 C4");
+    expectVoice(clean, 3, 59, "Clean Cmaj7 V4 B3");
+
+    expectVoice(color, 0, 67, "Color Cmaj7 V1 G4");
+    expectVoice(color, 1, 64, "Color Cmaj7 V2 E4 guide tone");
+    expectVoice(color, 2, 62, "Color Cmaj7 V3 D4 preferred 9");
+    expectVoice(color, 3, 59, "Color Cmaj7 V4 B3 guide tone");
+
+    expectVoice(rich, 0, 67, "Rich Cmaj7 V1 remains performer melody");
+    expect(richCtx.tension.isHarmonyCandidate(2, TensionLevel::rich),
+           "Rich keeps normal preferred tensions available");
 }
 
 void testAvoidAsHarmonyNeverDisplacesPerformerMelody()
 {
     const auto cMajor = normalizeKey(key(0, false));
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
-    const auto ctx = keyAwareContext(cmaj7, cMajor, 65); // F4 = avoid 11, performer-owned
+    const auto ctx = keyAwareContext(cmaj7, cMajor, 65, TensionLevel::rich); // F4 = avoid 11, performer-owned
     const auto output = buildClosedVoicing(65, cmaj7, ctx);
 
     expect(ctx.tension.tone(5).role == TensionRole::avoidAsHarmony,
@@ -192,11 +207,11 @@ void testResolutionAwareContextNowFeedsDominantTensions()
     const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
     const auto am7 = normalizeChord(chord(3, 3, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
 
-    auto confirmed = keyAwareContext(d7, cMajor, 69, &g7);
+    auto confirmed = keyAwareContext(d7, cMajor, 69, TensionLevel::color, &g7);
     expect(confirmed.harmonic.appliedDominantConfirmed,
            "D7->G carries confirmed V/V evidence into Closed context");
 
-    auto candidateOnly = keyAwareContext(d7, cMajor, 69, &am7);
+    auto candidateOnly = keyAwareContext(d7, cMajor, 69, TensionLevel::color, &am7);
     expect(candidateOnly.harmonic.appliedDominantCandidate,
            "D7->Am keeps V/V candidate evidence");
     expect(! candidateOnly.harmonic.appliedDominantConfirmed,
@@ -214,15 +229,32 @@ void testResolutionAwareContextNowFeedsDominantTensions()
     {
         const auto index = static_cast<std::size_t>(voice);
         expect(confirmedOutput.voices[index].midiNote == candidateOutput.voices[index].midiNote,
-               "confirmed/unconfirmed evidence shares same conservative dominant baseline in 0.3d");
+               "confirmed/unconfirmed evidence shares same conservative dominant baseline in Color");
     }
+}
+
+void testRichAdmitsAlteredDominantPoolButDoesNotRewriteChord()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto ctx = keyAwareContext(g7, cMajor, 71, TensionLevel::rich); // B4 melody = chord 3rd
+
+    expect(ctx.tension.tone(1).alteredCandidate,
+           "Rich dominant context marks b9 as altered candidate");
+    expect(ctx.tension.isHarmonyCandidate(1, TensionLevel::rich),
+           "Rich admits b9 to candidate pool");
+    expect(! ctx.tension.isHarmonyCandidate(1, TensionLevel::color),
+           "Color does not admit inferred b9");
+
+    const auto output = buildClosedVoicing(71, g7, ctx);
+    expectVoice(output, 0, 71, "Rich G7 keeps B4 melody unchanged");
 }
 
 void testPlainTriadStaysConservativeEvenWithKey()
 {
     const auto cMajorKey = normalizeKey(key(0, false));
     const auto cMajor = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}}));
-    const auto ctx = keyAwareContext(cMajor, cMajorKey, 67);
+    const auto ctx = keyAwareContext(cMajor, cMajorKey, 67, TensionLevel::rich);
     const auto output = buildClosedVoicing(67, cMajor, ctx); // G4
 
     expectVoice(output, 0, 67, "triad V1 G4");
@@ -277,9 +309,10 @@ int main()
     testNinthMelodyBuildsMusicalClosedVertical();
     testMinorNinthMelodyUsesThirdAndSeventh();
     testDominantGuideTonesPermitRootOmission();
-    testTensionPolicyCanColourMaj7WithoutLosingGuides();
+    testTensionLevelsChangeColourWithoutChangingMelody();
     testAvoidAsHarmonyNeverDisplacesPerformerMelody();
     testResolutionAwareContextNowFeedsDominantTensions();
+    testRichAdmitsAlteredDominantPoolButDoesNotRewriteChord();
     testPlainTriadStaysConservativeEvenWithKey();
     testSlashBassOwnsV4();
     testNoChordFallback();
@@ -291,6 +324,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.3d Closed/Tension tests passed.\n";
+    std::cout << "All Smart Voicing 0.3d Tension Level tests passed.\n";
     return EXIT_SUCCESS;
 }

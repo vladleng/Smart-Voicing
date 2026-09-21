@@ -124,7 +124,7 @@ bool isGeneratedHarmonyCandidate(int midiNote,
     if (! context.tension.valid || ! allowsInferredTensions(chord))
         return false;
 
-    return context.tension.isHarmonyCandidate(relative);
+    return context.tension.isHarmonyCandidate(relative, context.tensionLevel);
 }
 
 bool selectedRole(const std::array<int, kVoiceCount>& notes,
@@ -217,18 +217,84 @@ int tensionRolePenalty(int midiNote,
         return 0;
 
     const auto relative = relativeToChordRoot(midiNote, chord);
-    switch (context.tension.tone(relative).role)
+    const auto& tone = context.tension.tone(relative);
+
+    switch (tone.role)
     {
-        case TensionRole::chordTone:       return 0;
-        case TensionRole::explicitTension: return -3;
-        case TensionRole::preferred:       return -2;
-        case TensionRole::available:       return 2;
-        case TensionRole::contextual:      return 6;
+        case TensionRole::chordTone:
+            return 0;
+
+        case TensionRole::explicitTension:
+            return -3; // explicit Chord Track colour is authoritative at every level
+
+        case TensionRole::preferred:
+            switch (context.tensionLevel)
+            {
+                case TensionLevel::clean: return 18;
+                case TensionLevel::color: return 1;
+                case TensionLevel::rich:  return -1;
+            }
+            break;
+
+        case TensionRole::available:
+            switch (context.tensionLevel)
+            {
+                case TensionLevel::clean: return 20;
+                case TensionLevel::color: return 3;
+                case TensionLevel::rich:  return 1;
+            }
+            break;
+
+        case TensionRole::contextual:
+            if (context.tensionLevel == TensionLevel::rich)
+                return tone.alteredCandidate ? 5 : 3;
+            return 24;
+
         case TensionRole::avoidAsHarmony:
-        case TensionRole::unavailable:     return 24;
+        case TensionRole::unavailable:
+            return 24;
     }
 
     return 0;
+}
+
+int inferredColourDensityPenalty(const std::array<int, kVoiceCount>& notes,
+                                 const NormalizedChord& chord,
+                                 const ClosedVoicingContext& context) noexcept
+{
+    if (! context.tension.valid || context.tensionLevel == TensionLevel::clean)
+        return 0;
+
+    int inferredCount = 0;
+    for (int voice = 1; voice < kVoiceCount; ++voice)
+    {
+        const auto note = notes[static_cast<std::size_t>(voice)];
+        if (note < 0)
+            continue;
+
+        const auto relative = relativeToChordRoot(note, chord);
+        if (chord.hasTone(relative))
+            continue;
+
+        const auto& tone = context.tension.tone(relative);
+        if (tone.role == TensionRole::explicitTension)
+            continue;
+
+        if (tone.role == TensionRole::preferred
+            || tone.role == TensionRole::available
+            || tone.role == TensionRole::contextual)
+            ++inferredCount;
+    }
+
+    if (inferredCount <= 1)
+        return 0;
+
+    // A higher level expands choice; it does not make "more tensions" a goal.
+    // Color is deliberately conservative until Stage 6 can justify colour with
+    // previous-voice continuity. Rich permits denser colour but still resists
+    // gratuitously replacing several structural notes at once.
+    const auto extra = inferredCount - 1;
+    return context.tensionLevel == TensionLevel::color ? extra * 6 : extra * 2;
 }
 
 bool isExplicitTensionNote(int midiNote,
@@ -311,6 +377,7 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
 
     score += duplicatePitchClassPenalty(notes);
     score += minorNinthPenalty(notes, chord, context);
+    score += inferredColourDensityPenalty(notes, chord, context);
 
     for (int voice = 1; voice < kVoiceCount; ++voice)
         score += tensionRolePenalty(notes[static_cast<std::size_t>(voice)], chord, context);

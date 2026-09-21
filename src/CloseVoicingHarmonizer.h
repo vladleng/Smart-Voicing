@@ -10,13 +10,14 @@ namespace smartvoicing::harmony
 {
 // Context available to the Closed Voicing engine. The musical priority remains
 // deliberately one-way: Melody > explicit Chord > Key / Function > Tension
-// Policy > voicing preferences. Key/function/policy may influence ranking, but
-// never rewrite the chord or the performer-owned melody.
+// Level / Policy > voicing preferences. Key/function/policy may influence
+// ranking, but never rewrite the chord or the performer-owned melody.
 struct ClosedVoicingContext
 {
     NormalizedKey key;
     HarmonicAnalysis harmonic;
     TensionPolicy tension;
+    TensionLevel tensionLevel = TensionLevel::clean;
 };
 
 // Smart Voicing Closed Voicing engine:
@@ -24,9 +25,9 @@ struct ClosedVoicingContext
 // - V2..V4 are selected as one compact vertical candidate below the melody;
 // - guide tones / characteristic chord tones outrank mechanical chord stacking;
 // - root and fifth may be omitted when harmonic identity remains clear;
-// - 0.3d may use inferred Preferred / Available / Contextual tensions in V2..V4
-//   when the chord family is rich enough, while Avoid-as-harmony stays excluded;
-// - explicit Chord Track tensions remain authoritative candidates;
+// - Tension Level gates inferred colour without changing explicit Chord Track
+//   material or performer-owned melody;
+// - explicit Chord Track tensions remain authoritative candidates at all levels;
 // - V1-V2 spacing uses a soft preference (3rd preferred, 4th common), never a
 //   hard interval rule;
 // - explicit slash bass remains authoritative in V4 when feasible;

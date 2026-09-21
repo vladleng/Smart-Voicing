@@ -9,6 +9,16 @@
 
 namespace smartvoicing::harmony
 {
+// User-facing degree of harmonic colour. This is intentionally independent
+// from TensionRole: role describes what a pitch means in the current context,
+// while level controls how freely inferred colour may enter generated voices.
+enum class TensionLevel : std::uint8_t
+{
+    clean = 1,
+    color = 2,
+    rich = 3
+};
+
 // 0.3d keeps melodic authority separate from harmonic suitability. A pitch can
 // be avoid-as-harmony or even outside the inferred pool and still remain a
 // valid performer-owned melody note.
@@ -30,6 +40,7 @@ struct TensionTonePolicy
     bool explicitFromChord = false;
     bool fromActiveKey = false;
     bool fromFunctionScale = false;
+    bool alteredCandidate = false;
 };
 
 struct TensionPolicy
@@ -38,7 +49,17 @@ struct TensionPolicy
     std::array<TensionTonePolicy, kPitchClassCount> tones {};
 
     const TensionTonePolicy& tone(int relativeSemitones) const noexcept;
-    bool isHarmonyCandidate(int relativeSemitones) const noexcept;
+
+    // Tension Level is a gate/weighting policy, not a fixed list of extensions.
+    // Explicit Chord Track material remains available at every level.
+    bool isHarmonyCandidate(int relativeSemitones, TensionLevel level) const noexcept;
+
+    // Compatibility with the first 0.3d foundation implementation. Rich is the
+    // closest equivalent to the previous broad candidate pool.
+    bool isHarmonyCandidate(int relativeSemitones) const noexcept
+    {
+        return isHarmonyCandidate(relativeSemitones, TensionLevel::rich);
+    }
 };
 
 // Build a conservative, allocation-free harmonic candidate policy.
@@ -51,4 +72,5 @@ TensionPolicy buildTensionPolicy(const NormalizedChord& chord,
                                  int melodyMidiNote = -1) noexcept;
 
 const char* tensionRoleName(TensionRole role) noexcept;
+const char* tensionLevelName(TensionLevel level) noexcept;
 }

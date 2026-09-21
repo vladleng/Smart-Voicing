@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
+#include <string>
 #include <utility>
 
 using namespace smartvoicing::harmony;
@@ -83,7 +84,15 @@ int main()
     expect(cMaj7Policy.tone(2).role == TensionRole::preferred, "D/9 is preferred on Cmaj7");
     expect(cMaj7Policy.tone(5).role == TensionRole::avoidAsHarmony, "F/11 is avoid-as-harmony above E on Cmaj7");
     expect(cMaj7Policy.tone(9).role == TensionRole::preferred, "A/13 is preferred on Cmaj7");
-    expect(! cMaj7Policy.isHarmonyCandidate(5), "avoid 11 is not generated harmony candidate");
+    expect(! cMaj7Policy.isHarmonyCandidate(5, TensionLevel::rich), "avoid 11 is not generated harmony candidate");
+
+    // Tension Level changes inferred-colour eligibility without changing role.
+    expect(! cMaj7Policy.isHarmonyCandidate(2, TensionLevel::clean),
+           "Clean does not auto-generate inferred Cmaj7 9");
+    expect(cMaj7Policy.isHarmonyCandidate(2, TensionLevel::color),
+           "Color admits Preferred Cmaj7 9");
+    expect(cMaj7Policy.isHarmonyCandidate(2, TensionLevel::rich),
+           "Rich also admits Preferred Cmaj7 9");
 
     // Avoid-as-harmony never means forbidden melody. A performer-owned F remains
     // valid and is marked independently as melody-imposed.
@@ -108,9 +117,22 @@ int main()
     expect(g7Policy.tone(9).role == TensionRole::preferred, "G7 natural 13 is preferred");
     expect(g7Policy.tone(2).fromFunctionScale, "dominant baseline comes from function scale");
 
+    // Rich expands the dominant candidate vocabulary, but altered colours remain
+    // contextual rather than automatically preferred.
+    expect(g7Policy.tone(1).role == TensionRole::contextual,
+           "G7 b9 is contextual altered colour");
+    expect(g7Policy.tone(1).alteredCandidate,
+           "G7 b9 is marked altered candidate");
+    expect(! g7Policy.isHarmonyCandidate(1, TensionLevel::clean),
+           "Clean rejects inferred dominant b9");
+    expect(! g7Policy.isHarmonyCandidate(1, TensionLevel::color),
+           "Color keeps inferred dominant b9 conservative");
+    expect(g7Policy.isHarmonyCandidate(1, TensionLevel::rich),
+           "Rich admits context-supported dominant b9 candidate");
+
     // Applied dominant must not blindly inherit the global key. D7 in C uses a
-    // Mixolydian dominant baseline: F# remains structural, F-natural is not an
-    // inferred harmonic candidate, while E/9 and B/13 remain available colours.
+    // Mixolydian dominant baseline: F# remains structural, while F-natural/#9
+    // is reserved for Rich rather than inherited from the global key.
     const auto d7 = normalizeChord(makeChord(2, { 0, 4, 7, 10 }));
     const auto gMajor = normalizeChord(makeChord(1, { 0, 4, 7 }));
     const auto d7Analysis = analyzeHarmonicFunction(d7, cMajor, gMajor);
@@ -119,9 +141,12 @@ int main()
     expect(d7Policy.tone(2).role == TensionRole::preferred, "D7 9 is preferred");
     expect(d7Policy.tone(5).role == TensionRole::avoidAsHarmony, "D7 11 is avoid above F#");
     expect(d7Policy.tone(9).role == TensionRole::preferred, "D7 13 is preferred");
-    expect(d7Policy.tone(3).role == TensionRole::unavailable, "F-natural is not inherited from C major over D7");
+    expect(d7Policy.tone(3).role == TensionRole::contextual && d7Policy.tone(3).alteredCandidate,
+           "D7 #9-class pitch is reserved as Rich altered colour");
+    expect(! d7Policy.isHarmonyCandidate(3, TensionLevel::color),
+           "Color does not admit altered D7 #9 candidate");
 
-    // Explicit tensions from Chord Track outrank inference and avoid heuristics.
+    // Explicit tensions from Chord Track outrank level/inference and avoid heuristics.
     const auto cMaj7Sharp11 = normalizeChord(makeDegreeChord(0,
         { { 0, 1 }, { 4, 3 }, { 7, 5 }, { 11, 7 }, { 6, 11 } }));
     const auto cMaj7Sharp11Policy = buildTensionPolicy(
@@ -130,8 +155,8 @@ int main()
            "explicit #11 remains Explicit even outside active key");
     expect(cMaj7Sharp11Policy.tone(6).explicitFromChord,
            "explicit #11 is marked as coming from Chord Track");
-    expect(cMaj7Sharp11Policy.isHarmonyCandidate(6),
-           "explicit #11 is a valid generated harmony candidate");
+    expect(cMaj7Sharp11Policy.isHarmonyCandidate(6, TensionLevel::clean),
+           "explicit #11 remains candidate even at Clean");
 
     const auto c7Flat9 = normalizeChord(makeDegreeChord(0,
         { { 0, 1 }, { 4, 3 }, { 7, 5 }, { 10, 7 }, { 1, 9 } }));
@@ -139,6 +164,8 @@ int main()
         c7Flat9, cMajor, analyzeHarmonicFunction(c7Flat9, cMajor));
     expect(c7Flat9Policy.tone(1).role == TensionRole::explicitTension,
            "explicit b9 bypasses general half-step avoid heuristic");
+    expect(c7Flat9Policy.isHarmonyCandidate(1, TensionLevel::clean),
+           "explicit b9 survives Clean level");
 
     // Modal interchange inference uses the parallel source collection.
     const auto fMin7 = normalizeChord(makeChord(-1, { 0, 3, 7, 10 }));
@@ -163,6 +190,12 @@ int main()
            "without Key context dominant function alone does not invent a Mixolydian 9");
     expect(noKeyDominantPolicy.tone(9).role == TensionRole::unavailable,
            "without Key context dominant function alone does not invent a Mixolydian 13");
+    expect(noKeyDominantPolicy.tone(1).role == TensionRole::unavailable,
+           "without Key context Rich altered candidates are not invented either");
+
+    expect(std::string(tensionLevelName(TensionLevel::clean)) == "Clean", "Clean level name");
+    expect(std::string(tensionLevelName(TensionLevel::color)) == "Color", "Color level name");
+    expect(std::string(tensionLevelName(TensionLevel::rich)) == "Rich", "Rich level name");
 
     std::cout << "SmartVoicingTensionPolicyTests 0.3d: OK\n";
     return 0;
