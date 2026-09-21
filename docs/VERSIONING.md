@@ -27,13 +27,16 @@
 - `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**.
 - `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`; пользовательский тест пройден.
 - `Smart Voicing 0.2b` — нормализованная `ChordModel`: pitch class из circle-of-fifths, chord quality, extensions, alterations и slash bass; добавлены host-neutral unit tests.
+- `Smart Voicing 0.2c` — первый `Melody Harmonize` + базовый Close voicing; подтверждено в Studio Pro.
+- `Smart Voicing 0.2d` — Live Chord Reharmonization + sample-accurate chord boundaries без plugin latency.
+- `Smart Voicing 0.2e` — интеграция Melody Harmonize с Sustain / Voice ownership / State и полная регрессия Router 0.2 перед 0.3.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.2b/
+Smart Voicing 0.2e/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -44,7 +47,7 @@ Smart Voicing 0.2b/
 
 Назначение компонентов:
 
-- `Smart Voicing.vst3` — основной Instrument / MIDI engine и будущий Harmony Core.
+- `Smart Voicing.vst3` — основной Instrument / MIDI engine и Harmony Core.
 - `Smart Voicing ARA.vst3` — служебный ARA/Event FX reader harmonic context.
 
 Оба компонента устанавливаются вместе и считаются одной версией Smart Voicing.
@@ -80,8 +83,11 @@ Smart Voicing 0.2b/
 0.2  → 0.2.0
 0.2a → 0.2.1
 0.2b → 0.2.2
+0.2c → 0.2.3
+0.2d → 0.2.4
+0.2e → 0.2.5
 ```
 
 ## Отложенная стабилизация
 
-Функции, которые не блокируют переход к Chord-aware Harmonizer, не должны задерживать завершение музыкальных этапов. Например, отдельная UI-кнопка `Panic / All Notes Off`, расширенные stop/seek/reactivation regression tests и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0.
+Функции, которые не блокируют переход к Chord-aware Harmonizer, не должны задерживать завершение музыкальных этапов. Например, отдельная UI-кнопка `Panic / All Notes Off` и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0. При этом интеграционная регрессия текущих Router / Sustain / State функций перед стабильной 0.3 выполняется в 0.2e.
