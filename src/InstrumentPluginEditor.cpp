@@ -120,7 +120,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.3a - Key-aware Function MVP",
+    titleLabel.setText("Smart Voicing 0.3b - Closed Voicing MVP",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -178,7 +178,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.3a | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.3b | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -382,7 +382,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     if (directRouter)
         midiText << " | distribution: " << distributionModeText(midiProbe.distributionMode);
     else
-        midiText << " | Close voicing + live Chord Track reharmonization";
+        midiText << " | Closed Voicing + live Chord Track reharmonization";
     midiText << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
     midiText << "sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
              << " | keys held: " << midiProbe.heldNoteCount
@@ -411,7 +411,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 4 / 0.3a: Chord + Key -> Degree / Function analysis; voicing output remains 0.3-compatible\n";
+    debugText << "Stage 4 / 0.3b: Melody Harmonize -> candidate-based Closed Voicing; Key/Function analysis retained\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -459,9 +459,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "\n";
 
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
-    debugText << "Priority: Played/Melody > Chord > Key > Function; 0.3a analysis does not rewrite Chord Track\n";
+    debugText << "Priority: Played/Melody > Chord > Key > Function > Voicing preferences\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
-              << " | V1 melody is immutable | V2-V4 still use stable 0.3 Close voicing\n";
+              << " | V1 melody immutable | V2-V4 candidate-based Closed vertical\n";
+    debugText << "Closed policy: guide tones + contextual root/fifth omission + soft Upper Voice Spacing\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
               << " | chord boundaries are scheduled inside the current audio block\n";
     debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
