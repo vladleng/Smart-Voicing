@@ -88,12 +88,17 @@ std::array<bool, kPitchClassCount> makeInferredCollection(const NormalizedChord&
     std::array<bool, kPitchClassCount> result {};
     fromFunctionScale = false;
 
-    // A dominant-function chord gets a conservative Mixolydian baseline. This
-    // is especially important for applied dominants: D7 in C major must retain
-    // F# from the explicit chord and should not inherit F-natural merely because
-    // it belongs to the global key. Explicit alterations still override this
-    // inferred collection.
-    const auto dominantContext = chord.quality == ChordQuality::dominant
+    // A dominant-function chord gets a conservative Mixolydian baseline only
+    // when tonal context is actually available. This preserves legacy/chord-only
+    // behavior and prevents Smart Voicing from inventing inferred tensions when
+    // the host has not supplied Key context.
+    //
+    // With a valid Key this is especially important for applied dominants:
+    // D7 in C major must retain F# from the explicit chord and should not inherit
+    // F-natural merely because it belongs to the global key. Explicit alterations
+    // still override this inferred collection.
+    const auto dominantContext = key.valid
+        && chord.quality == ChordQuality::dominant
         && (! harmonic.valid || harmonic.effectiveFunction == HarmonicFunction::dominant);
 
     if (dominantContext)
