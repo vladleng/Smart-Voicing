@@ -2,7 +2,8 @@
 
 **Status:** Accepted concept for 0.3d / Stage 4  
 **Related Issues:** #8, #10, #24, #25  
-**Reference:** Ted Pease / Ken Pullig — *Modern Jazz Voicings*
+**Reference:** Ted Pease / Ken Pullig — *Modern Jazz Voicings*  
+**Voice Leading contract:** `docs/VOICE-LEADING-DIRECTION.md`
 
 `Tension Level` — это не набор обязательных надстроек, а **степень гармонической насыщенности**, регулирующая свободу `Tension Policy` и `Harmonic Candidate Pool`.
 
@@ -94,7 +95,8 @@ Dm7 | E7 | Am7
 
 - `Preferred / Available` tensions становятся полноценными кандидатами;
 - tension может вытеснить root/fifth, если итоговая вертикаль лучше;
-- полезными причинами считаются compactness, spacing, common tone, stepwise movement и harmonic clarity;
+- в 0.3d «лучше» пока оценивается прежде всего через vertical/spacing/harmonic score;
+- после Stage 6 добавляется настоящий previous-state-aware Voice Leading: common tone, stepwise movement, уменьшение leap;
 - не существует правила «каждый seventh chord превратить в 9/13»;
 - chromatic/altered color остаётся консервативным без достаточного Function/Mode evidence.
 
@@ -150,6 +152,25 @@ D  -> C
 
 В 0.3d допустимо provisional static weighting внутри Closed. Полноценный выбор tension с учётом `previous Voice state` относится к Stage 6 / Issue #10.
 
+## Default Voice Leading: важное уточнение
+
+Tension Level не определяет сам тип движения голосов.
+
+Accepted direction:
+
+```text
+not maximum parallel motion
+not maximum static motion
+
+→ minimum musically necessary motion
+```
+
+То есть future Voice Leading должен по возможности сохранять common/structural tones и использовать oblique motion, если melody движется над устойчивыми inner voices. Но голоса не должны удерживаться любой ценой: Chord/Function, guide tones, strategy, spacing и resolution важнее простой статичности.
+
+`Parallel / Block / Soli` — отдельная музыкальная strategy/policy, особенно для melodic-context / approach-note задач (#23), а не автоматическое следствие Level 2 или Level 3.
+
+Подробно: `docs/VOICE-LEADING-DIRECTION.md`.
+
 ## Internal contract
 
 Предпочтительная модель:
@@ -180,6 +201,17 @@ Melody-imposed        preserve  preserve  preserve
 
 `*` кроме explicitly/functionally defined exceptions, например dominant b9.
 
+## Current 0.3d implementation status
+
+- engine contract `Clean / Color / Rich` реализован;
+- levels влияют на eligibility/scoring inferred candidates;
+- `Explicit` и `Melody-imposed` остаются выше Level;
+- selector проведён через Instrument UI/state/diagnostics;
+- state version сохраняет выбранный Level;
+- host-neutral regression Level 1/2/3 проходит;
+- Windows Build #295 — success;
+- Studio Pro musical acceptance — следующий gate.
+
 ## Acceptance direction
 
 Одна и та же progression должна давать различную степень harmonic color без смены `VoicingStrategy`:
@@ -190,4 +222,21 @@ Level 2: умеренный color при хорошем voicing/continuity
 Level 3: rich/altered color при сохранении функции
 ```
 
-Главный критерий: Level расширяет музыкальную свободу, а не механически увеличивает количество tensions.
+На Studio Pro acceptance проверить разные классы harmony:
+
+- diatonic II–V–I;
+- secondary dominant;
+- explicit altered dominant;
+- modal interchange;
+- maj7 с available/avoid tensions;
+- save/reopen Tension Level;
+- live switching Level;
+- explicit `#11 / b9` metadata.
+
+Последовательность
+
+```text
+Dm7 | Db7(b13) | Cm7 | B7#11 | Bbmaj7 | A7
+```
+
+сохраняется как musical regression reference для будущего Stage 6 Voice Leading. Главный критерий: Level расширяет музыкальную свободу, а не механически увеличивает количество tensions.
