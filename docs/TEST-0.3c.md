@@ -86,60 +86,31 @@ candidate = V/IV
 confirmed = YES
 ```
 
-Этот тест нужен для неоднозначности:
-
-```text
-C7 = tonic dominant / blues sound ?
-или
-C7 = V/IV ?
-```
-
 Только фактическое разрешение в F даёт direct confirmation V/IV.
 
 ### Primary dominant
 
 ```text
 C major: G7 -> C
-```
-
-Ожидание:
-
-- Function = Dominant;
-- primary V не маркируется как Applied Dominant.
-
-```text
 G major: D7
 ```
 
-Ожидание:
-
-- D7 = обычный V;
-- не Applied Dominant.
+Ожидание: primary V = Dominant, но не Applied Dominant.
 
 ---
 
 ## 3. Modal Interchange Candidate MVP
 
-Алгоритм 0.3c пока не пытается полностью объяснять modal interchange. Он выдаёт evidence, если chromatic chord целиком помещается в parallel major/minor pitch collection.
+Для chromatic chord выдаётся evidence, если его pitch set помещается в parallel major/minor collection.
 
-### C major
-
-Проверить:
+Контроль:
 
 ```text
-Fm7    -> candidate from parallel minor
-Ebmaj7 -> candidate from parallel minor
+C major: Fm7 / Ebmaj7 -> parallel minor
+C minor: F major -> parallel major
 ```
 
 D7 в C major не должен ошибочно становиться parallel-minor borrowing: это отдельное secondary-dominant evidence.
-
-### C minor
-
-Проверить:
-
-```text
-F major -> candidate from parallel major
-```
 
 ---
 
@@ -160,15 +131,13 @@ C7 -> Fmaj7 = V/IV candidate + CONFIRMED
 Fm7         = modal interchange candidate: parallel minor
 ```
 
-Также подтверждены C major Key Track и корректные `degree / root function / effective function / relation` в diagnostics.
+Также подтверждены C major Key Track и корректные `degree / root function / effective function / relation`.
 
 ---
 
 ## 5. Live ClosedVoicingContext integration
 
 `Melody Harmonize` больше не использует context-free compatibility path `buildCloseVoicing()`.
-
-Для каждой новой melody note и для live reharmonization удержанной melody строится:
 
 ```text
 Current HarmonicContext
@@ -185,18 +154,9 @@ ClosedVoicingContext
 buildClosedVoicing(...)
 ```
 
-То есть Closed Engine реально получает:
+Closed Engine получает Key, Function, Diatonic/Chromatic relation, Applied Dominant Candidate/Confirmed и Modal Interchange Candidate.
 
-```text
-Key
-root/effective Function
-Diatonic/Chromatic relation
-Applied Dominant Candidate
-Applied Dominant Confirmed
-Modal Interchange Candidate
-```
-
-При этом 0.3c **не обязана** давать разные ноты для `D7 -> G` и `D7 -> Am`: до Tension Policy оба explicit D7 могут закономерно получить одинаковый Closed voicing. Важно, что evidence уже находится внутри музыкального контекста движка и готово для 0.3d.
+0.3c не обязана давать разные ноты для `D7 -> G` и `D7 -> Am`: реальные различия tension selection относятся к 0.3d.
 
 ---
 
@@ -224,20 +184,15 @@ D7 | G7 | D7 | Am7 | C7 | Fmaj7 | Fm7 | Cmaj7
 
 ```text
 Cmaj7 + C D E F G A B C
-```
-
-сохраняет принятые compact Closed voicings, включая:
-
-```text
 C -> C-B-G-E
 D -> D-B-G-E
 ```
 
 ### Boundary regression — короткие MIDI-ноты на стыках
 
-В первом полном Studio Pro тесте 0.3c были обнаружены микроскопические generated notes на некоторых точных стыках Chord Track / melody. Причина: `kBoundaryTolerancePpq = 0.0001` был полезен для stopped cursor/UI diagnostics, но тот же tolerance попадал в realtime playback path и мог открыть следующий chord на несколько samples раньше его фактической границы.
+В первом полном Studio Pro тесте были обнаружены микроскопические generated notes на стыках. Причина: `kBoundaryTolerancePpq = 0.0001`, предназначенный для stopped cursor/UI, попадал в realtime playback path и мог открыть следующий chord на несколько samples раньше.
 
-Начиная с исправления `e7009da` политика разделена:
+Начиная с `e7009da`:
 
 ```text
 Transport PLAYING
@@ -247,11 +202,9 @@ Transport STOPPED
 → UI/cursor diagnostics keeps small PPQ tolerance
 ```
 
-Финальный пользовательский тест 2026-09-21 подтвердил исправление: melody была размещена на дорожке Smart Voicing точно на границах Chord Track, затем четыре generated voices были записаны на инструментальные дорожки. При совпадении Note On с границей аккорда короткие transient notes отсутствуют.
+Финальный пользовательский тест 2026-09-21 подтвердил исправление: melody была размещена на дорожке Smart Voicing точно на границах Chord Track, затем четыре generated voices записаны на инструментальные дорожки. При совпадении Note On с chord boundary короткие transient notes отсутствуют.
 
-Отдельно подтверждено ожидаемое поведение: если новая melody note реально начинается **раньше** следующего Chord Track event, Smart Voicing на этом коротком участке правомерно гармонизирует новую melody ещё по старому chord, а на фактической границе делает reharmonization. Такой короткий voicing отражает реальные MIDI/Chord Track тайминги и не является boundary bug.
-
-Итоговая temporal policy:
+Если новая melody note реально начинается раньше следующего chord event, Smart Voicing корректно использует новую melody со старым chord до фактической boundary, а затем reharmonize. Такой короткий voicing отражает реальные тайминги и не считается багом.
 
 ```text
 melody Note On раньше chord boundary
@@ -267,11 +220,11 @@ melody Note On точно на chord boundary
 ## 7. Что сознательно НЕ входит в 0.3c
 
 - полный chord-progression grammar;
-- автоматическое распознавание всех deceptive resolutions;
-- окончательная классификация blues / tonic dominant / backdoor / tritone-substitute по одному правилу;
+- все deceptive resolutions;
+- окончательная классификация blues / tonic dominant / backdoor / tritone-substitute;
 - полный borrowed-chord taxonomy;
 - melodic approach-note analysis;
-- Tension Policy / chord scales — это 0.3d;
+- Tension Policy / chord scales — 0.3d;
 - Voice Leading — Stage 6.
 
 ---
@@ -282,12 +235,12 @@ melody Note On точно на chord boundary
 
 1. host-neutral tests проходят;
 2. Windows Build #259 — success;
-3. diagnostics в Studio Pro различает `candidate` и `confirmed` по реальному следующему Chord Track event;
-4. modal-interchange MVP показывает parallel-mode evidence на тестовых случаях;
-5. live Melody Harmonize вызывает `buildClosedVoicing(..., ClosedVoicingContext)`;
-6. 0.3b Closed regression сохранена;
-7. boundary bug с преждевременным realtime tolerance исправлен;
-8. при точном совпадении melody Note On и Chord Track boundary generated MIDI не содержит коротких transient notes;
-9. ранняя melody note до chord boundary корректно остаётся под старым chord до фактического момента смены harmony.
+3. diagnostics в Studio Pro различает candidate/confirmed;
+4. modal-interchange MVP подтверждён;
+5. live Melody Harmonize использует `ClosedVoicingContext`;
+6. Closed 0.3b regression сохранена;
+7. realtime boundary bug исправлен;
+8. при точном совпадении melody и chord boundary transient notes отсутствуют;
+9. ранняя melody note корректно остаётся под старым chord до его фактической смены.
 
 **Статус 0.3c: ACCEPTED / Studio Pro confirmed.**
