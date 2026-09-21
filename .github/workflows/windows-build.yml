@@ -6,13 +6,14 @@ on:
       - main
       - stage-2-midi-router
       - stage-3-chord-harmonizer
+      - stage-4-key-aware-engine
 
 jobs:
   build:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.3"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.3a"
 
     steps:
       - name: Checkout
@@ -22,7 +23,7 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
-        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingLiveReharmonizerTests --parallel 2
+        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests --parallel 2
 
       - name: Test Harmony Core
         run: ctest --test-dir build -C Release --output-on-failure
@@ -39,5 +40,5 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.3-Windows
+          name: Smart-Voicing-0.3a-Windows
           path: "package"
