@@ -31,14 +31,15 @@
 - `Smart Voicing 0.2d` — Live Chord Reharmonization + sample-accurate chord boundaries без plugin latency.
 - `Smart Voicing 0.2e` — интеграция Melody Harmonize с Sustain / Voice ownership / State и полная регрессия Router 0.2; подтверждено CI и пользовательским тестом в Studio Pro 2026-09-21.
 - `Smart Voicing 0.3` — **завершённый Этап 3: Chord-aware Harmonizer + Harmonic Context**. Стабильный checkpoint поверх подтверждённой 0.2e без новых музыкальных изменений.
-- `Smart Voicing 0.3a` — старт Этапа 4: `KeyModel`, scale degree, базовые harmonic functions, Diatonic/Chromatic analysis и Applied Dominant Candidate без изменения voicing.
+- `Smart Voicing 0.3a` — старт Этапа 4: `KeyModel`, scale degree, базовые harmonic functions, Diatonic/Chromatic analysis и Applied Dominant Candidate без изменения voicing. Windows Build #236 — success; ручной Studio Pro test ещё не отмечен как пройденный.
+- `Smart Voicing 0.3b` — `Melody Harmonize` развивается в базовый `Closed Voicing`: candidate-based vertical selection, guide-tone priority, context-aware root/fifth omission, compactness и `Upper Voice Spacing Policy` как soft constraint.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.3a/
+Smart Voicing 0.3b/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -90,6 +91,7 @@ Smart Voicing 0.3a/
 0.2e → 0.2.5
 0.3  → 0.3.0
 0.3a → 0.3.1
+0.3b → 0.3.2
 ```
 
 ## Отложенная стабилизация
