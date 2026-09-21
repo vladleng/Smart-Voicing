@@ -52,10 +52,77 @@ bool allChordTonesBelongToKey(const NormalizedChord& chord,
 
     return sawTone;
 }
+
+bool pitchBelongsToMode(int absolutePitchClass,
+                        int tonicPitchClass,
+                        KeyMode mode) noexcept
+{
+    static constexpr bool majorMask[kPitchClassCount] =
+        { true, false, true, false, true, true, false, true, false, true, false, true };
+    static constexpr bool minorMask[kPitchClassCount] =
+        { true, false, true, true, false, true, false, true, true, false, true, false };
+
+    if (mode != KeyMode::major && mode != KeyMode::minor)
+        return false;
+
+    const auto relative = wrap12(absolutePitchClass - tonicPitchClass);
+    return mode == KeyMode::major
+        ? majorMask[relative]
+        : minorMask[relative];
 }
 
-HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
-                                         const NormalizedKey& key) noexcept
+bool allChordTonesBelongToMode(const NormalizedChord& chord,
+                               int tonicPitchClass,
+                               KeyMode mode) noexcept
+{
+    if (! chord.valid)
+        return false;
+
+    bool sawTone = false;
+    for (int relative = 0; relative < kPitchClassCount; ++relative)
+    {
+        if (! chord.tones[static_cast<std::size_t>(relative)])
+            continue;
+
+        sawTone = true;
+        const auto absolute = wrap12(chord.rootPitchClass + relative);
+        if (! pitchBelongsToMode(absolute, tonicPitchClass, mode))
+            return false;
+    }
+
+    return sawTone;
+}
+
+KeyMode parallelMode(KeyMode mode) noexcept
+{
+    switch (mode)
+    {
+        case KeyMode::major: return KeyMode::minor;
+        case KeyMode::minor: return KeyMode::major;
+        default: return KeyMode::undefined;
+    }
+}
+
+void addModalInterchangeEvidence(HarmonicAnalysis& result,
+                                 const NormalizedChord& chord,
+                                 const NormalizedKey& key) noexcept
+{
+    if (result.relation != HarmonicRelation::chromatic)
+        return;
+
+    const auto sourceMode = parallelMode(key.mode);
+    if (sourceMode == KeyMode::undefined)
+        return;
+
+    if (allChordTonesBelongToMode(chord, key.rootPitchClass, sourceMode))
+    {
+        result.modalInterchangeCandidate = true;
+        result.modalInterchangeSource = sourceMode;
+    }
+}
+
+HarmonicAnalysis analyzeStatic(const NormalizedChord& chord,
+                               const NormalizedKey& key) noexcept
 {
     HarmonicAnalysis result;
     if (! chord.valid || ! key.valid)
@@ -86,6 +153,35 @@ HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
             result.appliedTargetScaleDegree = targetDegree;
             result.effectiveFunction = HarmonicFunction::dominant;
         }
+    }
+
+    addModalInterchangeEvidence(result, chord, key);
+    return result;
+}
+}
+
+HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
+                                         const NormalizedKey& key) noexcept
+{
+    return analyzeStatic(chord, key);
+}
+
+HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
+                                         const NormalizedKey& key,
+                                         const NormalizedChord& nextChord) noexcept
+{
+    auto result = analyzeStatic(chord, key);
+    if (! result.valid || ! nextChord.valid)
+        return result;
+
+    result.nextChordAvailable = true;
+    result.nextChordRootPitchClass = nextChord.rootPitchClass;
+
+    if (result.appliedDominantCandidate
+        && result.appliedTargetPitchClass >= 0
+        && nextChord.rootPitchClass == result.appliedTargetPitchClass)
+    {
+        result.appliedDominantConfirmed = true;
     }
 
     return result;
