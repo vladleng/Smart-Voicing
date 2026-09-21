@@ -126,16 +126,18 @@ int upperSpacingPenalty(int semitones) noexcept
 {
     // Soft preference only. Around a third is preferred, a fourth is common,
     // while seconds / wider intervals remain legal when the vertical context
-    // makes them the better musical choice.
+    // makes them the better musical choice. A semitone is contextual rather
+    // than forbidden: in real four-way-close writing (for example root over
+    // maj7) it can be the most compact and correct upper spacing.
     switch (semitones)
     {
         case 3:
         case 4: return 0;
         case 5: return 1;
         case 2: return 4;
+        case 1: return 6;
         case 6: return 5;
         case 7: return 7;
-        case 1: return 12;
         default:
             return semitones > 7 ? 9 + (semitones - 8) * 2 : 0;
     }
