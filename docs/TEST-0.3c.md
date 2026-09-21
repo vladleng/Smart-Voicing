@@ -2,7 +2,7 @@
 
 ## Status
 
-**ACCEPTED / Studio Pro confirmed — 2026-09-21**
+**ACCEPTED / CLOSED / Studio Pro confirmed — 2026-09-21**
 
 0.3c adds resolution-aware harmonic function, modal-interchange evidence, live `ClosedVoicingContext`, and exact realtime Chord Track boundary handling.
 
@@ -100,15 +100,17 @@ new melody + old current chord
 
 This is correct timeline behavior, not a bug.
 
-## CI / acceptance
+## Final CI / acceptance
 
 - Windows Build #259 — success for boundary-fix line;
+- Windows Build #268 — success for final accepted 0.3c documentation/checkpoint line;
 - host-neutral Harmony Core tests — pass;
 - Studio Pro diagnostics — pass;
 - exact-boundary generated MIDI test — pass;
-- 0.3b Closed regression — pass.
+- Closed / Sustain / `(no chord) -> chord` / Direct Router / stuck-note regression — pass;
+- user confirmed the complete 0.3c regression on 2026-09-21.
 
-Final documentation-only HEAD may trigger another CI run; the current HEAD must also be green before starting 0.3d under the project workflow.
+**0.3c is closed. Further musical changes belong to 0.3d.**
 
 ## Out of scope for 0.3c
 
