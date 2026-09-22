@@ -46,25 +46,22 @@ juce_add_plugin(SmartVoicing
     FORMATS VST3
     PRODUCT_NAME "Smart Voicing"
     IS_SYNTH TRUE
+    VST3_CATEGORIES Instrument
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
     IS_MIDI_EFFECT FALSE
+    IS_ARA_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
 
+juce_generate_juce_header(SmartVoicing)
+
 target_sources(SmartVoicing
     PRIVATE
-        src/InstrumentPluginProcessor.cpp
-        src/InstrumentPluginProcessor.h
-        src/InstrumentPluginEditor.cpp
-        src/InstrumentPluginEditor.h
-        src/SharedHarmonicContext.cpp
         src/SharedHarmonicContext.h
-        src/HarmonicContextProvider.cpp
-        src/HarmonicContextProvider.h
-        src/HarmonicContextDebugText.cpp
         src/HarmonicContextDebugText.h
+        src/HarmonicContext.h
         src/ChordModel.cpp
         src/ChordModel.h
         src/KeyModel.cpp
@@ -77,132 +74,150 @@ target_sources(SmartVoicing
         src/CloseVoicingHarmonizer.h
         src/LiveReharmonizer.cpp
         src/LiveReharmonizer.h
-        src/VoiceAllocator.cpp
-        src/VoiceAllocator.h
-)
-
-target_compile_definitions(SmartVoicing
-    PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0
-)
-
-target_link_libraries(SmartVoicing
-    PRIVATE
-        juce::juce_audio_utils
-        juce::juce_audio_processors
-        juce::juce_audio_basics
-        juce::juce_gui_extra
-        juce::juce_gui_basics
-        juce::juce_events
-        juce::juce_core
+        src/ARAContextProvider.cpp
+        src/ARAContextProvider.h
+        src/InstrumentPluginProcessor.cpp
+        src/InstrumentPluginProcessor.h
+        src/InstrumentPluginEditor.cpp
+        src/InstrumentPluginEditor.h
 )
 
 # -----------------------------------------------------------------------------
-# Companion ARA plug-in: host timeline/content reader.
+# Helper plug-in: ARA / Event FX context reader.
+# It passes audio through unchanged and only publishes DAW harmonic context.
 juce_add_plugin(SmartVoicingARA
     COMPANY_NAME "Moon River Studio"
-    BUNDLE_ID "com.moonriverstudio.smartvoicing.ara"
+    BUNDLE_ID "com.moonriverstudio.smartvoicingara"
     PLUGIN_MANUFACTURER_CODE MNRV
-    PLUGIN_CODE SmVA
+    PLUGIN_CODE SmAr
     FORMATS VST3
     PRODUCT_NAME "Smart Voicing ARA"
     IS_SYNTH FALSE
+    VST3_CATEGORIES Fx
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
+    IS_ARA_EFFECT TRUE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
-    VST3_AUTO_MANIFEST FALSE
-    ARA_FACTORY_ID "com.moonriverstudio.smartvoicing.ara.factory"
-    ARA_DOCUMENT_ARCHIVE_ID "com.moonriverstudio.smartvoicing.ara.document"
-    ARA_COMPATIBLE_ARCHIVE_IDS "com.moonriverstudio.smartvoicing.ara.document"
-    ARA_CONTENT_TYPES Notes TempoEntries BarSignatures StaticTuning KeySignatures SheetChords
-    ARA_TRANSFORMATION_FLAGS Timestretch ReflectTimingContent ReflectTuningContent
 )
+
+juce_generate_juce_header(SmartVoicingARA)
 
 target_sources(SmartVoicingARA
     PRIVATE
-        src/ARAPluginProcessor.cpp
-        src/ARAPluginProcessor.h
-        src/ARAPluginEditor.cpp
-        src/ARAPluginEditor.h
-        src/ARAPlaybackRenderer.cpp
-        src/ARAPlaybackRenderer.h
-        src/ARAModelObjects.cpp
-        src/ARAModelObjects.h
-        src/ARAContentReader.cpp
-        src/ARAContentReader.h
-        src/SharedHarmonicContext.cpp
         src/SharedHarmonicContext.h
-        src/HarmonicContextDebugText.cpp
         src/HarmonicContextDebugText.h
+        src/ARAContextDebugState.h
+        src/ARAContextDocumentController.cpp
+        src/ARAContextDocumentController.h
+        src/PluginProcessor.cpp
+        src/PluginProcessor.h
+        src/PluginEditor.cpp
+        src/PluginEditor.h
 )
 
-target_compile_definitions(SmartVoicingARA
-    PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0
-)
+foreach(target SmartVoicing SmartVoicingARA)
+    target_compile_definitions(${target}
+        PUBLIC
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0
+            JUCE_VST3_CAN_REPLACE_VST2=0
+    )
 
-target_link_libraries(SmartVoicingARA
-    PRIVATE
-        juce::juce_audio_utils
-        juce::juce_audio_processors
-        juce::juce_audio_basics
-        juce::juce_gui_extra
-        juce::juce_gui_basics
-        juce::juce_events
-        juce::juce_core
-)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /utf-8)
+    endif()
+
+    target_link_libraries(${target}
+        PRIVATE
+            juce::juce_audio_utils
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags
+    )
+endforeach()
 
 # -----------------------------------------------------------------------------
-# Host-neutral regression targets.
+# Host-neutral Harmony Core tests. These deliberately do not link JUCE or ARA.
 add_executable(SmartVoicingCoreTests
-    tests/VoiceAllocatorTests.cpp
-    src/VoiceAllocator.cpp
+    tests/ChordModelTests.cpp
+    src/ChordModel.cpp
+    src/ChordModel.h
+    src/HarmonicContext.h
 )
-target_include_directories(SmartVoicingCoreTests PRIVATE src)
+
+target_include_directories(SmartVoicingCoreTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingCoreTests PRIVATE cxx_std_20)
 
 add_executable(SmartVoicingHarmonizerTests
     tests/CloseVoicingHarmonizerTests.cpp
     src/ChordModel.cpp
+    src/ChordModel.h
     src/KeyModel.cpp
+    src/KeyModel.h
     src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
     src/TensionPolicy.cpp
+    src/TensionPolicy.h
     src/CloseVoicingHarmonizer.cpp
+    src/CloseVoicingHarmonizer.h
+    src/HarmonicContext.h
 )
-target_include_directories(SmartVoicingHarmonizerTests PRIVATE src)
+
+target_include_directories(SmartVoicingHarmonizerTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingHarmonizerTests PRIVATE cxx_std_20)
 
 add_executable(SmartVoicingLiveReharmonizerTests
     tests/LiveReharmonizerTests.cpp
     src/ChordModel.cpp
+    src/ChordModel.h
     src/KeyModel.cpp
+    src/KeyModel.h
     src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
     src/TensionPolicy.cpp
+    src/TensionPolicy.h
     src/CloseVoicingHarmonizer.cpp
+    src/CloseVoicingHarmonizer.h
     src/LiveReharmonizer.cpp
+    src/LiveReharmonizer.h
+    src/HarmonicContext.h
 )
-target_include_directories(SmartVoicingLiveReharmonizerTests PRIVATE src)
+
+target_include_directories(SmartVoicingLiveReharmonizerTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingLiveReharmonizerTests PRIVATE cxx_std_20)
 
 add_executable(SmartVoicingKeyAwareTests
     tests/KeyAwareTests.cpp
     src/ChordModel.cpp
+    src/ChordModel.h
     src/KeyModel.cpp
+    src/KeyModel.h
     src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/HarmonicContext.h
 )
-target_include_directories(SmartVoicingKeyAwareTests PRIVATE src)
+
+target_include_directories(SmartVoicingKeyAwareTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingKeyAwareTests PRIVATE cxx_std_20)
 
 add_executable(SmartVoicingTensionPolicyTests
     tests/TensionPolicyTests.cpp
     src/ChordModel.cpp
+    src/ChordModel.h
     src/KeyModel.cpp
+    src/KeyModel.h
     src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
     src/TensionPolicy.cpp
+    src/TensionPolicy.h
+    src/HarmonicContext.h
 )
-target_include_directories(SmartVoicingTensionPolicyTests PRIVATE src)
+
+target_include_directories(SmartVoicingTensionPolicyTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingTensionPolicyTests PRIVATE cxx_std_20)
 
 if(MSVC)
     target_compile_options(SmartVoicingCoreTests PRIVATE /utf-8)
