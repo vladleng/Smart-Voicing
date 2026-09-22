@@ -40,7 +40,8 @@ bool candidateIsWholeStepAboveChordTone(const NormalizedChord& chord, int relati
 
 bool preferredTensionForQuality(const NormalizedChord& chord, int relative) noexcept
 {
-    // Conservative 0.3d defaults. Explicit Chord Track tensions bypass this.
+    // Conservative non-dominant defaults. Dominants are handled by a separate
+    // functional profile because 9/13/alterations depend strongly on target.
     if (relative == 2 || relative == 9) // natural 9 / 13
         return true;
 
@@ -57,20 +58,133 @@ bool preferredTensionForQuality(const NormalizedChord& chord, int relative) noex
 }
 
 bool isDominantColourContext(const NormalizedChord& chord,
-                             const NormalizedKey& key,
-                             const HarmonicAnalysis& harmonic) noexcept
+                             const NormalizedKey& key) noexcept
 {
-    return key.valid
-        && chord.quality == ChordQuality::dominant
-        && (! harmonic.valid || harmonic.effectiveFunction == HarmonicFunction::dominant);
+    // Chord quality itself is valid evidence of a dominant sonority. Function
+    // and next-chord evidence refine the profile; they do not need to be known
+    // before the engine may classify its tension vocabulary.
+    return key.valid && chord.quality == ChordQuality::dominant;
+}
+
+bool isMinorTargetQuality(ChordQuality quality) noexcept
+{
+    return quality == ChordQuality::minor
+        || quality == ChordQuality::halfDiminished
+        || quality == ChordQuality::diminished;
+}
+
+bool isMajorTargetQuality(ChordQuality quality) noexcept
+{
+    // A dominant target (e.g. D7 -> G7) still has a major-third target quality
+    // and behaves closer to the major-target profile than to a minor tonic.
+    return quality == ChordQuality::major
+        || quality == ChordQuality::dominant
+        || quality == ChordQuality::augmented;
+}
+
+FunctionalTensionProfile deriveFunctionalProfile(const NormalizedChord& chord,
+                                                  const NormalizedKey& key,
+                                                  const HarmonicAnalysis& harmonic) noexcept
+{
+    if (! isDominantColourContext(chord, key))
+        return FunctionalTensionProfile::neutral;
+
+    if (harmonic.dominantResolutionConfirmed)
+    {
+        if (isMinorTargetQuality(harmonic.dominantTargetQuality))
+            return FunctionalTensionProfile::dominantMinorTarget;
+
+        if (isMajorTargetQuality(harmonic.dominantTargetQuality))
+            return FunctionalTensionProfile::dominantMajorTarget;
+    }
+
+    // If no next chord is available, primary V may still use active Key as a
+    // conservative fallback. Once an actual next chord is present but does not
+    // confirm the expected dominant target, do not pretend the resolution was
+    // known in advance.
+    if (! harmonic.nextChordAvailable && harmonic.valid && harmonic.rootScaleDegree == 5)
+    {
+        if (key.mode == KeyMode::minor)
+            return FunctionalTensionProfile::dominantMinorTarget;
+        if (key.mode == KeyMode::major)
+            return FunctionalTensionProfile::dominantMajorTarget;
+    }
+
+    return FunctionalTensionProfile::dominantUnresolved;
 }
 
 bool isDominantAlteredCandidate(int relative) noexcept
 {
     // Common altered-dominant colours relative to the dominant root:
-    // b9, #9, #11/b5, b13/#5. They are not auto-selected; Level 3 merely makes
-    // them eligible with a conservative score when harmonic context supports it.
+    // b9, #9, #11/b5, b13/#5.
     return relative == 1 || relative == 3 || relative == 6 || relative == 8;
+}
+
+void classifyDominantTone(TensionTonePolicy& tone,
+                          int relative,
+                          FunctionalTensionProfile profile,
+                          bool resolutionConfirmed) noexcept
+{
+    tone.fromFunctionScale = true;
+
+    // Natural 11 above the dominant third forms the classic avoid relationship
+    // in the conservative baseline. Explicit Chord Track material has already
+    // bypassed this inference path.
+    if (relative == 5)
+    {
+        tone.role = TensionRole::avoidAsHarmony;
+        return;
+    }
+
+    if (profile == FunctionalTensionProfile::dominantMinorTarget)
+    {
+        // In a minor-target dominant, natural 13 must not be promoted simply
+        // because Mixolydian would allow it. b9 and b13 are much stronger
+        // function-bearing Rich candidates because they point into the minor
+        // target. #9/#11 remain available as more contextual altered colours.
+        if (relative == 1 || relative == 8)
+        {
+            tone.role = TensionRole::contextual;
+            tone.alteredCandidate = true;
+            tone.functionallyDirected = true;
+            return;
+        }
+
+        if (relative == 3 || relative == 6)
+        {
+            tone.role = TensionRole::contextual;
+            tone.alteredCandidate = true;
+            tone.functionallyDirected = resolutionConfirmed;
+            return;
+        }
+
+        // Natural 9/13 are only treated as inside colour when the active/custom
+        // Key explicitly supports them. In ordinary natural-minor context this
+        // keeps E7->Am from inventing F#/C# as generic Color notes.
+        if ((relative == 2 || relative == 9) && tone.fromActiveKey)
+        {
+            tone.role = TensionRole::available;
+            return;
+        }
+
+        return;
+    }
+
+    // Major-target or unresolved dominant keeps the conservative Mixolydian
+    // inside vocabulary for Color.
+    if (relative == 2 || relative == 9)
+    {
+        tone.role = TensionRole::preferred;
+        return;
+    }
+
+    if (isDominantAlteredCandidate(relative))
+    {
+        tone.role = TensionRole::contextual;
+        tone.alteredCandidate = true;
+        tone.functionallyDirected = profile == FunctionalTensionProfile::dominantMajorTarget
+                                 && resolutionConfirmed;
+    }
 }
 
 void addMajorCollection(std::array<bool, kPitchClassCount>& absolute,
@@ -89,14 +203,6 @@ void addMinorCollection(std::array<bool, kPitchClassCount>& absolute,
         absolute[static_cast<std::size_t>(normalizePitchClass(tonicPitchClass + interval))] = true;
 }
 
-void addMixolydianCollection(std::array<bool, kPitchClassCount>& absolute,
-                             int chordRootPitchClass) noexcept
-{
-    constexpr int intervals[] = { 0, 2, 4, 5, 7, 9, 10 };
-    for (const auto interval : intervals)
-        absolute[static_cast<std::size_t>(normalizePitchClass(chordRootPitchClass + interval))] = true;
-}
-
 std::array<bool, kPitchClassCount> makeInferredCollection(const NormalizedChord& chord,
                                                            const NormalizedKey& key,
                                                            const HarmonicAnalysis& harmonic,
@@ -105,21 +211,9 @@ std::array<bool, kPitchClassCount> makeInferredCollection(const NormalizedChord&
     std::array<bool, kPitchClassCount> result {};
     fromFunctionScale = false;
 
-    // A dominant-function chord gets a conservative Mixolydian baseline only
-    // when tonal context is actually available. This preserves legacy/chord-only
-    // behavior and prevents Smart Voicing from inventing inferred tensions when
-    // the host has not supplied Key context.
-    //
-    // With a valid Key this is especially important for applied dominants:
-    // D7 in C major must retain F# from the explicit chord and should not inherit
-    // F-natural merely because it belongs to the global key. Explicit alterations
-    // still override this inferred collection.
-    if (isDominantColourContext(chord, key, harmonic))
-    {
-        addMixolydianCollection(result, chord.rootPitchClass);
-        fromFunctionScale = true;
+    // Dominant harmony is classified separately by FunctionalTensionProfile.
+    if (chord.quality == ChordQuality::dominant)
         return result;
-    }
 
     // For a confirmed/candidate parallel-mode borrowing, use the parallel mode
     // as the inference collection instead of forcing the active major/minor key.
@@ -193,10 +287,12 @@ TensionPolicy buildTensionPolicy(const NormalizedChord& chord,
         return result;
 
     result.valid = true;
+    result.functionalProfile = deriveFunctionalProfile(chord, key, harmonic);
+    result.resolutionConfirmed = harmonic.dominantResolutionConfirmed;
 
     bool functionScale = false;
     const auto inferredAbsolute = makeInferredCollection(chord, key, harmonic, functionScale);
-    const auto dominantColourContext = isDominantColourContext(chord, key, harmonic);
+    const auto dominantContext = isDominantColourContext(chord, key);
 
     for (int relative = 0; relative < kPitchClassCount; ++relative)
     {
@@ -215,15 +311,12 @@ TensionPolicy buildTensionPolicy(const NormalizedChord& chord,
             continue;
         }
 
-        // Level 3 needs a wider candidate vocabulary than Mixolydian, but only
-        // where the harmonic context actually identifies dominant colour. These
-        // notes remain Contextual and alteredCandidate; they are not Preferred
-        // and therefore cannot enter Level 1/2 generated harmony automatically.
-        if (dominantColourContext && isDominantAlteredCandidate(relative))
+        if (dominantContext)
         {
-            tone.role = TensionRole::contextual;
-            tone.alteredCandidate = true;
-            tone.fromFunctionScale = true;
+            classifyDominantTone(tone,
+                                 relative,
+                                 result.functionalProfile,
+                                 result.resolutionConfirmed);
             continue;
         }
 
@@ -289,5 +382,18 @@ const char* tensionLevelName(TensionLevel level) noexcept
     }
 
     return "Clean";
+}
+
+const char* functionalTensionProfileName(FunctionalTensionProfile profile) noexcept
+{
+    switch (profile)
+    {
+        case FunctionalTensionProfile::neutral:             return "Neutral";
+        case FunctionalTensionProfile::dominantUnresolved:  return "Dominant / unresolved";
+        case FunctionalTensionProfile::dominantMajorTarget: return "Dominant -> major target";
+        case FunctionalTensionProfile::dominantMinorTarget: return "Dominant -> minor target";
+    }
+
+    return "Neutral";
 }
 }
