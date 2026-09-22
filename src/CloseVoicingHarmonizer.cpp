@@ -297,13 +297,15 @@ int tensionRolePenalty(int midiNote,
                     && tone.functionallyDirected
                     && context.tension.resolutionConfirmed)
                 {
-                    // Minor-target b9/b13 are especially strong functional
-                    // tensions. Other directed alterations still receive a
-                    // smaller reward, never a blanket "alter everything" rule.
+                    // In a confirmed V->minor profile b13 is the natural Color
+                    // tone, while b9 is the stronger Rich tension. If only one
+                    // colour slot survives guide-tone/spacing constraints, b9
+                    // should outrank b13; when both fit, the b13 + b9 pair may
+                    // still win as in the G7->Cm7 regression.
                     if (context.tension.functionalProfile
                             == FunctionalTensionProfile::dominantMinorTarget
                         && (relative == 1 || relative == 8))
-                        return -4;
+                        return -6;
 
                     return -1;
                 }
