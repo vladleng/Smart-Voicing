@@ -1,12 +1,12 @@
 # Smart Voicing — Functional Tension Profiles
 
-**Status:** 0.3e design contract  
-**Related Issues:** #8, #24, #25, #28  
-**Related docs:** `TENSION-LEVELS.md`, `VOICE-LEADING-DIRECTION.md`
+**Status:** 0.3f design contract  
+**Related Issues:** #8, #24, #25, #28, #29  
+**Related docs:** `TENSION-LEVELS.md`, `VOICE-LEADING-DIRECTION.md`, `TEST-0.3f.md`
 
 ## 1. Зачем нужен отдельный Functional Tension Profile
 
-Studio Pro musical test 0.3d показал, что одного правила
+Studio Pro musical tests 0.3d–0.3e показали, что одного правила
 
 ```text
 Chord + Key + Function
@@ -15,14 +15,14 @@ Chord + Key + Function
 
 недостаточно.
 
-Две доминанты с одинаковым chord quality могут требовать разной окраски в зависимости от реального разрешения:
+Две доминанты с одинаковым chord quality могут требовать разной окраски в зависимости от **реального следующего аккорда**:
 
 ```text
 G7 -> Cmaj
 E7 -> Am
 ```
 
-Они обе имеют dominant function, но target quality и направление resolution различаются. Поэтому Smart Voicing должен сначала понять **куда ведёт гармония**, а уже затем решать, какой inferred colour допустим для `Color` и какой tension оправдан для `Rich`.
+Они обе имеют dominant function, но target quality и направление resolution различаются. Поэтому Smart Voicing сначала читает реальный harmonic turn из Chord Track, а уже затем решает, какой inferred colour допустим для `Color` и какой tension оправдан для `Rich`.
 
 ## 2. Архитектура
 
@@ -30,7 +30,7 @@ E7 -> Am
 Current Chord
  + Current Key
  + Harmonic Function
- + Next Chord / Resolution Target
+ + Real Next Chord / Resolution Target
         ↓
 Functional Tension Profile
         ↓
@@ -45,7 +45,23 @@ Stage 6: previous-state Voice Leading
 
 `Functional Tension Profile` не переписывает Chord Track. Он используется только для **inferred** colour простого chord symbol.
 
-## 3. Минимальные профили 0.3e
+## 3. Главное правило target evidence
+
+0.3f фиксирует строгую политику:
+
+```text
+No next chord
+→ no assumed resolution target
+
+Real next chord
+→ target-aware Functional Tension Profile
+```
+
+Smart Voicing не должен додумывать продолжение оборота из Key/Function. Даже если `A7` теоретически ожидает Dm, без реально записанного `Dm` это остаётся unresolved dominant.
+
+Это намеренное ограничение текущего Stage 4: аранжировщик явно задаёт progression в Chord Track, а движок интерпретирует её, не сочиняя будущую гармонию.
+
+## 4. Минимальные профили
 
 ```text
 Neutral
@@ -60,9 +76,13 @@ Dominant -> minor target
 
 ### Dominant / unresolved
 
-Chord quality = dominant, но actual next chord не подтверждает ожидаемый target или next chord неизвестен и нельзя надёжно вывести target quality.
+Chord quality = dominant, но реальный следующий Chord Track event отсутствует или не подтверждает ожидаемый target root.
 
-В этом режиме Rich может видеть altered candidates, но не должен считать их направленными только из-за факта dominant chord.
+В этом режиме:
+- natural 9/13 могут оставаться conservative generic Color vocabulary;
+- altered candidates могут существовать для Rich;
+- altered candidates **не получают functionally-directed reward**;
+- profile не объявляет major/minor target заранее.
 
 ### Dominant -> major target
 
@@ -73,7 +93,7 @@ G7 -> Cmaj7
 D7 -> G7
 ```
 
-Natural 9/13 могут быть inside Color. Rich получает доступ к более напряжённым altered colours, но должен предпочитать их только при достаточном resolution evidence / voicing advantage.
+Natural 9/13 — типичная inside Color. Rich может использовать более напряжённые altered colours, если actual resolution подтверждён и vertical scoring это оправдывает.
 
 ### Dominant -> minor target
 
@@ -81,29 +101,36 @@ Natural 9/13 могут быть inside Color. Rich получает досту�
 
 ```text
 E7 -> Am
+A7 -> Dm
 ```
 
-Generic Mixolydian больше не является универсальным default. Natural 13 не должна автоматически считаться `Preferred`, если active minor context её не поддерживает.
+Generic Mixolydian не является default для confirmed minor target.
 
-Направленные Rich candidates:
+0.3f разделяет function-aware Color и Rich:
 
 ```text
-b9
 b13
+→ Preferred / Color candidate
+→ functionallyDirected
+
+b9
+→ Contextual / Rich candidate
+→ functionallyDirected
+
+#9 / #11(b5)
+→ Contextual / Rich candidates
+
+natural 13
+→ не inferred Color при confirmed minor target
 ```
 
-Более контекстные:
+Natural 9 может оставаться restrained Color option только когда его поддерживает текущий tonal context.
 
-```text
-#9
-#11 / b5
-```
+Важно: `b13` попадает в Color не потому, что она «не очень напряжённая», а потому что в `V -> minor` это естественная function-aware краска. Знак `b/#` сам по себе не определяет уровень.
 
-Конкретная нота выбирается не потому, что она «altered», а потому что она поддерживает функцию, target и будущую логику разрешения.
+## 5. Generic dominant resolution evidence
 
-## 4. Generic dominant resolution evidence
-
-Начиная с 0.3e `HarmonicAnalysis` сохраняет не только root следующего аккорда, но и его quality.
+`HarmonicAnalysis` сохраняет root и quality следующего аккорда.
 
 Для dominant-quality chord ожидаемый target root:
 
@@ -112,7 +139,7 @@ current root + perfect fourth
 = +5 semitones
 ```
 
-Если реальный next Chord Track event имеет этот root:
+Если **реальный** next Chord Track event имеет этот root:
 
 ```text
 dominantResolutionConfirmed = true
@@ -127,28 +154,40 @@ dominantTargetQuality
 
 Это работает как для ordinary V->I, так и для secondary/applied dominant.
 
-Важно:
+Примеры:
 
 ```text
 D7 -> G
 ```
 
-даёт confirmed target evidence.
+= confirmed target evidence.
 
 ```text
 D7 -> Am
 ```
 
-не должен заимствовать minor quality Am как будто это target D7. Такой случай остаётся unresolved/candidate context.
+= next chord присутствует, но не является ожидаемым target D7; profile остаётся unresolved.
 
-## 5. Tension Level поверх профиля
+```text
+A7
+```
+
+без следующего chord event = unresolved. Движок не выводит Dm сам.
+
+```text
+A7 -> Dm
+```
+
+= confirmed minor-target profile.
+
+## 6. Tension Level поверх профиля
 
 ```text
 Clean
 → structural chord identity
 
 Color
-→ functionally natural / inside colour
+→ functionally natural / inside colour именно данного target
 
 Rich
 → functionally intensified tension
@@ -165,17 +204,19 @@ Rich = разрешить b9 #9 #11 b13 и выбрать ближайшую
 Правильно:
 
 ```text
-Function + Target
+Real Function + Real Target
 → определяют смысл tension
 
+Color
+→ выбирает естественные краски этого оборота
+
 Rich
-→ разрешает более сильное напряжение,
-   если оно подтверждено этим контекстом
+→ разрешает более сильное направленное напряжение
 ```
 
-Если strong evidence отсутствует, Rich может совпасть с Color.
+Если target evidence отсутствует, Rich не должен притворяться, что знает разрешение.
 
-## 6. Explicit chord symbol выше профиля
+## 7. Explicit chord symbol выше профиля
 
 ```text
 E7b9
@@ -184,9 +225,9 @@ E7b5
 E13
 ```
 
-— это разные explicit harmonic instructions.
+— разные explicit harmonic instructions.
 
-Smart Voicing не должен превращать их в один generic `E7` и повторно угадывать colour.
+Smart Voicing не превращает их в generic `E7` и не угадывает colour заново.
 
 Приоритет:
 
@@ -196,13 +237,13 @@ Explicit Chord Track
 Functional Tension Profile
 ```
 
-Профиль нужен прежде всего для простого `E7`, `G7`, `D7` и т. п., когда colour должен выводиться из harmonic turn.
+Поэтому explicit `E13` остаётся E13 даже перед minor target, хотя simple `E7 -> Am` не должен автоматически получать natural 13 как inferred Color.
 
-## 7. Characteristic chord tones
+## 8. Characteristic chord tones
 
-Functional colour не должен разрушать исходную chord identity.
+Functional colour не должен разрушать chord identity.
 
-Новая policy 0.3e:
+Policy:
 
 ```text
 ordinary perfect 5th
@@ -221,11 +262,11 @@ explicit altered fifth
 Bm7b5 = B D F A
 ```
 
-`F = b5` должен сохраняться как identity tone. Замена F на E=11 только ради более компактного/цветного voicing недопустима как default.
+`F = b5` сохраняется как identity tone. Замена F на E=11 только ради более компактного/цветного voicing не является default behavior.
 
-## 8. Связь с Voice Leading
+## 9. Связь с Voice Leading
 
-0.3e формирует **правильный функциональный vocabulary**.
+Stage 4 формирует **правильный функциональный vocabulary**.
 
 Stage 6 позже добавляет previous-state cost:
 
@@ -251,9 +292,12 @@ G# -> A
 D  -> C
 ```
 
-Но 0.3e уже должен понимать, что F=b9 и C=b13 являются осмысленными candidates для minor-target dominant.
+Но Stage 4 уже должен правильно различать:
+- b13 как natural Color candidate minor-target dominant;
+- b9 как stronger Rich candidate;
+- natural 13 как не-default inferred colour при confirmed minor target.
 
-## 9. Regression cases
+## 10. Regression cases
 
 ### Major II-V-I
 
@@ -267,23 +311,43 @@ Dm7 | G7 | Cmaj7
 Bm7b5 | E7 | Am
 ```
 
-Критерии 0.3e:
+### No target vs confirmed target
+
+```text
+A7
+```
+
+vs
+
+```text
+A7 | Dm
+```
+
+### User harmonic regression
+
+```text
+Dm7 | Db7b13 | Cm7 | B7#11 | Bbmaj7 | A7 | Dm7
+```
+
+Критерии 0.3f:
 
 - `Bm7b5` сохраняет b5 на Clean / Color / Rich;
-- `E7 -> Am` не получает natural 13 C# механически из generic Mixolydian;
-- Rich может выбрать functionally directed b9/b13;
-- `G7 -> Cmaj` использует другой profile, чем `E7 -> Am`;
-- `D7 -> G` и `D7 -> Am` различаются по resolution evidence;
+- `E7 -> Am` и `A7 -> Dm` не получают natural 13 механически;
+- Color может использовать target-aware b13;
+- Rich может использовать более напряжённый b9/#9/#11;
+- no next chord не создаёт assumed target;
+- major/minor targets дают разные profiles;
 - explicit altered chords остаются authoritative.
 
-## 10. Граница ответственности
+## 11. Граница ответственности
 
-0.3e **не** решает:
+0.3f **не** решает:
 
+- inferred future target;
 - полноценный previous-state Voice Leading;
 - approach/passing-note classification;
 - выбор Closed/Drop/Spread/Quartal/Cluster/UST.
 
-0.3e отвечает на один фундаментальный вопрос:
+0.3f отвечает на один фундаментальный вопрос:
 
-> Какой harmonic colour имеет смысл в данном обороте до того, как Voicing Strategy и Voice Leading выберут конкретное расположение голосов?
+> Какой harmonic colour имеет смысл в реально записанном обороте до того, как Voicing Strategy и Voice Leading выберут конкретное расположение голосов?
