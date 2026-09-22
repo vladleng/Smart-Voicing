@@ -39,6 +39,20 @@ ChordContext chord(std::int32_t rootFifths,
     return result;
 }
 
+VoiceOutput voicing(int v1, int v2, int v3, int v4)
+{
+    VoiceOutput output;
+    output.clear();
+    const int notes[] { v1, v2, v3, v4 };
+    for (int voice = 0; voice < kVoiceCount; ++voice)
+    {
+        const auto note = notes[voice];
+        if (note >= 0)
+            output.voices[static_cast<std::size_t>(voice)] = { true, note };
+    }
+    return output;
+}
+
 void expectTransition(const ReharmonizationPlan& plan,
                       int voice,
                       int oldNote,
@@ -91,6 +105,32 @@ void testChordChangeKeepsMelodyAndCommonClosedVoices()
     expectNoTransition(plan, 1, "V2 common E4 remains sounding");
     expectNoTransition(plan, 2, "V3 common C4 remains sounding");
     expectTransition(plan, 3, 59, 57, "V4 B3 -> A3");
+}
+
+void testMelodyChangePreservesCommonLowerVoices()
+{
+    const auto current = voicing(67, 64, 60, 59);
+    const auto desired = voicing(69, 65, 60, 59);
+    const auto plan = planVoicingTransition(current, desired, true);
+
+    expectTransition(plan, 0, 67, 69, "melody G4 -> A4");
+    expectTransition(plan, 1, 64, 65, "V2 E4 -> F4");
+    expectNoTransition(plan, 2, "V3 common C4 must remain continuous");
+    expectNoTransition(plan, 3, "V4 common B3 must remain continuous");
+    expect(plan.lowerVoicesChanged, "one changed generated voice is reported");
+}
+
+void testRepeatedMelodyRetriggersOnlyV1()
+{
+    const auto current = voicing(67, 64, 60, 59);
+    const auto desired = current;
+    const auto plan = planVoicingTransition(current, desired, true);
+
+    expectTransition(plan, 0, 67, 67, "repeated G4 articulation");
+    expectNoTransition(plan, 1, "repeated melody keeps V2 sounding");
+    expectNoTransition(plan, 2, "repeated melody keeps V3 sounding");
+    expectNoTransition(plan, 3, "repeated melody keeps V4 sounding");
+    expect(! plan.lowerVoicesChanged, "repeated melody does not report lower voice change");
 }
 
 void testNoChordFallbackClearsOnlyLowerVoices()
@@ -227,6 +267,8 @@ int main()
 {
     testSameChordProducesNoTransition();
     testChordChangeKeepsMelodyAndCommonClosedVoices();
+    testMelodyChangePreservesCommonLowerVoices();
+    testRepeatedMelodyRetriggersOnlyV1();
     testNoChordFallbackClearsOnlyLowerVoices();
     testChordReturnsAfterFallback();
     testSequenceCanBeAppliedWithoutStaleVoices();
@@ -242,6 +284,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.3b live-reharmonization/integration tests passed.\n";
+    std::cout << "All Smart Voicing 0.4a fix live-reharmonization/integration tests passed.\n";
     return EXIT_SUCCESS;
 }
