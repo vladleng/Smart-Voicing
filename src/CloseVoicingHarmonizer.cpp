@@ -269,9 +269,15 @@ int tensionRolePenalty(int midiNote,
             {
                 case TensionLevel::clean: return 18;
                 case TensionLevel::color: return -1;
-                // Rich must not automatically prefer the same natural colour
-                // over a functionally directed alteration.
-                case TensionLevel::rich:  return 0;
+                case TensionLevel::rich:
+                    // Stage 4 already decided whether a Preferred tone is
+                    // functionally directed. Closed must respect that evidence:
+                    // a confirmed directed colour may outweigh soft spacing and
+                    // density preferences, without teaching the strategy how to
+                    // re-detect V->minor or any other harmonic relationship.
+                    if (tone.functionallyDirected && context.tension.resolutionConfirmed)
+                        return -7;
+                    return 0;
             }
             break;
 
