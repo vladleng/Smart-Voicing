@@ -91,6 +91,23 @@ void expectVoice(const VoiceOutput& output, int voice, int midiNote, const std::
            + " got " + std::to_string(output.voices[index].midiNote));
 }
 
+bool containsPitchClass(const VoiceOutput& output, int pitchClass)
+{
+    for (const auto& voice : output.voices)
+    {
+        if (! voice.active || voice.midiNote < 0)
+            continue;
+
+        auto value = voice.midiNote % 12;
+        if (value < 0)
+            value += 12;
+        if (value == pitchClass)
+            return true;
+    }
+
+    return false;
+}
+
 void testMaj7ClosedVoicingKeepsStage3Reference()
 {
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
@@ -210,12 +227,16 @@ void testResolutionAwareContextNowFeedsDominantTensions()
     auto confirmed = keyAwareContext(d7, cMajor, 69, TensionLevel::color, &g7);
     expect(confirmed.harmonic.appliedDominantConfirmed,
            "D7->G carries confirmed V/V evidence into Closed context");
+    expect(confirmed.harmonic.dominantResolutionConfirmed,
+           "D7->G also carries generic dominant target evidence");
 
     auto candidateOnly = keyAwareContext(d7, cMajor, 69, TensionLevel::color, &am7);
     expect(candidateOnly.harmonic.appliedDominantCandidate,
            "D7->Am keeps V/V candidate evidence");
     expect(! candidateOnly.harmonic.appliedDominantConfirmed,
            "D7->Am is not falsely confirmed");
+    expect(! candidateOnly.harmonic.dominantResolutionConfirmed,
+           "D7->Am does not borrow Am target quality");
 
     const auto confirmedOutput = buildClosedVoicing(69, d7, confirmed); // A4
     const auto candidateOutput = buildClosedVoicing(69, d7, candidateOnly);
@@ -229,7 +250,7 @@ void testResolutionAwareContextNowFeedsDominantTensions()
     {
         const auto index = static_cast<std::size_t>(voice);
         expect(confirmedOutput.voices[index].midiNote == candidateOutput.voices[index].midiNote,
-               "confirmed/unconfirmed evidence shares same conservative dominant baseline in Color");
+               "confirmed/unconfirmed evidence still shares conservative Color baseline");
     }
 }
 
@@ -248,6 +269,53 @@ void testRichAdmitsAlteredDominantPoolButDoesNotRewriteChord()
 
     const auto output = buildClosedVoicing(71, g7, ctx);
     expectVoice(output, 0, 71, "Rich G7 keeps B4 melody unchanged");
+}
+
+void testHalfDiminishedKeepsCharacteristicFlatFifth()
+{
+    const auto aMinor = normalizeKey(key(3, true));
+    const auto bm7b5 = normalizeChord(chord(5, 5, {{0, 1}, {3, 3}, {6, 5}, {10, 7}}));
+
+    expect(bm7b5.quality == ChordQuality::halfDiminished,
+           "Bm7b5 normalized as half-diminished");
+
+    for (const auto level : { TensionLevel::clean, TensionLevel::color, TensionLevel::rich })
+    {
+        const auto ctx = keyAwareContext(bm7b5, aMinor, 59, level); // B3 melody/root
+        const auto output = buildClosedVoicing(59, bm7b5, ctx);
+
+        expectVoice(output, 0, 59, "Bm7b5 keeps performer B3 melody");
+        expect(containsPitchClass(output, 5),
+               "Bm7b5 keeps characteristic F/b5 instead of replacing it with inferred 11");
+    }
+}
+
+void testMinorDominantRichUsesDirectedTension()
+{
+    const auto aMinor = normalizeKey(key(3, true));
+    const auto e7 = normalizeChord(chord(4, 4, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto am7 = normalizeChord(chord(3, 3, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+
+    const auto colorCtx = keyAwareContext(e7, aMinor, 59, TensionLevel::color, &am7); // B3
+    const auto richCtx = keyAwareContext(e7, aMinor, 59, TensionLevel::rich, &am7);
+    const auto color = buildClosedVoicing(59, e7, colorCtx);
+    const auto rich = buildClosedVoicing(59, e7, richCtx);
+
+    expect(colorCtx.tension.functionalProfile == FunctionalTensionProfile::dominantMinorTarget,
+           "E7->Am uses minor-target profile in Color too");
+    expect(! colorCtx.tension.isHarmonyCandidate(1, TensionLevel::color),
+           "Color does not auto-add E7 b9");
+    expect(! containsPitchClass(color, 1),
+           "Color E7->Am does not insert C# natural 13 from generic Mixolydian");
+
+    expect(richCtx.tension.functionalProfile == FunctionalTensionProfile::dominantMinorTarget,
+           "Rich E7->Am sees minor target");
+    expect(richCtx.tension.resolutionConfirmed,
+           "Rich E7->Am has confirmed resolution evidence");
+    expect(containsPitchClass(rich, 5),
+           "Rich E7->Am selects functionally directed F/b9 for this voicing");
+    expect(! containsPitchClass(rich, 1),
+           "Rich E7->Am does not use C# natural 13 as blind dominant colour");
 }
 
 void testPlainTriadStaysConservativeEvenWithKey()
@@ -313,6 +381,8 @@ int main()
     testAvoidAsHarmonyNeverDisplacesPerformerMelody();
     testResolutionAwareContextNowFeedsDominantTensions();
     testRichAdmitsAlteredDominantPoolButDoesNotRewriteChord();
+    testHalfDiminishedKeepsCharacteristicFlatFifth();
+    testMinorDominantRichUsesDirectedTension();
     testPlainTriadStaysConservativeEvenWithKey();
     testSlashBassOwnsV4();
     testNoChordFallback();
@@ -324,6 +394,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.3d Tension Level tests passed.\n";
+    std::cout << "All Smart Voicing 0.3e Functional Tension tests passed.\n";
     return EXIT_SUCCESS;
 }
