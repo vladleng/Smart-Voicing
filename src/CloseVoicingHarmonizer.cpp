@@ -74,6 +74,35 @@ bool isSeventhRole(int relative, const NormalizedChord& chord) noexcept
     return relative == 10 || relative == 11;
 }
 
+bool isCharacteristicChordTone(int relative, const NormalizedChord& chord) noexcept
+{
+    if (relative < 0 || relative >= kPitchClassCount || ! chord.hasTone(relative))
+        return false;
+
+    // 0.3e: "fifth" is not one universal expendable role. Altered fifths and
+    // suspension tones can define the chord identity and must be protected from
+    // being replaced by inferred colour merely to make the voicing richer.
+    if (chord.quality == ChordQuality::halfDiminished && relative == 6)
+        return true; // b5 is essential to m7b5 identity
+
+    if (chord.quality == ChordQuality::augmented && relative == 8)
+        return true; // #5 defines augmented quality
+
+    if (chord.quality == ChordQuality::suspended2 && relative == 2)
+        return true;
+
+    if (chord.quality == ChordQuality::suspended4 && relative == 5)
+        return true;
+
+    if (chord.hasAlteration(ChordAlteration::flatFifth) && relative == 6)
+        return true;
+
+    if (chord.hasAlteration(ChordAlteration::sharpFifth) && relative == 8)
+        return true;
+
+    return false;
+}
+
 bool isExplicitColourTone(int relative, const NormalizedChord& chord) noexcept
 {
     if (relative < 0 || relative >= kPitchClassCount || ! chord.hasTone(relative))
@@ -99,11 +128,19 @@ bool chordHasSeventhRole(const NormalizedChord& chord) noexcept
     return false;
 }
 
+bool chordHasCharacteristicTone(const NormalizedChord& chord) noexcept
+{
+    for (int relative = 0; relative < kPitchClassCount; ++relative)
+        if (isCharacteristicChordTone(relative, chord))
+            return true;
+    return false;
+}
+
 bool allowsInferredTensions(const NormalizedChord& chord) noexcept
 {
-    // 0.3d deliberately keeps plain triads conservative. Seventh harmony and
-    // explicitly extended sonorities are rich enough to admit inferred tension
-    // candidates without silently turning every triad into add9/add13.
+    // Keep plain triads conservative. Seventh harmony and explicitly extended
+    // sonorities are rich enough to admit inferred tension candidates without
+    // silently turning every triad into add9/add13.
     return chordHasSeventhRole(chord)
         || chord.hasExtension(ChordExtension::ninth)
         || chord.hasExtension(ChordExtension::eleventh)
@@ -231,11 +268,10 @@ int tensionRolePenalty(int midiNote,
             switch (context.tensionLevel)
             {
                 case TensionLevel::clean: return 18;
-                // Level 2 should be able to choose a Preferred colour when the
-                // rest of the Closed voicing is equally strong. Keep the reward
-                // deliberately tiny so Color does not become "always add 9/13".
                 case TensionLevel::color: return -1;
-                case TensionLevel::rich:  return -1;
+                // Rich must not automatically prefer the same natural colour
+                // over a functionally directed alteration.
+                case TensionLevel::rich:  return 0;
             }
             break;
 
@@ -250,7 +286,24 @@ int tensionRolePenalty(int midiNote,
 
         case TensionRole::contextual:
             if (context.tensionLevel == TensionLevel::rich)
+            {
+                if (tone.alteredCandidate
+                    && tone.functionallyDirected
+                    && context.tension.resolutionConfirmed)
+                {
+                    // Minor-target b9/b13 are especially strong functional
+                    // tensions. Other directed alterations still receive a
+                    // smaller reward, never a blanket "alter everything" rule.
+                    if (context.tension.functionalProfile
+                            == FunctionalTensionProfile::dominantMinorTarget
+                        && (relative == 1 || relative == 8))
+                        return -4;
+
+                    return -1;
+                }
+
                 return tone.alteredCandidate ? 5 : 3;
+            }
             return 24;
 
         case TensionRole::avoidAsHarmony:
@@ -293,9 +346,8 @@ int inferredColourDensityPenalty(const std::array<int, kVoiceCount>& notes,
         return 0;
 
     // A higher level expands choice; it does not make "more tensions" a goal.
-    // Color is deliberately conservative until Stage 6 can justify colour with
-    // previous-voice continuity. Rich permits denser colour but still resists
-    // gratuitously replacing several structural notes at once.
+    // Color remains conservative; Rich permits denser function-aware colour but
+    // still resists replacing several structural notes at once.
     const auto extra = inferredCount - 1;
     return context.tensionLevel == TensionLevel::color ? extra * 6 : extra * 2;
 }
@@ -309,6 +361,20 @@ bool isExplicitTensionNote(int midiNote,
 
     const auto relative = relativeToChordRoot(midiNote, chord);
     return context.tension.tone(relative).role == TensionRole::explicitTension;
+}
+
+bool isDirectedAlteredTensionNote(int midiNote,
+                                  const NormalizedChord& chord,
+                                  const ClosedVoicingContext& context) noexcept
+{
+    if (! context.tension.valid || midiNote < 0
+        || context.tensionLevel != TensionLevel::rich
+        || ! context.tension.resolutionConfirmed)
+        return false;
+
+    const auto relative = relativeToChordRoot(midiNote, chord);
+    const auto& tone = context.tension.tone(relative);
+    return tone.alteredCandidate && tone.functionallyDirected;
 }
 
 int minorNinthPenalty(const std::array<int, kVoiceCount>& notes,
@@ -329,10 +395,13 @@ int minorNinthPenalty(const std::array<int, kVoiceCount>& notes,
             if (distance < 13 || (distance % 12) != 1)
                 continue;
 
-            // Explicit altered tensions such as b9/b13 are intentional evidence
-            // from Chord Track and bypass the generic minor-ninth penalty.
+            // Explicit or functionally directed dominant alterations are known
+            // exceptions to the generic minor-ninth warning. They remain
+            // context-dependent, not globally exempt dissonances.
             if (isExplicitTensionNote(upperNote, chord, context)
-                || isExplicitTensionNote(lowerNote, chord, context))
+                || isExplicitTensionNote(lowerNote, chord, context)
+                || isDirectedAlteredTensionNote(upperNote, chord, context)
+                || isDirectedAlteredTensionNote(lowerNote, chord, context))
                 continue;
 
             penalty += 10;
@@ -387,8 +456,10 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
 
     const auto hasThird = chordHasThirdRole(chord);
     const auto hasSeventh = chordHasSeventhRole(chord);
+    const auto hasCharacteristic = chordHasCharacteristicTone(chord);
     const auto selectedThird = selectedRole(notes, chord, isThirdRole);
     const auto selectedSeventh = selectedRole(notes, chord, isSeventhRole);
+    const auto selectedCharacteristic = selectedRole(notes, chord, isCharacteristicChordTone);
 
     // Guide tones are especially important on dominant-function chords. Tension
     // Policy may colour the vertical, but it must not casually replace 3/7.
@@ -401,13 +472,18 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
     if (hasSeventh && ! selectedSeventh)
         score += guidePenalty;
 
+    // Characteristic chord tones are not ordinary expendable fifths. Protect
+    // m7b5 b5, augmented #5, sus identity and explicit altered fifths.
+    if (hasCharacteristic && ! selectedCharacteristic)
+        score += 30;
+
     // Root omission is normal for seventh/extended harmony. For a plain triad,
     // however, retaining the root helps preserve identity.
     if (! hasSeventh && ! selectedRoot(notes, chord))
         score += 16;
 
-    // The fifth intentionally has no required-presence penalty. It is the first
-    // expendable structural tone when guide tones / explicit colours need room.
+    // An ordinary perfect fifth has no required-presence penalty. Characteristic
+    // altered/sus tones are handled separately above.
     score -= colourToneReward(notes, chord);
 
     return score;
