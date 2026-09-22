@@ -6,7 +6,7 @@ Stage: **5 — Jazz Voicing Engine**
 
 Stable base: **0.4 / Stage 4**
 
-Current test build label: **Smart Voicing 0.4a fix**
+Current test build label: **Smart Voicing 0.4a fix2**
 
 > **Development guardrail:** before changing Harmony Core, Voicing Strategy, Voice Leading or MIDI transition semantics, read `docs/MUSICAL-ENGINE-GUARDRAILS.md`. Small musical fixes must stay inside the owning layer and receive regression coverage.
 
@@ -25,6 +25,7 @@ Current test build label: **Smart Voicing 0.4a fix**
 - [x] make `Diagnostics` collapsible and reduce editor height in compact mode;
 - [x] preserve Stage 4 harmonic semantics in the Stage 5 input contract;
 - [x] add `0.4a fix` seamless melody-transition path as preventative MIDI-transition hygiene;
+- [x] add `0.4a fix2` minor-target dominant tension-role correction;
 - [ ] confirm Closed musical output against stable 0.4 in Studio Pro.
 
 ## 0.4a fix — Seamless Melody Transition / MIDI note hygiene
@@ -84,6 +85,94 @@ Host regression for transition hygiene:
 - [ ] repeated same-pitch melody notes must still articulate V1 correctly;
 - [ ] test a melody boundary that coincides exactly with a Chord Track boundary;
 - [ ] separately verify that a melody note intentionally starting before a chord boundary is harmonized first against the previous chord, as dictated by the real timeline.
+
+## 0.4a fix2 — Dominant -> minor tension semantics
+
+### Reason for the fix
+
+Studio Pro test case:
+
+```text
+G7 -> Cm7
+Melody: F3 (b7)
+Tension Level: Rich
+```
+
+The previous policy treated the relative semitone-6 pitch class (`Db` over G) as `#11/b5` and marked it `functionallyDirected` merely because a minor target was confirmed. That allowed Closed scoring to prefer:
+
+```text
+F3  = b7 melody
+Db3 = b5/#11-class pitch
+B2  = 3
+Ab2 = b9
+```
+
+This does **not** match the accepted functional interpretation for an ordinary dominant resolving to minor.
+
+Source-derived rule from *Modern Jazz Voicings*:
+
+- ordinary `V7 -> minor` naturally supports **b13** as target-aware colour;
+- **b9** is a stronger target-directed minor-dominant tension;
+- `#9` and `#11/b5` remain contextual altered material but are **not** promoted merely because the target is minor;
+- explicit altered chord symbols remain authoritative;
+- substitute-dominant `#11` semantics belong to a different functional profile (future work), not to ordinary `V7 -> minor`.
+
+### Implemented 0.4a fix2 contract
+
+```text
+Confirmed V7 -> minor
+
+b13  → Preferred / Color, functionallyDirected = true
+b9   → Contextual / Rich, functionallyDirected = true
+#9   → Contextual / Rich candidate, functionallyDirected = false
+#11  → Contextual / Rich candidate, functionallyDirected = false
+b5   → never inferred solely from minor-target evidence
+13   → not automatically inferred for confirmed minor target
+```
+
+Pitch-class semantics are kept separate from role semantics:
+
+```text
+relative 8:
+- inferred V7 -> minor = b13 tension
+- explicit V7#5 = #5 chord alteration
+
+relative 6:
+- ordinary V7 -> minor = no target-directed bonus
+- explicit V7b5 = authoritative altered chord tone
+- future substitute dominant may interpret the same class as #11/Lydian b7 colour
+```
+
+Automated regression verifies:
+
+- [x] `E7 -> Am`: b9 remains target-directed Rich;
+- [x] `E7 -> Am`: b13 remains Preferred/Color and target-directed;
+- [x] `E7 -> Am`: #9 is contextual but not target-directed from minor target alone;
+- [x] `E7 -> Am`: #11/b5-class pitch is contextual but not target-directed from minor target alone;
+- [x] explicit `E7b5` remains authoritative even at Clean;
+- [x] `A7 -> Dm` keeps the same b9/b13 semantics;
+- [x] concrete Closed regression `G7 -> Cm7`, melody F3, Rich produces:
+
+```text
+V1 F3  = b7 melody
+V2 Eb3 = b13
+V3 B2  = 3
+V4 Ab2 = b9
+```
+
+and does not select `Db/b5` as a target-directed substitute for `Eb/b13`.
+
+### Deferred, not part of fix2
+
+A separate **Substitute Dominant -> Target** functional profile is still needed in future Harmony Interpretation. Example:
+
+```text
+Ab7 -> G7
+```
+
+can be interpreted as substitute dominant and should eventually receive its own Lydian-b7 / #11 semantics. This must be implemented in Harmonic Interpretation / Functional Tension Profile, not guessed inside Closed/Drop/Spread strategies.
+
+See `docs/FUNCTIONAL-TENSION-PROFILES.md`.
 
 ## Tension Level keyswitch contract
 
@@ -147,6 +236,8 @@ In Studio Pro verify:
 - [ ] existing 0.4 project opens with `Voicing Type = Closed`;
 - [ ] Dm7 | G7 | Cmaj7 sounds the same as 0.4 with the same Tension Level;
 - [ ] Bm7b5 | E7 | Am preserves m7b5 characteristic b5 and target-aware dominant colour;
+- [ ] `G7 -> Cm7`, melody F3, Rich gives `F3 / Eb3 / B2 / Ab2` (b7 / b13 / 3 / b9), not `Db/b5` from minor-target inference;
+- [ ] explicit `b5/#5/#11` chord material remains authoritative;
 - [ ] explicit tensions remain authoritative;
 - [ ] slash bass remains authoritative;
 - [ ] non-chord melody remains V1 and is not rewritten;
@@ -162,4 +253,4 @@ In Studio Pro verify:
 
 ## Acceptance boundary
 
-0.4a is accepted only when the plug-in is architecturally Stage 5 while `Voicing Type = Closed` remains musically compatible with stable 0.4. New voicing algorithms such as Drop 2 are explicitly deferred to 0.4b.
+0.4a is accepted only when the plug-in is architecturally Stage 5 while `Voicing Type = Closed` remains musically compatible with stable 0.4 except for explicitly accepted bugfix/tuning checkpoints such as `0.4a fix` and `0.4a fix2`. New voicing algorithms such as Drop 2 are explicitly deferred to 0.4b.
