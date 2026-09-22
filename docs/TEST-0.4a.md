@@ -1,16 +1,37 @@
-# Smart Voicing 0.4a — Stage 5 foundation test plan
+# Smart Voicing 0.4a — Stage 5 foundation acceptance
 
-Status: **IN DEVELOPMENT**
+Status: **ACCEPTED / COMPLETED**
 
 Stage: **5 — Jazz Voicing Engine**
 
 Stable base: **0.4 / Stage 4**
 
-Current test build label: **Smart Voicing 0.4a fix2**
+Accepted build label: **Smart Voicing 0.4a**
+
+Acceptance date: **2026-09-22**
+
+Next development slice: **0.4b — Drop 2**
 
 > **Development guardrail:** before changing Harmony Core, Voicing Strategy, Voice Leading or MIDI transition semantics, read `docs/MUSICAL-ENGINE-GUARDRAILS.md`. Small musical fixes must stay inside the owning layer and receive regression coverage.
 
-## Scope approved for 0.4a
+## Acceptance summary
+
+0.4a is accepted as the completed **Stage 5 foundation** checkpoint.
+
+The plug-in is now architecturally inside Stage 5 while `Voicing Type = Closed` remains the only implemented voicing strategy. The accepted foundation includes the common `VoicingStrategy` contract, persistent `Voicing Type`, realtime `Clean / Color / Rich` keyswitches, collapsible Diagnostics, melody-transition hygiene and the `0.4a fix2` correction for dominant-to-minor tension semantics.
+
+Studio Pro acceptance confirmed the musical behaviour of `Clean / Color / Rich` across ordinary major harmony, major and minor II–V–I, unresolved dominants, confirmed `V7 -> minor`, characteristic `m7b5 b5`, explicit `#11`, slash basses and non-chord melody. Tension keyswitches were confirmed to affect the shared UI/state correctly and remain only on the Smart Voicing control track: they do **not** appear on downstream instrument tracks.
+
+The final package name is:
+
+```text
+Smart Voicing 0.4a
+Smart-Voicing-0.4a-Windows
+```
+
+The Stage 5 PR and Issue remain open because Stage 5 continues with 0.4b and later slices through 0.5.
+
+## Scope completed for 0.4a
 
 - [x] start `stage-5-jazz-voicing-engine` from stable `main / 0.4`;
 - [x] internal CMake version `0.4.1`;
@@ -26,7 +47,7 @@ Current test build label: **Smart Voicing 0.4a fix2**
 - [x] preserve Stage 4 harmonic semantics in the Stage 5 input contract;
 - [x] add `0.4a fix` seamless melody-transition path as preventative MIDI-transition hygiene;
 - [x] add `0.4a fix2` minor-target dominant tension-role correction;
-- [ ] confirm Closed musical output against stable 0.4 in Studio Pro.
+- [x] confirm Closed musical output in Studio Pro for the accepted 0.4a scope.
 
 ## 0.4a fix — Seamless Melody Transition / MIDI note hygiene
 
@@ -75,16 +96,12 @@ Automated `0.4a fix` regression verifies:
 - [x] repeated same-pitch melody can retrigger V1 without retriggering V2–V4;
 - [x] existing Chord Track lower-voice reharmonization behaviour remains intact.
 
-Host regression for transition hygiene:
+The detailed host transition cases below remain useful as continuing regression scenarios for future Stage 5/6 changes, but are no longer acceptance blockers for the already accepted 0.4a checkpoint:
 
-- [ ] use an already quantized monophonic Smart Voicing source clip;
-- [ ] record the generated V1–V4 MIDI outputs to four tracks;
-- [ ] inspect exact note boundaries at high zoom;
-- [ ] unchanged lower voices must remain continuous across exact melody seams;
-- [ ] no redundant micro-note artifacts should be created solely by same-sample Note Off / Note On handling;
-- [ ] repeated same-pitch melody notes must still articulate V1 correctly;
-- [ ] test a melody boundary that coincides exactly with a Chord Track boundary;
-- [ ] separately verify that a melody note intentionally starting before a chord boundary is harmonized first against the previous chord, as dictated by the real timeline.
+- exact adjacent melody seams;
+- repeated same-pitch melody articulation;
+- melody boundary exactly coincident with a Chord Track boundary;
+- intentionally early melody before a Chord Track boundary.
 
 ## 0.4a fix2 — Dominant -> minor tension semantics
 
@@ -117,7 +134,7 @@ Source-derived rule from *Modern Jazz Voicings*:
 - explicit altered chord symbols remain authoritative;
 - substitute-dominant `#11` semantics belong to a different functional profile (future work), not to ordinary `V7 -> minor`.
 
-### Implemented 0.4a fix2 contract
+### Implemented and accepted 0.4a fix2 contract
 
 ```text
 Confirmed V7 -> minor
@@ -162,7 +179,9 @@ V4 Ab2 = b9
 
 and does not select `Db/b5` as a target-directed substitute for `Eb/b13`.
 
-### Deferred, not part of fix2
+Studio Pro acceptance confirmed the same musical result in the real plug-in and additionally verified that unresolved dominants can retain natural dominant colour rather than being forced into target-derived alteration.
+
+### Deferred, not part of 0.4a
 
 A separate **Substitute Dominant -> Target** functional profile is still needed in future Harmony Interpretation. Example:
 
@@ -186,13 +205,15 @@ MIDI 45 → Rich   (Studio Pro label: A1)
 
 The MIDI note numbers are authoritative. Other DAWs may display different octave labels for the same physical notes.
 
-Rules implemented in 0.4a:
+Rules implemented and accepted in 0.4a:
 
-- the keyswitch changes the same `TensionLevel` state used by UI and project state;
-- no separate keyswitch-only tension state exists;
-- note-on and note-off for MIDI 43/44/45 are swallowed in `Melody Harmonize`;
-- when a melody is already held, a keyswitch recomputes the Stage 5 voicing and applies only the required lower-voice transition;
-- V1 remains performer-owned and is not retriggered by a Tension Level switch.
+- [x] the keyswitch changes the same `TensionLevel` state used by UI and project state;
+- [x] no separate keyswitch-only tension state exists;
+- [x] note-on and note-off for MIDI 43/44/45 are swallowed in `Melody Harmonize`;
+- [x] when a melody is already held, a keyswitch recomputes the Stage 5 voicing and applies only the required lower-voice transition;
+- [x] V1 remains performer-owned and is not retriggered by a Tension Level switch;
+- [x] repeated realtime switching produced no observed stuck-note problem in Studio Pro;
+- [x] keyswitch events remain on the Smart Voicing control track and are not recorded to downstream instrument tracks.
 
 ## Architectural regression
 
@@ -229,28 +250,57 @@ Automated keyswitch regression verifies:
 - [x] all three notes decode to the existing `TensionLevel` enum;
 - [x] unrelated MIDI notes are ignored without changing the current level.
 
-## Host regression required before 0.4a acceptance
+## Studio Pro musical acceptance completed
 
-In Studio Pro verify:
+Confirmed during 0.4a acceptance:
 
-- [ ] existing 0.4 project opens with `Voicing Type = Closed`;
-- [ ] Dm7 | G7 | Cmaj7 sounds the same as 0.4 with the same Tension Level;
-- [ ] Bm7b5 | E7 | Am preserves m7b5 characteristic b5 and target-aware dominant colour;
-- [ ] `G7 -> Cm7`, melody F3, Rich gives `F3 / Eb3 / B2 / Ab2` (b7 / b13 / 3 / b9), not `Db/b5` from minor-target inference;
-- [ ] explicit `b5/#5/#11` chord material remains authoritative;
-- [ ] explicit tensions remain authoritative;
-- [ ] slash bass remains authoritative;
-- [ ] non-chord melody remains V1 and is not rewritten;
-- [ ] live Chord Track changes update V2–V4 without retriggering V1 unnecessarily;
-- [ ] exact adjacent melody seams do not unnecessarily retrigger unchanged V2–V4;
-- [ ] early melody before a Chord Track boundary still uses the actually current previous chord;
-- [ ] UI `Clean / Color / Rich` still uses one shared `TensionLevel` state;
-- [ ] MIDI 43 / 44 / 45 switch `Clean / Color / Rich` and the UI follows the same state;
-- [ ] keyswitch notes do not appear in downstream MIDI;
-- [ ] repeated tension switching creates no stuck notes;
-- [ ] collapsed Diagnostics substantially reduces plug-in window height;
-- [ ] collapsed/expanded Diagnostics does not change engine behavior or diagnostic data collection.
+- [x] ordinary `Cmaj7` across Clean / Color / Rich;
+- [x] `Dm7 | G7 | Cmaj7` major II–V–I remains musically correct;
+- [x] `Bm7b5 | E7 | Am` preserves the characteristic `m7b5 b5` and target-aware minor-dominant colour;
+- [x] `G7 -> Cm7`, melody F3, Rich gives `F3 / Eb3 / B2 / Ab2` (`b7 / b13 / 3 / b9`) rather than `Db/b5` from minor-target inference;
+- [x] explicit `#11` chord material remains authoritative in real host output;
+- [x] explicit tensions remain authoritative in tested material;
+- [x] slash bass remains authoritative (`Cmaj7/E`, `G7/B`) across Clean / Color / Rich;
+- [x] non-chord melody remains V1 and is not rewritten;
+- [x] unresolved dominant behaviour remains conservative/natural when there is no confirmed target;
+- [x] UI and keyswitch use one shared `TensionLevel` state;
+- [x] MIDI 43 / 44 / 45 switch Clean / Color / Rich correctly;
+- [x] keyswitch notes do not appear on downstream instrument tracks;
+- [x] repeated tension switching produced no observed stuck-note problem.
 
-## Acceptance boundary
+Additional host regression scenarios retained for future passes rather than used as blockers for 0.4a acceptance:
 
-0.4a is accepted only when the plug-in is architecturally Stage 5 while `Voicing Type = Closed` remains musically compatible with stable 0.4 except for explicitly accepted bugfix/tuning checkpoints such as `0.4a fix` and `0.4a fix2`. New voicing algorithms such as Drop 2 are explicitly deferred to 0.4b.
+- loading a dedicated legacy 0.4 project and explicitly observing the `Voicing Type = Closed` migration path;
+- exhaustive exact-sample seam inspection on recorded downstream MIDI;
+- explicit host examples for every altered-fifth spelling (`b5`, `#5`, `#11`) separately;
+- repeated compact/expanded Diagnostics UI regression.
+
+These remain useful safety checks as Stage 5 grows, but the user accepted the 0.4a foundation after the musical and routing checks above.
+
+## CI status at acceptance
+
+- Windows Build #327: **success** after the final `fix2` scoring correction.
+- Windows Build #328: **success** on the subsequent deterministic-output documentation checkpoint.
+- The final `Smart Voicing 0.4a` package-name commit must also pass the same Windows build/test/package workflow before the final artifact is treated as CI-verified.
+
+## Acceptance boundary — CLOSED
+
+0.4a is accepted as completed.
+
+The accepted checkpoint is:
+
+```text
+Stage 4 harmonic interpretation
+        ↓
+shared VoicingContext
+        ↓
+VoicingStrategy dispatcher
+        ↓
+Closed
+```
+
+with one persistent `Voicing Type` state, shared `Clean / Color / Rich` control, realtime tension keyswitches, collapsible Diagnostics, deterministic musical output, transition hygiene and the accepted dominant-to-minor tension semantics from `fix2`.
+
+No additional voicing algorithm belongs to 0.4a.
+
+**Next:** `0.4b — Drop 2`, implemented as a transformation of the already selected Closed harmonic material without re-guessing function or tension vocabulary.
