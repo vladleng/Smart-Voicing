@@ -89,24 +89,16 @@ FunctionalTensionProfile deriveFunctionalProfile(const NormalizedChord& chord,
     if (! isDominantColourContext(chord, key))
         return FunctionalTensionProfile::neutral;
 
+    // 0.3f deliberately uses only REAL Chord Track resolution evidence.
+    // No next chord means no assumed target, even when Key/Function strongly
+    // suggest a likely continuation. This keeps the engine deterministic and
+    // under arranger control: A7 and A7->Dm are intentionally different input.
     if (harmonic.dominantResolutionConfirmed)
     {
         if (isMinorTargetQuality(harmonic.dominantTargetQuality))
             return FunctionalTensionProfile::dominantMinorTarget;
 
         if (isMajorTargetQuality(harmonic.dominantTargetQuality))
-            return FunctionalTensionProfile::dominantMajorTarget;
-    }
-
-    // If no next chord is available, primary V may still use active Key as a
-    // conservative fallback. Once an actual next chord is present but does not
-    // confirm the expected dominant target, do not pretend the resolution was
-    // known in advance.
-    if (! harmonic.nextChordAvailable && harmonic.valid && harmonic.rootScaleDegree == 5)
-    {
-        if (key.mode == KeyMode::minor)
-            return FunctionalTensionProfile::dominantMinorTarget;
-        if (key.mode == KeyMode::major)
             return FunctionalTensionProfile::dominantMajorTarget;
     }
 
@@ -138,11 +130,18 @@ void classifyDominantTone(TensionTonePolicy& tone,
 
     if (profile == FunctionalTensionProfile::dominantMinorTarget)
     {
-        // In a minor-target dominant, natural 13 must not be promoted simply
-        // because Mixolydian would allow it. b9 and b13 are much stronger
-        // function-bearing Rich candidates because they point into the minor
-        // target. #9/#11 remain available as more contextual altered colours.
-        if (relative == 1 || relative == 8)
+        // 0.3f: Color itself must be target-aware. b13 is treated as an inside,
+        // functionally natural minor-dominant colour, not as something reserved
+        // only for Rich. Rich then adds stronger tension such as b9/#9/#11.
+        if (relative == 8) // b13 / #5 pitch class
+        {
+            tone.role = TensionRole::preferred;
+            tone.alteredCandidate = true;
+            tone.functionallyDirected = true;
+            return;
+        }
+
+        if (relative == 1) // b9: stronger minor-dominant tension, Rich only
         {
             tone.role = TensionRole::contextual;
             tone.alteredCandidate = true;
@@ -150,7 +149,7 @@ void classifyDominantTone(TensionTonePolicy& tone,
             return;
         }
 
-        if (relative == 3 || relative == 6)
+        if (relative == 3 || relative == 6) // #9 / #11(b5)
         {
             tone.role = TensionRole::contextual;
             tone.alteredCandidate = true;
@@ -158,10 +157,11 @@ void classifyDominantTone(TensionTonePolicy& tone,
             return;
         }
 
-        // Natural 9/13 are only treated as inside colour when the active/custom
-        // Key explicitly supports them. In ordinary natural-minor context this
-        // keeps E7->Am from inventing F#/C# as generic Color notes.
-        if ((relative == 2 || relative == 9) && tone.fromActiveKey)
+        // Natural 9 can remain a restrained Color option when the active tonal
+        // context actually supports it. Natural 13 is intentionally NOT inferred
+        // for a confirmed minor target: target context outranks a generic
+        // Mixolydian reading. Explicit E13/A13 remains authoritative above this.
+        if (relative == 2 && tone.fromActiveKey)
         {
             tone.role = TensionRole::available;
             return;
@@ -171,7 +171,8 @@ void classifyDominantTone(TensionTonePolicy& tone,
     }
 
     // Major-target or unresolved dominant keeps the conservative Mixolydian
-    // inside vocabulary for Color.
+    // inside vocabulary for Color. With no real next chord this is explicitly
+    // an unresolved/generic profile, not an inferred major resolution.
     if (relative == 2 || relative == 9)
     {
         tone.role = TensionRole::preferred;
