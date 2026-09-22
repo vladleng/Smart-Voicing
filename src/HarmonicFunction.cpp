@@ -176,12 +176,27 @@ HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
 
     result.nextChordAvailable = true;
     result.nextChordRootPitchClass = nextChord.rootPitchClass;
+    result.nextChordQuality = nextChord.quality;
 
     if (result.appliedDominantCandidate
         && result.appliedTargetPitchClass >= 0
         && nextChord.rootPitchClass == result.appliedTargetPitchClass)
     {
         result.appliedDominantConfirmed = true;
+    }
+
+    // Generic dominant target evidence also covers ordinary V -> I. This gives
+    // Tension Policy enough information to distinguish, for example, G7->Cmaj
+    // from E7->Am without making the policy inspect host data directly.
+    if (chord.quality == ChordQuality::dominant)
+    {
+        const auto expectedTarget = wrap12(chord.rootPitchClass + 5);
+        if (nextChord.rootPitchClass == expectedTarget)
+        {
+            result.dominantResolutionConfirmed = true;
+            result.dominantTargetPitchClass = nextChord.rootPitchClass;
+            result.dominantTargetQuality = nextChord.quality;
+        }
     }
 
     return result;
