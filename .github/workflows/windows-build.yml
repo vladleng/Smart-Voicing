@@ -24,7 +24,7 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
-        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingVoicingStrategyTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests SmartVoicingTensionPolicyTests --parallel 2
+        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingVoicingStrategyTests SmartVoicingTensionKeyswitchTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests SmartVoicingTensionPolicyTests --parallel 2
 
       - name: Test Harmony Core
         run: ctest --test-dir build -C Release --output-on-failure
