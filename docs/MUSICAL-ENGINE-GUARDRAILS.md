@@ -170,6 +170,7 @@ Played Melody
 - melodic tension != harmonic tension;
 - Stage 5 меняет shape/organization, а не смысл Chord/Function/Tension;
 - Stage 6 не должен заново выбирать harmonic function;
+- одинаковый полный musical input + одинаковый state должны давать одинаковый результат; скрытая случайность в Harmony Core / Voicing Strategy / Voice Leading запрещена;
 - ARA является provider, а не музыкальным фундаментом;
 - realtime path: без mutex, file I/O и динамических allocation в audio callback.
 
@@ -332,7 +333,38 @@ Real Chord Track boundary arrives
 
 ---
 
-## 9. Правило для следующих чатов / агентов
+## 9. Детерминированность музыкального результата
+
+Smart Voicing должен оставаться детерминированным arranger engine.
+
+Базовый contract:
+
+```text
+одинаковая полная последовательность MIDI
++ одинаковые Chord / Key / timeline данные
++ одинаковые Tension / Voicing / Profile settings
++ одинаковое начальное состояние
+= одинаковый результат
+```
+
+Для текущего Closed Engine одинаковый input/context должен приводить к одному и тому же выбранному voicing. При равном score tie-break также должен быть стабильным и воспроизводимым.
+
+После появления Stage 6 один и тот же изолированный chord/melody event может законно получить другой voicing, если отличается предыдущий Voice State. Это не нарушает детерминированность: одинаковая **полная последовательность** и одинаковое начальное состояние всё равно должны давать одинаковый MIDI.
+
+Нельзя незаметно добавлять:
+
+- random choice между равными кандидатами;
+- time-based seed;
+- скрытую вариативность между playback/render passes;
+- непредсказуемый tie-break, зависящий от порядка контейнера или platform-specific iteration.
+
+Если в будущем понадобится художественная вариативность, она должна быть отдельной явной feature (`Variation`, `Seed`, preset/profile option) с сохраняемым state. Одинаковый seed + одинаковый input должен оставаться воспроизводимым.
+
+Это особенно важно для editable arranger workflow: понравившийся результат должен повторяться при следующем playback, render или записи, пока пользователь сам не изменил входной контекст или musical state.
+
+---
+
+## 10. Правило для следующих чатов / агентов
 
 Перед изменением Harmony Core или Voicing Engine новый чат должен ответить себе на пять вопросов:
 
@@ -350,7 +382,7 @@ Real Chord Track boundary arrives
 
 ---
 
-## 10. Основной цикл развития музыкального движка
+## 11. Основной цикл развития музыкального движка
 
 Smart Voicing не предполагает, что Harmony Core однажды будет «идеально закончен» и больше не изменится.
 
