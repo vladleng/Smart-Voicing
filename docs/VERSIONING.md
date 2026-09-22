@@ -25,19 +25,26 @@
 - `Smart Voicing 0.1d` — Voice Stack + legato continuation + Sustain Chord Morph.
 - `Smart Voicing 0.1e` — Distribution Modes + Gesture Classifier + `note → Voice mask` + максимум 4 Voice для Chord Gesture.
 - `Smart Voicing 0.2` — **завершённый Этап 2: MIDI Router**.
-- `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`; пользовательский тест пройден.
-- `Smart Voicing 0.2b` — нормализованная `ChordModel`: pitch class из circle-of-fifths, chord quality, extensions, alterations и slash bass; добавлены host-neutral unit tests.
-- `Smart Voicing 0.2c` — первый `Melody Harmonize` + базовый Close voicing; подтверждено в Studio Pro.
+- `Smart Voicing 0.2a` — старт Этапа 3: host-neutral `HarmonicContext`, `IHarmonicContextProvider`, `ARAContextProvider` и контракт `VoiceOutput[4]`.
+- `Smart Voicing 0.2b` — нормализованная `ChordModel`: pitch class, quality, extensions, alterations, slash bass.
+- `Smart Voicing 0.2c` — первый `Melody Harmonize` + базовый Close voicing.
 - `Smart Voicing 0.2d` — Live Chord Reharmonization + sample-accurate chord boundaries без plugin latency.
-- `Smart Voicing 0.2e` — интеграция Melody Harmonize с Sustain / Voice ownership / State и полная регрессия Router 0.2; подтверждено CI и пользовательским тестом в Studio Pro 2026-09-21.
-- `Smart Voicing 0.3` — **завершённый Этап 3: Chord-aware Harmonizer + Harmonic Context**. Стабильный checkpoint поверх подтверждённой 0.2e без новых музыкальных изменений.
+- `Smart Voicing 0.2e` — Sustain / Voice ownership / State regression; Studio Pro accepted 2026-09-21.
+- `Smart Voicing 0.3` — **завершённый Этап 3: Chord-aware Harmonizer + Harmonic Context**.
+- `Smart Voicing 0.3a` — KeyModel, scale degree, harmonic functions, Diatonic/Chromatic, Applied Dominant Candidate; Studio Pro accepted.
+- `Smart Voicing 0.3b` — candidate-based Closed Voicing, guide tones, omissions, Upper Voice Spacing; Build #243 + Studio Pro accepted.
+- `Smart Voicing 0.3c` — resolution-aware function, applied dominant confirmation, modal interchange candidate, exact realtime boundaries; Build #268 + Studio Pro accepted.
+- `Smart Voicing 0.3d` — Tension Policy + Harmonic Candidate Pool + Clean/Color/Rich; musical acceptance выявил недостаточность generic dominant profile и characteristic-tone omission.
+- `Smart Voicing 0.3e` — Functional Tension Profiles + characteristic-tone protection; target quality стал частью functional colour.
+- `Smart Voicing 0.3f` — **ACCEPTED**: target-aware Color; no-next-chord = unresolved без inferred target; confirmed `V→minor` допускает b13 как Color, natural 13 не inferred, более сильные b9/#9/#11 остаются Rich-oriented. Windows Build #302 — success; Studio Pro musical acceptance 2026-09-22.
+- `Smart Voicing 0.4` — **завершённый Этап 4: Key-aware Engine + Functional Tensions + Closed checkpoint**. Stable package, без новой musical logic относительно принятой 0.3f.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.3/
+Smart Voicing 0.4/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -59,7 +66,7 @@ Smart Voicing 0.3/
 Этап 1: 0.0a ... 0.0g → 0.1
 Этап 2: 0.1a ... 0.1e → 0.2
 Этап 3: 0.2a ... 0.2e → 0.3
-Этап 4: 0.3a ...      → 0.4
+Этап 4: 0.3a ... 0.3f → 0.4
 Этап 5: 0.4a ...      → 0.5
 Этап 6: 0.5a ...      → 0.6
 Этап 7: 0.6a ...      → 0.7
@@ -72,8 +79,6 @@ Smart Voicing 0.3/
 Буква последней рабочей версии внутри этапа заранее не фиксируется. Дополнительные буквенные версии добавляются только когда это реально нужно.
 
 ## CMake mapping
-
-Рабочие буквенные версии отображаются на числовой CMake version:
 
 ```text
 0.1a → 0.1.1
@@ -88,8 +93,15 @@ Smart Voicing 0.3/
 0.2d → 0.2.4
 0.2e → 0.2.5
 0.3  → 0.3.0
+0.3a → 0.3.1
+0.3b → 0.3.2
+0.3c → 0.3.3
+0.3d → 0.3.4
+0.3e → 0.3.5
+0.3f → 0.3.6
+0.4  → 0.4.0
 ```
 
 ## Отложенная стабилизация
 
-Функции, которые не блокируют развитие музыкального ядра, не должны задерживать переход между этапами. Например, отдельная UI-кнопка `Panic / All Notes Off` и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0. Интеграционная регрессия Router / Sustain / State перед стабильной 0.3 выполнена в 0.2e.
+Функции, которые не блокируют развитие музыкального ядра, не должны задерживать переход между этапами. Например, отдельная UI-кнопка `Panic / All Notes Off` и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0.

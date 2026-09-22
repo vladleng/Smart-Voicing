@@ -1,445 +1,74 @@
-# Smart Voicing — концепция и заметки разработки
+# Smart Voicing — основной концепт и архитектура
 
-**Статус:** pre-alpha / архитектурный прототип  
-**Рабочее название:** Smart Voicing  
-**Основная цель:** создать лёгкий, host-agnostic MIDI-плагин для гармонизации и распределения голосов, который может использовать гармонический контекст самой DAW.
+**Project:** Smart Voicing  
+**Vendor:** Moon River Studio  
+**Status:** Active Development  
+**Stable checkpoint:** 0.4  
+**Current stage:** Stage 5 — Jazz Voicing Engine  
+**Current working line:** 0.4a… → 0.5  
+**Reference host:** Studio Pro  
+**Repository:** `vladleng/Smart-Voicing`
+
+Этот файл — главный концептуальный документ проекта. GitHub Issues, PR, тестовые документы и код являются источником фактического состояния реализации; здесь хранится целостная музыкальная и архитектурная модель Smart Voicing.
 
 ---
 
-## 1. Идея продукта
+## 1. Product Vision
 
-Smart Voicing должен позволять музыканту работать напрямую с гармонической структурой, уже созданной в DAW.
+Smart Voicing — не просто MIDI splitter и не генератор «трёх нот под мелодией». Цель проекта — создать **контекстно-зависимый виртуальный аранжировщик**, который использует гармоническую структуру DAW и создаёт четыре независимые музыкальные партии, пригодные для дальнейшего редактирования.
 
-Целевой рабочий процесс:
-
-1. Создать последовательность аккордов в Chord Track DAW.
-2. Задать Key / tonal context проекта.
-3. Загрузить Smart Voicing.
-4. Выбрать режим harmonization / voicing или preset.
-5. Подготовить несколько целевых инструментальных дорожек.
-6. Нажать Record.
-7. Играть мелодию или аккордовый материал.
-8. Smart Voicing в реальном времени создаёт и распределяет отдельные музыкальные голоса.
-9. Получившиеся партии можно редактировать по отдельности.
-
-Целевой пользовательский опыт:
+Базовая идея:
 
 ```text
-DAW Chord + Key context
-        +
-     MIDI input
-        +
-  voicing preset
+Played Material
+    +
+Current Chord
+    +
+Current Key
+    +
+Harmonic Function
+    +
+Melodic Context
+    +
+Tension Policy
+    +
+Voicing Strategy
+    +
+Previous Voice State
+    +
+Instrument / Ensemble Profile
         ↓
-   Smart Voicing
-        ↓
- independent voices
-        ↓
-separate instrument tracks
+4 independent musical voices
 ```
+
+Главный критерий качества:
+
+> Не «насколько эффектно плагин сыграл сам», а насколько хорош получившийся MIDI-материал как основа для настоящей аранжировки.
 
 ---
 
-## 2. Главный принцип: DAW остаётся источником гармонической истины
+## 2. Источник гармонической истины
 
-Smart Voicing не должен заставлять пользователя создавать вторую независимую гармоническую карту внутри плагина, если хост уже содержит Chord Track и Key Track.
+DAW остаётся главным источником гармонического контекста.
 
-Предпочтительный контекст:
-
-```text
-KEY / TONALITY
-+
-CURRENT CHORD
-+
-TIMELINE POSITION
-```
-
-Далее harmonizer объединяет этот контекст с:
-
-- входящей melody note;
-- сыгранным аккордом;
-- выбранным voicing mode;
-- voice-leading rules;
-- диапазонами инструментов;
-- будущими arrangement rules.
-
----
-
-## 3. Host-agnostic архитектура
-
-Smart Voicing не должен быть привязан к Fender Studio / Studio Pro или любой другой конкретной DAW.
-
-Fender Studio / Studio Pro используется как первый reference host для разработки и тестирования, но внутренняя архитектура должна оставаться нейтральной к хосту.
-
-Концептуально:
+Приоритет данных:
 
 ```text
-┌──────────────────────────────────────┐
-│            Harmony Core              │
-│                                      │
-│ chord interpretation                 │
-│ key context                          │
-│ harmonic functions                   │
-│ voicing                              │
-│ guide tones                          │
-│ voice leading                        │
-│ instrument ranges                    │
-└──────────────────┬───────────────────┘
-                   │
-          Host-neutral context
-                   │
-      ┌────────────┴────────────┐
-      │                         │
-┌─────▼─────────┐         ┌─────▼────────┐
-│ Context       │         │ MIDI / Plug- │
-│ Providers     │         │ in Adapters  │
-└─────┬─────────┘         └──────────────┘
-      │
- ┌────┼──────────────┐
- ▼    ▼              ▼
-ARA  MIDI          Manual
+1. Played / Melody
+2. Explicit Current Chord
+3. Chord identity / characteristic tones
+4. Current Key
+5. Harmonic Function / real Resolution Target
+6. Functional Tension Profile / Tension Level
+7. Melodic Role / Tension Policy
+8. Voicing Strategy
+9. Voice Leading
+10. Instrument / Ensemble Profile
 ```
 
-Voicing engine должен получать нейтральную структуру данных и не знать, откуда именно пришёл гармонический контекст.
+Ключевой принцип:
 
-Пример концептуального интерфейса:
-
-```cpp
-struct HarmonicContext
-{
-    KeySignature key;
-    ChordSymbol chord;
-    double timelinePosition;
-    bool hasKey;
-    bool hasChord;
-};
-```
-
-Планируемые providers:
-
-```text
-IHarmonicContextProvider
-├── ARAContextProvider
-├── MidiContextProvider
-└── ManualContextProvider
-```
-
-DAW-specific provider следует вводить только если конкретный хост действительно требует отдельного workaround.
-
----
-
-## 4. ARA 2 — первый приоритет разработки
-
-Первый полноценный этап проекта — не четырёхголосная гармонизация, а **ARA Context Proof of Concept**.
-
-Задача этого этапа — ответить на вопросы:
-
-- доступна ли ARA-интеграция в хосте;
-- отдаёт ли хост chord data;
-- отдаёт ли Key Signature / tonal-context data;
-- можно ли отслеживать эти данные по таймлайну;
-- можно ли получать live updates после редактирования Chord Track / Key Track;
-- можно ли безопасно связать ARA-контекст с real-time MIDI processing;
-- какие возможности отличаются между хостами.
-
-На этом этапе полноценный voicing engine не нужен.
-
----
-
-## 5. Что уже подтверждено в Studio Pro / Fender Studio
-
-Эксперименты 0.0b и 0.0c показали следующее.
-
-### 5.1 ARA/Event FX получает Musical Context
-
-При загрузке плагина как ARA/Event FX Studio Pro предоставляет:
-
-- `Key Signatures`;
-- `Sheet Chords`;
-- `Tempo Entries`;
-- `Bar Signatures`;
-- `Musical Context` проекта.
-
-Подтверждённые диагностические состояния:
-
-```text
-ARA instance bound: YES
-ARA document controller: YES
-Host content access: YES
-Musical contexts: 1
-```
-
-### 5.2 Instrument role не получает Musical Context напрямую
-
-Тот же код, объявленный как Instrument, может получить ARA binding, однако Studio Pro не прикрепляет к такому экземпляру Musical Context:
-
-```text
-ARA instance bound: YES
-ARA document controller: YES
-Host content access: YES
-Musical contexts: 0
-```
-
-Следствие: основной MIDI-инструмент не может надёжно получать Chord / Key напрямую через ARA в этом хосте.
-
-### 5.3 Один VST3 не удалось использовать одновременно как удобный Instrument и Event FX
-
-Эксперимент с одним бинарником `Instrument + Fx + ARA` показал, что Studio Pro фактически классифицирует такой плагин как Instrument и не даёт использовать его как обычный Event FX в нужном workflow.
-
-Поэтому для текущего MVP принята двухкомпонентная схема.
-
----
-
-## 6. Архитектура версии 0.0c
-
-Пакет состоит из двух VST3-компонентов:
-
-```text
-Smart Voicing 0.0c/
-├── Smart Voicing.vst3
-└── Smart Voicing ARA.vst3
-```
-
-### Smart Voicing.vst3
-
-Основной Instrument / MIDI engine:
-
-- MIDI input;
-- MIDI output;
-- будущие функции harmonizer / voicing / voice leading;
-- чтение уже подготовленного harmonic-context snapshot;
-- отсутствие прямой зависимости от ARA lifecycle.
-
-### Smart Voicing ARA.vst3
-
-Служебный ARA/Event FX reader:
-
-- загружается на Audio Event;
-- пропускает аудио без изменений;
-- получает Musical Context от хоста;
-- читает доступные ARA content types;
-- реагирует на изменения гармонического контекста;
-- публикует обновлённый snapshot для основного Instrument.
-
-Подтверждённая схема:
-
-```text
-Studio Pro Chord / Key Track
-        ↓ ARA
-Smart Voicing ARA
-        ↓ shared harmonic context
-Smart Voicing Instrument
-        ↓
-MIDI processing / generated voices
-```
-
----
-
-## 7. Shared bridge между двумя компонентами
-
-Два отдельных VST3 bundle являются разными DLL-модулями, поэтому обычные C++ static-объекты между ними не разделяются.
-
-Для Windows Proof of Concept используется минимальный named shared-memory bridge.
-
-Он нужен только как транспорт между:
-
-```text
-Smart Voicing ARA
-        ↓
-shared memory snapshot
-        ↓
-Smart Voicing Instrument
-```
-
-Требования к bridge:
-
-- без файлового I/O;
-- без сети;
-- без тяжёлого background process;
-- компактный snapshot;
-- revision counter для определения изменений;
-- безопасное чтение стабильного snapshot;
-- отсутствие прямого обращения к ARA из audio thread основного Instrument.
-
-В 0.0c уже подтверждено, что Instrument получает через bridge те же counts для Key / Chord / Tempo / Bar, которые видит ARA/Event FX.
-
----
-
-## 8. Live update гармонии
-
-Подтверждено в Studio Pro:
-
-- добавление аккорда в Chord Track увеличивает `Bridge revision`;
-- замена аккорда также увеличивает `Bridge revision`;
-- Reload плагина не требуется;
-- перезапуск проекта не требуется.
-
-Следовательно, ARA model updates пригодны для live synchronization гармонической карты.
-
-Рабочая логика должна быть такой:
-
-```text
-Chord Track изменён
-        ↓
-ARA сообщает об обновлении Musical Context
-        ↓
-Smart Voicing ARA перечитывает актуальный context
-        ↓
-создаётся новый snapshot
-        ↓
-revision++
-        ↓
-Smart Voicing Instrument видит новую версию
-```
-
-Проверка live update Key Track остаётся отдельной задачей.
-
----
-
-## 9. Audio Event используется только как ARA-якорь
-
-В ходе тестирования 0.0c подтверждено важное поведение Studio Pro:
-
-- длина Audio Event, на котором установлен `Smart Voicing ARA`, не ограничивает диапазон доступного Musical Context;
-- playhead может находиться за пределами этого Event;
-- при этом изменения Chord Track продолжают поступать в Smart Voicing Instrument;
-- гармоническая карта не ограничивается временными границами Event.
-
-Следовательно, Audio Event нужен как **ARA-якорь**, а не как временное окно действия гармонии.
-
-Практический workflow может быть очень простым:
-
-```text
-короткий служебный Audio Event
-└── Smart Voicing ARA
-
-остальной проект
-──────────────────────────────▶
-Chord / Key context продолжает обновляться
-```
-
-Это означает, что не нужно создавать или растягивать служебный WAV на всю длину аранжировки.
-
----
-
-## 10. ARA content types, представляющие интерес
-
-Основные данные:
-
-- `Key Signatures` / tonal context;
-- `Sheet Chords`;
-- `Tempo Entries`;
-- `Bar Signatures`;
-- timeline / musical position.
-
-Позже при необходимости могут быть рассмотрены другие типы ARA content.
-
-Важный принцип:
-
-> ARA определяет модель интеграции и типы контента, но конкретный хост может предоставлять только часть возможностей.
-
-Поэтому Smart Voicing должен использовать **capability detection**, а не предполагать одинаковое поведение всех DAW.
-
----
-
-## 11. Capability-based behavior
-
-Плагин должен уметь сообщить, что именно предоставляет текущий host.
-
-Пример:
-
-```text
-HOST INTEGRATION
-
-ARA 2                 ✓
-Chord context         ✓
-Key signatures        ✓
-Tempo / timeline      ✓
-
-Context source:
-● Host
-○ MIDI
-○ Manual
-```
-
-В другом хосте:
-
-```text
-HOST INTEGRATION
-
-ARA 2                 ✓
-Chord context         —
-Key signatures        —
-
-Context source:
-○ Host
-● MIDI
-○ Manual
-```
-
-Smart Voicing должен оставаться полезным даже если host не предоставляет Chord / Key через ARA.
-
----
-
-## 12. Планируемые музыкальные режимы
-
-### 12.1 Direct mode
-
-Пользователь играет четыре ноты.
-
-Smart Voicing распределяет их между четырьмя голосами:
-
-```text
-Highest note → Voice 1
-2nd          → Voice 2
-3rd          → Voice 3
-Lowest       → Voice 4
-```
-
-### 12.2 Melody Harmonize
-
-Пользователь играет одну мелодическую линию.
-
-Smart Voicing использует текущие Chord + Key для построения остальных голосов.
-
-Пример:
-
-```text
-Key: C major
-Chord: C7
-Melody: D
-```
-
-Возможный результат:
-
-```text
-Trumpet    D   = 9
-Tenor      Bb  = b7
-Trombone   E   = 3
-Baritone   C   = root
-```
-
-### 12.3 Chord mode
-
-Пользователь играет аккорд.
-
-Smart Voicing перераспределяет / revoice сыгранный материал с учётом выбранного preset и диапазонов инструментов.
-
-### 12.4 Context-aware mode
-
-Приоритеты долгосрочной логики:
-
-```text
-1. Melody note / played material
-2. Current chord
-3. Current key / tonal context
-4. Harmonic function
-5. Voice leading
-6. Instrument ranges
-7. Selected voicing rules
-```
-
-Локальный аккорд должен при необходимости иметь больший приоритет, чем строгая диатоника.
+> Key и Function интерпретируют Chord, но не переписывают его. Сыгранная melody также не «исправляется» теоретическим движком.
 
 Пример:
 
@@ -448,128 +77,654 @@ Key: C major
 Chord: A7
 ```
 
-Smart Voicing должен понимать необходимость C#, несмотря на то что нота не входит в C major.
+Smart Voicing должен использовать C#, потому что локальный Chord имеет приоритет над общей диатоникой Key.
 
 ---
 
-## 13. Планируемые voicing types
+## 3. Подтверждённая архитектура ARA + Instrument
 
-- Close;
-- Drop 2;
-- Drop 3;
-- Drop 2+4;
-- Spread;
-- Unison;
-- Guide Tones;
-- Custom.
-
-Практический первый набор после завершения ARA-этапа:
+ARA-доступ к Chord/Key уже экспериментально подтверждён в Studio Pro.
 
 ```text
-Close
-Drop 2
-Guide Tones
-Custom
+Studio Pro
+Chord / Key / Tempo / Time Signature
+        ↓ ARA
+Smart Voicing ARA
+        ↓ shared harmonic context + transport
+Smart Voicing Instrument
+        ↓
+Harmony Core
+        ↓
+VoiceOutput[4]
+        ↓
+Router / Voice Stack / Sustain
+        ↓
+MIDI Ch1 / Ch2 / Ch3 / Ch4
 ```
+
+### Smart Voicing ARA
+
+- служебный ARA/Event FX reader;
+- получает Musical Context проекта;
+- читает Chord, Key, Tempo, Time Signature;
+- публикует harmonic context и transport;
+- не содержит основной voicing logic.
+
+### Smart Voicing Instrument
+
+- принимает MIDI;
+- читает harmonic context через shared bridge;
+- содержит Harmony Core;
+- выдаёт четыре независимых Voice;
+- поддерживает Direct Router и Melody Harmonize.
+
+Harmony Core должен оставаться host-neutral. ARA — provider, а не фундамент музыкальной логики.
 
 ---
 
-## 14. Guide-tone concept
+## 4. Подтверждённая база к 0.4
 
-Guide-tone mode особенно важен для джазовой аранжировки.
+К стабильной версии 0.3 подтверждены:
 
-Возможные правила:
+- Chord Track и Key Track через ARA;
+- Tempo / Time Signature / transport;
+- live context updates;
+- shared bridge ARA → Instrument;
+- MIDI output Ch1–Ch4;
+- downstream routing на четыре инструмента;
+- CC / Pitch Bend passthrough;
+- Direct Router;
+- Voice Stack и stable ownership;
+- sustain-aware routing и Sustain Chord Morph;
+- Top Down / Bottom Up / Fill 4;
+- Gesture Classifier;
+- Chord Model: root, bass, quality, extensions, alterations, slash bass;
+- Melody Harmonize;
+- melody как авторитетный V1;
+- live reharmonization удержанной melody на сменах Chord Track;
+- sample-accurate chord boundaries без plugin lookahead/latency;
+- `(no chord)` → V1 only;
+- сохранение Harmony Mode / Distribution Mode в project state.
 
-- 3rd и 7th получают высокий приоритет;
-- melody / tensions могут оставаться в верхнем голосе;
-- root может быть исключён, если его уже ясно задаёт bass;
-- средние и нижние голоса сохраняют функцию аккорда с минимальным движением.
+К стабильной версии 0.4 дополнительно подтверждены:
+
+- `KeyModel` и scale-degree analysis;
+- `Tonic / Predominant / Dominant / Other`, `Diatonic / Chromatic`;
+- applied/secondary dominant candidate vs confirmed resolution;
+- real next Chord Track event как единственный target evidence для target-aware profile;
+- modal-interchange candidate MVP;
+- candidate-based `Closed Voicing` с guide-tone priority и soft Upper Voice Spacing;
+- characteristic-tone protection (`m7b5 b5`, augmented `#5`, sus identity, explicit altered fifth);
+- `TensionPolicy` и Harmonic Candidate Pool;
+- UI/state `Clean / Color / Rich`;
+- `FunctionalTensionProfile`: Neutral / Dominant Unresolved / Dominant→Major / Dominant→Minor;
+- target-aware Color и functionally intensified Rich;
+- no next chord → unresolved, без inferred future target;
+- explicit Chord Track material выше inference;
+- Studio Pro musical acceptance major/minor II–V–I и `A7` vs `A7→Dm`;
+- Windows CI 0.3f #302 — success.
+
+---
+
+## 5. Основные режимы
+
+### 5.1 Direct Router
+
+Пользователь играет готовый материал, Smart Voicing распределяет его по Voice.
+
+```text
+Top Down
+Bottom Up
+Fill 4
+```
+
+Fill 4:
+
+```text
+1 нота → V1=V2=V3=V4
+2 ноты → V1=V2=верхняя, V3=V4=нижняя
+3 ноты → V1=верхняя, V2=средняя, V3=V4=нижняя
+4 ноты → по одной ноте на Voice
+```
+
+### 5.2 Melody Harmonize
+
+Пользователь играет одну melody note/line. Плагин получает Chord + Key + Function и достраивает V2–V4.
+
+Начиная с 0.3b:
+
+```text
+Melody Harmonize = Closed Voicing
+```
+
+Отдельный `Voicing Type` в 0.3b ещё не нужен: Closed является текущим встроенным способом гармонизации.
+
+### 5.3 Chord Voicing / Transform — future
+
+Пользователь играет полный chord. Сыгранный chord остаётся авторитетным material, а Smart Voicing revoice-ит/распределяет его по выбранной strategy и profile.
+
+### 5.4 Riff Follow — future
+
+Для performance-oriented profiles:
+
+```text
+Riff Transpose
+Riff Adapt
+```
+
+- Transpose сохраняет интервальную shape;
+- Adapt преобразует degrees/intervals по quality/function текущего chord.
+
+---
+
+## 6. Harmonic Interpretation
+
+Stage 4 вводит интерпретацию Chord внутри Key.
+
+Базовые категории:
+
+```text
+Tonic
+Predominant
+Dominant
+Other
+```
+
+Дополнительно:
+
+```text
+Diatonic
+Chromatic
+Applied Dominant Candidate
+```
+
+Важно: `candidate` не равен подтверждённой функции. Для chromatic dominant необходим контекст разрешения.
 
 Пример:
 
 ```text
-Key: C
+Key: C major
+Chord: D7
+
+root degree: II
+root family: Predominant
+effective function: Dominant
+relation: Chromatic
+candidate: V/V
+```
+
+К 0.4 resolution-aware interpretation реализована. Важный final contract Stage 4:
+
+```text
+No next chord
+→ Dominant / unresolved
+→ no assumed resolution target
+
+Real next chord on expected target root
+→ confirmed target root + target quality
+→ target-aware Functional Tension Profile
+```
+
+Smart Voicing интерпретирует реальную progression из Chord Track и не додумывает будущий target.
+
+---
+
+## 7. Tension Policy
+
+Tensions — не команда «автоматически добавить 9/11/13». К 0.4 Stage 4 использует два связанных слоя:
+
+```text
+Functional Tension Profile
+→ смысл harmonic colour в данном реальном обороте
+
+Tension Level
+→ интенсивность: Clean / Color / Rich
+```
+
+Классификация tone policy:
+
+```text
+Explicit
+Available
+Preferred
+Contextual
+Avoid-as-harmony
+Melody-imposed
+```
+
+### 7.1 Melodic tension ≠ Harmonic tension
+
+Важный принцип из *Modern Jazz Voicings*:
+
+```text
+melodic tension != harmonic tension
+```
+
+Если melody = 9, это не означает, что эту pitch class нужно дублировать внутри V2–V4.
+
+### 7.2 Candidate Pool / Chord Scale
+
+Будущая база кандидатов:
+
+```text
+Chord tones
++ explicit tensions
++ tonal / modal context
++ harmonic function
+        ↓
+Harmonic Candidate Pool
+```
+
+Explicit tension из Chord Track имеет приоритет над inferred policy.
+
+### 7.3 Avoid note
+
+`Avoid` не означает абсолютный запрет. Такая нота может быть нормальной melodic passing/approach note, но не должна автоматически использоваться как устойчивая harmonic tension.
+
+### 7.4 Minor ninth
+
+Minor ninth внутри сфокусированного voicing получает сильный negative weight, но не hard ban.
+
+Контекстные исключения:
+
+- dominant b9;
+- dominant b13;
+- modal harmony;
+- intentionally dissonant voicing.
+
+### 7.5 Базовая heuristic
+
+Как стартовая policy, а не закон:
+
+```text
+whole-step above chord tone → generally available
+half-step above chord tone  → generally unavailable
+```
+
+Function/mode/chord-symbol exceptions имеют больший приоритет.
+
+### 7.6 Tension Level — accepted 0.4 contract
+
+```text
+Clean
+→ structural chord identity
+
+Color
+→ functionally natural / inside colour для реального target
+
+Rich
+→ functionally intensified tension / altered colour
+```
+
+Для confirmed `V→minor` `b13` может быть естественной Color-краской, а `b9/#9/#11` — более напряжёнными Rich candidates. Natural 13 не считается автоматически правильной только потому, что chord dominant.
+
+Explicit `E13`, `E7b9`, `E7#5`, `E7b5` остаются authoritative.
+
+Если следующего chord event нет, target не угадывается.
+
+---
+
+## 8. Closed Voicing — первый базовый strategy
+
+0.3b превращает ранний `CloseVoicingHarmonizer` в настоящий candidate-based Closed Engine.
+
+```text
+Melody V1
+    ↓
+Chord + Key + Function + Tension Context
+    ↓
+Harmonic Candidate Pool
+    ↓
+select V2 / V3 / V4
+    ↓
+Full Vertical Evaluation
+```
+
+Учитываются:
+
+- melody authority;
+- guide tones;
+- harmonic identity;
+- root/fifth omission;
+- explicit / melody-imposed tensions;
+- compactness;
+- Upper Voice Spacing Policy;
+- slash bass;
+- later: Voice Leading;
+- later: Instrument Profile.
+
+Closed — не «ближайшие chord tones вниз», а оценка полной вертикали.
+
+---
+
+## 9. Guide Tones и omissions
+
+Для seventh/extended harmony 3 и 7 имеют высокий структурный вес.
+
+Пример:
+
+```text
 Chord: G7
 Melody: A
+
+V1 A = 9
+V2 F = b7
+V3 B = 3
+V4 D = 5
 ```
 
-Возможное распределение:
+Root может отсутствовать, если harmonic identity уже читается. Ordinary perfect fifth часто легче всего уступает место более важной ноте.
+
+Но `fifth expendable` не является универсальным правилом. Characteristic tones защищаются:
 
 ```text
-Trumpet    A   = 9
-Tenor      F   = b7
-Trombone   B   = 3
-Baritone   D   = 5
+m7b5: b5
+augmented: #5
+sus2 / sus4 identity tone
+explicit altered fifth
+```
+
+Для simple triads root получает дополнительный вес, чтобы не потерять идентичность harmony.
+
+---
+
+## 10. Upper Voice Spacing Policy
+
+Терция под melody — предпочтение, не правило.
+
+```text
+3rd  → preferred
+4th  → common / acceptable
+2nd  → contextual
+5th+ → contextual / open
+```
+
+Нельзя форсировать preferred spacing ценой:
+
+- неверного chord/function;
+- потери guide tone;
+- конфликтной tension;
+- плохого Voice Leading;
+- неподходящего instrument range/register.
+
+Эта policy прежде всего относится к melody-led Closed family. Другие strategies имеют собственную spacing objective.
+
+---
+
+## 11. Voicing Strategy architecture
+
+После изучения *Modern Jazz Voicings* архитектура уточняется: **не все voicing types должны быть transformations Closed**.
+
+### 11.1 Closed / Drop family
+
+```text
+Harmonic Candidate Pool
+        ↓
+Closed
+        ├ Closed
+        ├ Drop 2
+        ├ Drop 3
+        └ Drop 2+4
+```
+
+Drop-family действительно естественно строить как transformation уже выбранного close-family harmonic material.
+
+### 11.2 Spread — отдельная strategy
+
+Spread не является просто octave-expanded Closed.
+
+Ключевая логика:
+
+- строится снизу вверх;
+- bottom/root — структурный ориентир;
+- inner voices должны хорошо представлять 3/7;
+- верх добавляет support/chord tone/tension;
+- spacing и balance являются целью самой strategy.
+
+### 11.3 Quartal strategy
+
+- предпочитает adjacent perfect/augmented fourths;
+- major third между верхними Voice допустима, если сохраняется узнаваемый quartal sound;
+- incomplete voicing допустим при ясной harmonic identity;
+- minor ninth получает сильный penalty;
+- tonal/modal context влияет на candidate pool.
+
+### 11.4 Cluster strategy
+
+Цель — не Closed compactness, а **density**:
+
+- adjacent seconds preferred;
+- non-second intervals уменьшают density;
+- third между top voices допустима ради melody clarity;
+- incomplete harmony допустима, если chord sound остаётся читаемым.
+
+### 11.5 Upper Structure Triad strategy
+
+Four-part UST:
+
+```text
+upper-structure triad
++
+one supporting voice
+```
+
+Support выбирается из chord tone/tension подходящей chord scale. Strategy должна учитывать color и наличие отдельного bass/root support.
+
+### 11.6 Итоговая модель
+
+```text
+Chord + Key + Function + Real Target
+                ↓
+      Functional Tension Profile
+                ↓
+        Tension Policy + Level
+                ↓
+        Harmonic Candidate Pool
+                ↓
+          VoicingStrategy
+      ┌─────────┼──────────────┐
+      ↓         ↓              ↓
+Closed Family  Spread      Modern Strategies
+      ↓                       ├ Quartal
+Closed                        ├ Cluster
+Drop 2                        └ Upper Structure Triad
+Drop 3
+Drop 2+4
+                ↓
+          Voice Leading
+                ↓
+        Instrument Profile
 ```
 
 ---
 
-## 15. Voice leading
+## 12. Melodic Context Engine — future arranger layer
 
-Smart Voicing не должен строить каждый аккорд полностью независимо от предыдущего.
+Настоящий arranger должен понимать не только текущую вертикаль, но и роль melody note во времени.
 
-Нужно сохранять состояние каждого голоса и выбирать следующий вариант с музыкально разумным движением.
-
-Базовая MVP cost function может начинаться так:
+Нужно различать:
 
 ```text
-cost =
-|voice1_new - voice1_old| +
-|voice2_new - voice2_old| +
-|voice3_new - voice3_old| +
-|voice4_new - voice4_old|
+Chord tone
+Tension
+Diatonic passing tone
+Chromatic passing tone
+Neighbor / auxiliary
+Chromatic approach
+Scale approach
+Double chromatic approach
+Indirect resolution
+Suspension
+Enclosure
+Outside note
 ```
 
-Позже можно добавлять penalties за:
+Будущий pipeline:
 
-- voice crossing;
-- слишком большие скачки;
-- выход из playable / comfortable range;
-- нежелательные doubling;
-- плохое расположение guide tones;
-- разрушение верхней мелодической линии.
+```text
+Melody stream
+    ↓
+MelodicRoleClassifier
+    ↓
+Target note / target voicing
+    ↓
+ApproachNotePolicy
+    ├ Chromatic reharmonization
+    ├ Diatonic reharmonization
+    ├ Parallel reharmonization
+    ├ Dominant reharmonization
+    └ Independent lead
+    ↓
+Voicing Strategy + Voice Leading
+```
+
+Особенно важный принцип: non-chord melody note не обязана каждый раз создавать новый самостоятельный chord.
+
+### Realtime vs Clip analysis
+
+Для live MIDI будущая target note неизвестна. Поэтому архитектурно разделить:
+
+```text
+Realtime Melodic Policy
+Clip / Offline Melodic Analysis
+```
+
+Не вводить mandatory lookahead/latency в live path ради полной классификации approach notes.
 
 ---
 
-## 16. Instrument ranges
+## 13. Voice Leading
 
-Первый практический use case — квартет духовых:
+Voice Leading — отдельный слой после harmonic/voicing decision.
+
+Он должен сохранять Voice identity и оценивать не только абсолютное движение.
+
+Базовые terms:
 
 ```text
-Voice 1 → Trumpet
-Voice 2 → Tenor Sax
-Voice 3 → Trombone
-Voice 4 → Baritone Sax
+movement
+common-tone reward
+stepwise reward
+voice-crossing penalty
+large-leap penalty
+range/register penalty
+guide-tone/tendency-tone continuity
+strategy-specific objective
 ```
 
-Однако этот состав нельзя жёстко зашивать в движок.
+Примеры strategy-specific weights:
 
-Каждый голос в дальнейшем должен поддерживать:
+```text
+Closed  → compactness + melody support
+Spread  → balance + guide-tone continuity
+Quartal → characteristic fourth structure
+Cluster → density
+UST     → upper-triad integrity + support voice
+```
 
-- minimum note;
-- maximum note;
-- comfortable range;
-- octave displacement;
-- instrument profile.
-
-Потенциальные профили:
-
-- Trumpet;
-- Flugelhorn;
-- Alto Sax;
-- Tenor Sax;
-- Baritone Sax;
-- Trombone;
-- Horn;
-- custom user profile.
+`Upper Voice Spacing Policy` — soft term, а не генератор интервала.
 
 ---
 
-## 17. MIDI output и workflow записи
+## 14. Instrument / Ensemble Profiles
 
-Целевая модель — один независимый голос на один destination instrument.
+Harmony Core не должен hardcode-ить «Voice 1 = Trumpet».
 
-Начальная схема:
+Первый практический ensemble:
+
+```text
+V1 → Trumpet
+V2 → Tenor Sax
+V3 → Trombone
+V4 → Baritone Sax
+```
+
+Но это должен быть **Brass Ensemble Profile**, а не логика Harmony Core.
+
+### InstrumentProfile должен знать больше, чем min/max
+
+```text
+InstrumentProfile
+├ absoluteRange
+├ practicalRange
+├ comfortableRange
+├ preferredRegister
+└ registerZones[]
+    ├ min/max
+    ├ preferenceWeight
+    ├ timbralCharacter metadata
+    ├ dynamicSuitability metadata
+    └ balanceWeight
+```
+
+Следовательно:
+
+```text
+playable(note) != desirable(note)
+```
+
+Voicing/Voice Leading должны использовать weighted scoring, а не только binary range check.
+
+Будущие профили:
+
+```text
+Brass
+Strings
+Bass
+Woodwinds
+Custom Ensemble
+```
+
+---
+
+## 15. Performance Architecture
+
+Верхние уровни управления должны использовать один unified state:
+
+```text
+Instrument Type / Profile
+Harmony Mode
+Distribution Mode
+Voicing Type
+```
+
+Предварительная Brass keyswitch map:
+
+```text
+Modes
+C0   Direct Router
+C#0  Melody Harmonize
+D0   Chord Voicing
+D#0  Riff Follow
+
+Direct Distribution
+E0   Top Down
+F0   Bottom Up
+F#0  Fill 4
+G0   Smart / Auto [future]
+
+Voicing
+C1   Closed
+C#1  Drop 2
+D1   Open
+D#1  Spread
+E1   Guide Tones
+F1   Block / Soli
+F#1  Auto [future]
+```
+
+Правила:
+
+- keyswitch и UI меняют один internal state;
+- parallel state system не создавать;
+- keyswitch notes swallowed;
+- map локален для Instrument Profile;
+- точные note numbers/octave labels фиксируются на implementation stage;
+- keyswitch layer добавляется только после реализации самих Modes/Distribution/Voicing.
+
+---
+
+## 16. MIDI Output и editable workflow
 
 ```text
 Voice 1 → MIDI Channel 1
@@ -578,270 +733,226 @@ Voice 3 → MIDI Channel 3
 Voice 4 → MIDI Channel 4
 ```
 
-Пример:
+Результат должен быть записываемым на отдельные downstream MIDI tracks.
+
+Типовой workflow:
 
 ```text
-Smart Voicing
-    │
-    ├── CH1 → Trumpet instrument
-    ├── CH2 → Tenor instrument
-    ├── CH3 → Trombone instrument
-    └── CH4 → Baritone instrument
+1. Chord Track / Key Track
+2. Melody / Chord / Riff input
+3. Smart Voicing
+4. Four independent MIDI voices
+5. Record / split
+6. Manual editing
+7. Articulations
+8. Expression / vibrato
+9. Final orchestration
 ```
 
-Желаемый workflow:
+---
+
+## 17. Musical knowledge base
+
+Smart Voicing должен опираться на формализованную аранжировочную базу, а не только на локальные эвристики проекта.
+
+Project Sources могут содержать:
+
+- arranging books;
+- voicing literature;
+- scores;
+- course materials;
+- user arranging notes.
+
+GitHub хранит уже переработанные правила:
 
 ```text
-set chords + key
+Literature / Scores
+      ↓ analysis
+Musical Policies / Strategies
       ↓
-choose voicing preset
+Issues / Tests / Algorithms
       ↓
-arm destination tracks
-      ↓
-press Record
-      ↓
-play melody or chords
-      ↓
-Smart Voicing generates separate voices
+Code
 ```
 
-Отдельный технический вопрос для каждого хоста:
+Текущий основной reference:
 
-> Может ли DAW напрямую записывать MIDI, сгенерированный Smart Voicing, на несколько вооружённых дорожек за один проход?
+**Ted Pease / Ken Pullig — Modern Jazz Voicings: Arranging for Small and Medium Ensembles**
 
-Если нет, позднее могут понадобиться fallback-варианты:
+Из книги уже формализованы:
 
-- internal capture;
-- commit / render to MIDI;
-- drag-and-drop MIDI parts;
-- другой лёгкий routing mechanism.
+- melodic vs harmonic tensions;
+- chord-scale/candidate-pool thinking;
+- avoid-note semantics;
+- minor-ninth penalty with exceptions;
+- approach-note harmonization;
+- Closed/Drop family;
+- Spread as independent bottom-up strategy;
+- Quartal strategy;
+- Cluster strategy;
+- Upper Structure Triads;
+- register/timbre-aware instrument profiles.
 
-Это не нужно решать раньше завершения ARA Proof of Concept.
+Практический reference для Closed:
 
----
-
-## 18. Standalone host не является исходной архитектурой
-
-Divisimate-style external routing полезен для live MIDI distribution, но основное отличие Smart Voicing — непосредственная осведомлённость о гармонической карте DAW.
-
-Поэтому standalone application / host не входит в начальную реализацию.
-
-В будущем он может быть рассмотрен как дополнительный routing layer, но не как источник гармонической истины.
-
----
-
-## 19. Performance goals
-
-Smart Voicing должен оставаться намеренно лёгким.
-
-Цели:
-
-- минимальный CPU usage;
-- минимальный memory footprint;
-- минимальный UI overhead;
-- real-time-safe MIDI processing;
-- отсутствие ненужных background threads;
-- отсутствие тяжёлых внешних host processes;
-- harmony core отделён от GUI и wrapper-кода;
-- внешние зависимости вводятся только при реальной пользе;
-- ARA content не читается напрямую из real-time audio thread;
-- real-time часть получает уже готовый immutable / lightweight snapshot.
+**Closed Voicing, pt. 1 - Big Band Arranging SECRETS REVEALED**
 
 ---
 
-## 20. Reference products
+## 18. Текущий roadmap
 
-### Divisimate
+### Stage 0 — Project Skeleton ✅
 
-Полезен как reference для:
+VST3 project, build infrastructure, vendor/package conventions.
 
-- live routing;
-- voice distribution;
-- multi-instrument workflows;
-- performance-oriented MIDI splitting.
+### Stage 1 — ARA Context ✅ → 0.1
 
-### Scaler
+Chord / Key / Tempo / Time Signature / transport / shared bridge.
 
-Полезен как reference для:
+### Stage 2 — MIDI Router ✅ → 0.2
 
-- Divisi;
-- multi-channel MIDI output;
-- voice grouping;
-- chord-follow behavior;
-- voicing concepts;
-- внутреннего harmonic context.
+Four Voice, Ch1–Ch4, Voice Stack, Sustain, Distribution, Gesture Classifier.
 
-Smart Voicing не должен пытаться повторить весь функционал Scaler.
+### Stage 3 — Chord-aware Harmonizer ✅ → 0.3
 
-Основное отличие:
+HarmonicContext, ChordModel, Melody Harmonize, basic Close, live reharmonization, state integration.
 
-> Smart Voicing должен использовать собственную гармоническую карту DAW, когда хост способен её предоставить, вместо создания второй параллельной chord timeline внутри плагина.
+### Stage 4 — Key-aware Engine ✅ → 0.4
 
----
+Завершён 2026-09-22. Основные итерации:
 
-## 21. Предлагаемая структура репозитория
+- **0.3a** — KeyModel + Harmonic Function MVP;
+- **0.3b** — candidate-based Closed Voicing;
+- **0.3c** — resolution-aware function, applied dominant confirmation, modal-interchange candidate, exact realtime chord boundaries;
+- **0.3d** — TensionPolicy + Harmonic Candidate Pool + Clean/Color/Rich;
+- **0.3e** — Functional Tension Profiles + characteristic-tone protection;
+- **0.3f** — target-aware Color, no inferred future target, confirmed `V→minor` colour semantics;
+- **0.4** — stable Stage 4 checkpoint.
 
-Долгосрочно структура может развиваться к виду:
+Final Stage 4 contract:
 
 ```text
-Smart-Voicing/
-│
-├── src/
-│   ├── core/
-│   │   ├── harmony/
-│   │   ├── voicing/
-│   │   ├── voice_leading/
-│   │   └── instruments/
-│   │
-│   ├── context/
-│   │   ├── IHarmonicContextProvider.h
-│   │   ├── ARAContextProvider.cpp
-│   │   ├── MidiContextProvider.cpp
-│   │   └── ManualContextProvider.cpp
-│   │
-│   ├── plugin/
-│   │   ├── instrument/
-│   │   └── ara_bridge/
-│   │
-│   └── formats/
-│       ├── vst3/
-│       └── other/
-│
-├── tests/
-├── docs/
-└── third_party/
+Played Melody
+> Explicit Chord Track
+> Chord identity / characteristic tones
+> Key
+> Function + REAL next-chord target evidence
+> Functional Tension Profile
+> Tension Level / Tension Policy
+> Voicing Strategy
 ```
 
-JUCE может использоваться как platform / plug-in abstraction layer, но музыкальная логика по возможности должна оставаться независимой от JUCE.
+Stage 4 отвечает на вопрос: **какие pitch classes функционально оправданы в реально записанном harmonic turn?**
+
+### Stage 5 — Jazz Voicing Engine → 0.5
+
+- `VoicingStrategy` contract;
+- Closed as first/default type;
+- Drop 2 / Drop 3 / Drop 2+4 as Closed-family transformations;
+- Spread as independent bottom-up strategy;
+- architecture/test contract for Quartal / Cluster / UST;
+- Unison / Octave / simple doubling policies where useful.
+
+### Stage 6 — Voice Leading → 0.6
+
+- previous Voice state;
+- common-tone retention;
+- stepwise movement;
+- Voice identity;
+- crossing/leap penalties;
+- strategy-specific objectives;
+- register-aware scoring hooks.
+
+### Stage 7 — Instrument Profiles → 0.7
+
+- Brass Profile;
+- absolute/practical/comfortable ranges;
+- register zones;
+- balance/timbre scoring;
+- octave displacement.
+
+### Stage 8 — Presets / Performance Configurations → 0.8
+
+Unified Mode / Distribution / Voicing state and saved performance configs.
+
+### Stage 9 — Host Compatibility / Fallback → 0.9
+
+Capability-based providers and host-neutral fallback paths.
+
+### Stage 10 — Recording / Capture → 0.10
+
+Workflow for committing/generated voices into editable DAW MIDI.
+
+### Stage 11 — Stability / Panic / Final UI → 1.0
+
+Optimization, Panic, hardening, final UI, full regression.
+
+### Future arranger layers
+
+- Melodic Context Engine: approach/passing notes and Independent Lead;
+- expanded Instrument/Performance Profiles;
+- Riff Follow;
+- deeper DAW workflow integration.
 
 ---
 
-## 22. Roadmap
+## 19. Главный принцип архитектуры музыкального движка
 
-### Этап 0 — каркас проекта и базовая сборка
+Не создавать один гигантский `buildVoicing()` с сотнями исключений.
 
-- базовый JUCE / VST3 project;
-- Windows CI;
-- минимальный UI;
-- MIDI/audio pass-through;
-- структура репозитория;
-- базовая документация.
-
-Результат: `0.0a`.
-
-### Этап 1 — ARA Context Proof of Concept
-
-Цель:
-
-- ARA Document Controller;
-- capability detection;
-- Key / Chord / Tempo / Bar content;
-- live updates;
-- двухкомпонентная схема ARA reader + Instrument;
-- bridge между компонентами;
-- чтение реальных Chord / Key значений;
-- определение текущего контекста по позиции.
-
-Рабочие версии: `0.0b`, `0.0c`, далее при необходимости.  
-Готовая версия этапа: `0.1`.
-
-### Этап 2 — MIDI Router
-
-- MIDI input;
-- note tracking;
-- четыре output voices / channels;
-- корректные Note On / Note Off;
-- sustain handling;
-- real-time safety.
-
-### Этап 3 — Chord-aware harmonizer
-
-- single-note melody input;
-- current-chord interpretation;
-- chord-tone generation;
-- Close voicing.
-
-### Этап 4 — Key-aware engine
-
-- current key;
-- harmonic function;
-- secondary / chromatic dominants;
-- chord-vs-key priority.
-
-### Этап 5 — Jazz voicing
-
-- Drop 2;
-- Guide Tones;
-- root omission;
-- tensions;
-- basic context-aware rules.
-
-### Этап 6 — Voice leading
-
-- previous-voice state;
-- minimal-movement search;
-- range constraints;
-- voice-crossing penalties.
-
-### Этап 7 — Instrument profiles и presets
-
-- editable ranges;
-- instrument profiles;
-- custom routing / voicing presets.
-
----
-
-## 23. Что пока не нужно строить
-
-Не расширять scope раньше времени следующими функциями:
-
-- standalone application;
-- сложный визуальный routing;
-- огромные preset libraries;
-- articulation management;
-- expression automation;
-- vibrato automation;
-- humanization systems;
-- orchestral templates;
-- networking;
-- multi-port infrastructure;
-- heavy graphics.
-
-Ближайшая задача остаётся узкой:
-
-> Надёжно получить реальный Chord / Key context из DAW через ARA, синхронизировать его с основным Instrument и подготовить нейтральный Harmonic Context для MIDI engine.
-
----
-
-## 24. Философия разработки
-
-Smart Voicing не должен пытаться автоматически создать полностью законченную аранжировку.
-
-Его задача — быстро создавать музыкально полезный и редактируемый skeleton.
-
-Целевой процесс после генерации:
+Разделять принятие решений:
 
 ```text
-1. DAW Chord / Key context
-2. Melody or chord input
-3. Smart Voicing generation
-4. Separate MIDI voices
-5. Manual note editing
-6. Articulations
-7. Expression / vibrato
-8. Final orchestration
+Harmonic Context
+      ↓
+Harmonic Function
+      ↓
+Melodic Role / Tension Policy
+      ↓
+Harmonic Candidate Pool
+      ↓
+Voicing Strategy
+      ↓
+Voice Leading
+      ↓
+Instrument / Ensemble Profile
+      ↓
+Performance / Routing Layer
 ```
 
-Финальное музыкальное решение остаётся за музыкантом.
+Каждый слой должен:
+
+- быть тестируемым;
+- иметь понятный контракт;
+- не переписывать более авторитетные данные предыдущего слоя;
+- быть host-neutral там, где это возможно;
+- не требовать mutex/file I/O/allocation в realtime path;
+- допускать новые musical strategies без дублирования Harmony Core.
 
 ---
 
-## 25. Ближайшая задача
+## 20. Итоговая формулировка Smart Voicing
 
-После подтверждения bridge и live update Chord Track следующий шаг:
+Smart Voicing — **rule-based arranger engine**, в котором Chord, Key, Function, Melody, Tensions, Voicing Strategy, Voice Leading и Instrument Profile являются отдельными слоями музыкального решения.
 
-> **Прочитать реальные значения `Sheet Chords` и `Key Signatures`, сохранить их вместе с позициями на таймлайне, передать через shared context и отображать текущие Chord / Key в основном Smart Voicing.**
+Итоговая цепочка:
 
-Дополнительно нужно отдельно подтвердить live update Key Track.
+```text
+DAW Harmonic Context
+        +
+Played Material
+        ↓
+Musical Interpretation
+        ↓
+Harmonic Candidate Pool
+        ↓
+Voicing Strategy
+        ↓
+Voice Leading
+        ↓
+Instrument / Ensemble Adaptation
+        ↓
+4 editable musical parts
+```
 
-Полноценный voicing engine начинается только после завершения этой основы.
+Это и есть долгосрочная цель проекта: не заменить аранжировщика, а резко ускорить создание музыкально осмысленного четырёхголосного материала, который аранжировщик затем развивает вручную.

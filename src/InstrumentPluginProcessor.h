@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "ARAContextProvider.h"
 #include "LiveReharmonizer.h"
+#include "TensionPolicy.h"
 
 #include <array>
 #include <atomic>
@@ -50,6 +51,7 @@ public:
         MidiProbeEventType lastEventType = MidiProbeEventType::none;
         DistributionMode distributionMode = DistributionMode::topDown;
         HarmonyMode harmonyMode = HarmonyMode::directRouter;
+        smartvoicing::harmony::TensionLevel tensionLevel = smartvoicing::harmony::TensionLevel::clean;
         int lastChannel = 0;
         int lastData1 = 0;
         int lastData2 = 0;
@@ -99,6 +101,9 @@ public:
 
     void setHarmonyMode(HarmonyMode mode) noexcept;
     HarmonyMode getHarmonyMode() const noexcept;
+
+    void setTensionLevel(smartvoicing::harmony::TensionLevel level) noexcept;
+    smartvoicing::harmony::TensionLevel getTensionLevel() const noexcept;
 
 private:
     static constexpr int midiNoteCount = 128;
@@ -168,6 +173,7 @@ private:
     std::atomic<bool> stableOwnershipForUi { false };
     std::atomic<int> requestedDistributionMode { static_cast<int>(DistributionMode::topDown) };
     std::atomic<int> requestedHarmonyMode { static_cast<int>(HarmonyMode::directRouter) };
+    std::atomic<int> requestedTensionLevel { static_cast<int>(smartvoicing::harmony::TensionLevel::clean) };
     std::array<std::atomic<int>, voiceCount> voiceNotesForUi;
     std::array<std::atomic<int>, voiceCount> voiceStackDepthsForUi;
 
@@ -191,6 +197,7 @@ private:
     bool pendingChordFrame = false;
     DistributionMode activeDistributionMode = DistributionMode::topDown;
     HarmonyMode activeHarmonyMode = HarmonyMode::directRouter;
+    smartvoicing::harmony::TensionLevel activeTensionLevel = smartvoicing::harmony::TensionLevel::clean;
     smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
     smartvoicing::harmony::MelodyGateState melodyGate;
 

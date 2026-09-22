@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.3.0
+    VERSION 0.4.0
     DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
 
@@ -64,6 +64,12 @@ target_sources(SmartVoicing
         src/HarmonicContext.h
         src/ChordModel.cpp
         src/ChordModel.h
+        src/KeyModel.cpp
+        src/KeyModel.h
+        src/HarmonicFunction.cpp
+        src/HarmonicFunction.h
+        src/TensionPolicy.cpp
+        src/TensionPolicy.h
         src/CloseVoicingHarmonizer.cpp
         src/CloseVoicingHarmonizer.h
         src/LiveReharmonizer.cpp
@@ -149,6 +155,12 @@ add_executable(SmartVoicingHarmonizerTests
     tests/CloseVoicingHarmonizerTests.cpp
     src/ChordModel.cpp
     src/ChordModel.h
+    src/KeyModel.cpp
+    src/KeyModel.h
+    src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/TensionPolicy.cpp
+    src/TensionPolicy.h
     src/CloseVoicingHarmonizer.cpp
     src/CloseVoicingHarmonizer.h
     src/HarmonicContext.h
@@ -161,6 +173,12 @@ add_executable(SmartVoicingLiveReharmonizerTests
     tests/LiveReharmonizerTests.cpp
     src/ChordModel.cpp
     src/ChordModel.h
+    src/KeyModel.cpp
+    src/KeyModel.h
+    src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/TensionPolicy.cpp
+    src/TensionPolicy.h
     src/CloseVoicingHarmonizer.cpp
     src/CloseVoicingHarmonizer.h
     src/LiveReharmonizer.cpp
@@ -171,12 +189,46 @@ add_executable(SmartVoicingLiveReharmonizerTests
 target_include_directories(SmartVoicingLiveReharmonizerTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(SmartVoicingLiveReharmonizerTests PRIVATE cxx_std_20)
 
+add_executable(SmartVoicingKeyAwareTests
+    tests/KeyAwareTests.cpp
+    src/ChordModel.cpp
+    src/ChordModel.h
+    src/KeyModel.cpp
+    src/KeyModel.h
+    src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/HarmonicContext.h
+)
+
+target_include_directories(SmartVoicingKeyAwareTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingKeyAwareTests PRIVATE cxx_std_20)
+
+add_executable(SmartVoicingTensionPolicyTests
+    tests/TensionPolicyTests.cpp
+    src/ChordModel.cpp
+    src/ChordModel.h
+    src/KeyModel.cpp
+    src/KeyModel.h
+    src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/TensionPolicy.cpp
+    src/TensionPolicy.h
+    src/HarmonicContext.h
+)
+
+target_include_directories(SmartVoicingTensionPolicyTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingTensionPolicyTests PRIVATE cxx_std_20)
+
 if(MSVC)
     target_compile_options(SmartVoicingCoreTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingHarmonizerTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingLiveReharmonizerTests PRIVATE /utf-8)
+    target_compile_options(SmartVoicingKeyAwareTests PRIVATE /utf-8)
+    target_compile_options(SmartVoicingTensionPolicyTests PRIVATE /utf-8)
 endif()
 
 add_test(NAME SmartVoicingCoreTests COMMAND SmartVoicingCoreTests)
 add_test(NAME SmartVoicingHarmonizerTests COMMAND SmartVoicingHarmonizerTests)
 add_test(NAME SmartVoicingLiveReharmonizerTests COMMAND SmartVoicingLiveReharmonizerTests)
+add_test(NAME SmartVoicingKeyAwareTests COMMAND SmartVoicingKeyAwareTests)
+add_test(NAME SmartVoicingTensionPolicyTests COMMAND SmartVoicingTensionPolicyTests)
