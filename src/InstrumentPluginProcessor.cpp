@@ -305,7 +305,24 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
     std::array<ScheduledChordBoundary, maxChordBoundariesPerBlock> boundaries {};
     int boundaryCount = 0;
 
-    if (activeMelodyInputNote >= 0)
+    bool melodyEventAtBlockStart = false;
+    for (const auto metadata : midiMessages)
+    {
+        if (metadata.samplePosition > 0)
+            break;
+
+        if (! isNoteMessage(metadata) || metadata.data == nullptr || metadata.numBytes < 2)
+            continue;
+
+        const auto note = static_cast<int>(metadata.data[1]);
+        if (! smartvoicing::harmony::isTensionLevelKeyswitch(note))
+        {
+            melodyEventAtBlockStart = true;
+            break;
+        }
+    }
+
+    if (activeMelodyInputNote >= 0 && ! melodyEventAtBlockStart)
         refreshMelodyHarmonyAtPpq(currentBlockStartPpq, 0);
 
     if (currentBlockStartPpq >= 0.0 && blockSamples > 0)
@@ -338,9 +355,78 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
         }
     };
 
+    int groupedSample = -1;
+    int pendingNoteOn = -1;
+    int pendingVelocity = 0;
+    bool pendingTensionRefresh = false;
+    std::array<bool, midiNoteCount> pendingNoteOffs {};
+
+    const auto resetMelodyGroup = [&]
+    {
+        pendingNoteOn = -1;
+        pendingVelocity = 0;
+        pendingTensionRefresh = false;
+        pendingNoteOffs.fill(false);
+    };
+
+    const auto flushMelodyGroup = [this,
+                                   &groupedSample,
+                                   &pendingNoteOn,
+                                   &pendingVelocity,
+                                   &pendingTensionRefresh,
+                                   &pendingNoteOffs,
+                                   &resetMelodyGroup]
+    {
+        if (groupedSample < 0)
+            return;
+
+        const auto previouslyActiveNote = activeMelodyInputNote;
+
+        // Note On wins inside one sample group. This makes adjacent quantized
+        // notes deterministic regardless of whether the host orders Note Off
+        // before or after Note On at exactly the same timestamp.
+        if (pendingNoteOn >= 0)
+        {
+            startMelodyVoicing(pendingNoteOn, pendingVelocity, groupedSample);
+        }
+        else if (previouslyActiveNote >= 0
+                 && pendingNoteOffs[static_cast<std::size_t>(previouslyActiveNote)])
+        {
+            const auto decision = melodyGate.endNote(previouslyActiveNote);
+            heldDistinctNoteCount = melodyGate.keyDown() ? 1 : 0;
+            heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
+
+            if (decision.releaseVoicing)
+                stopMelodyVoicing(groupedSample);
+        }
+
+        // A keyswitch at the same timestamp is folded into the same musical
+        // decision. If a new melody note was started above, it already used the
+        // new Tension Level, so a second intermediate reharmonization is avoided.
+        if (pendingTensionRefresh && pendingNoteOn < 0)
+        {
+            if (activeMelodyInputNote >= 0)
+                refreshMelodyHarmonyAtPpq(ppqForSamplePosition(groupedSample), groupedSample);
+            else
+                midiRevision.fetch_add(1, std::memory_order_release);
+        }
+
+        resetMelodyGroup();
+    };
+
     for (const auto metadata : midiMessages)
     {
-        applyBoundariesBefore(metadata.samplePosition);
+        if (groupedSample >= 0 && metadata.samplePosition != groupedSample)
+        {
+            flushMelodyGroup();
+            applyBoundariesBefore(metadata.samplePosition);
+            groupedSample = metadata.samplePosition;
+        }
+        else if (groupedSample < 0)
+        {
+            applyBoundariesBefore(metadata.samplePosition);
+            groupedSample = metadata.samplePosition;
+        }
 
         recordMidiInputEventForProbe(metadata);
 
@@ -362,12 +448,7 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
                     {
                         activeTensionLevel = level;
                         requestedTensionLevel.store(static_cast<int>(level), std::memory_order_release);
-
-                        if (activeMelodyInputNote >= 0)
-                            refreshMelodyHarmonyAtPpq(ppqForSamplePosition(metadata.samplePosition),
-                                                     metadata.samplePosition);
-                        else
-                            midiRevision.fetch_add(1, std::memory_order_release);
+                        pendingTensionRefresh = true;
                     }
                 }
 
@@ -378,16 +459,15 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
 
             if (isNoteOn)
             {
-                startMelodyVoicing(note, velocity, metadata.samplePosition);
+                // Melody Harmonize is monophonic by contract. If a host happens
+                // to place more than one Note On on one sample, the last event
+                // is the same winner that the old sequential implementation used.
+                pendingNoteOn = note;
+                pendingVelocity = velocity;
             }
-            else if (isNoteOff && note == activeMelodyInputNote)
+            else if (isNoteOff && note >= 0 && note < midiNoteCount)
             {
-                const auto decision = melodyGate.endNote(note);
-                heldDistinctNoteCount = melodyGate.keyDown() ? 1 : 0;
-                heldNoteCountForUi.store(heldDistinctNoteCount, std::memory_order_relaxed);
-
-                if (decision.releaseVoicing)
-                    stopMelodyVoicing(metadata.samplePosition);
+                pendingNoteOffs[static_cast<std::size_t>(note)] = true;
             }
 
             continue;
@@ -400,7 +480,7 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             sustainDown = newSustainState;
             sustainDownForUi.store(sustainDown, std::memory_order_relaxed);
 
-            if (decision.releaseVoicing)
+            if (decision.releaseVoicing && pendingNoteOn < 0)
                 stopMelodyVoicing(metadata.samplePosition);
 
             routeNonNoteEvent(metadata);
@@ -411,10 +491,13 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
 
         if (shouldClearHeldNotes(metadata))
         {
+            resetMelodyGroup();
             stopMelodyVoicing(metadata.samplePosition);
             clearHeldNotes();
         }
     }
+
+    flushMelodyGroup();
 
     while (nextBoundary < boundaryCount)
     {
@@ -431,8 +514,8 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     if (melodyNote < 0 || melodyNote >= midiNoteCount)
         return;
 
-    stopMelodyVoicing(samplePosition);
-    melodyGate.beginNote(melodyNote);
+    const auto hadActiveVoicing = activeMelodyInputNote >= 0
+                               && activeMelodyVoicing.voices[0].active;
 
     const auto ppq = ppqForSamplePosition(samplePosition);
     const auto context = ppq >= 0.0
@@ -445,15 +528,48 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
         melodyNote, activeVoicingType, voicingContext);
     const auto routedVelocity = juce::jlimit(1, 127, velocity);
 
-    for (int voice = 0; voice < voiceCount; ++voice)
-    {
-        const auto& slot = voicing.voices[static_cast<std::size_t>(voice)];
-        if (! slot.active || slot.midiNote < 0 || slot.midiNote >= midiNoteCount)
-            continue;
+    melodyGate.beginNote(melodyNote);
 
-        heldNoteVelocities[static_cast<std::size_t>(slot.midiNote)] =
-            static_cast<std::uint8_t>(routedVelocity);
-        pushNoteToVoice(voice, slot.midiNote, samplePosition);
+    if (hadActiveVoicing)
+    {
+        // 0.4a fix: do not tear down the whole quartet at every melody seam.
+        // Rearticulate V1, replace only actually changed generated voices, and
+        // leave common V2..V4 tones continuously sounding.
+        const auto plan = smartvoicing::harmony::planVoicingTransition(
+            activeMelodyVoicing, voicing, true);
+
+        for (int voice = 0; voice < voiceCount; ++voice)
+        {
+            const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+            if (transition.noteOff)
+                clearVoiceStack(voice, samplePosition);
+        }
+
+        for (int voice = 0; voice < voiceCount; ++voice)
+        {
+            const auto& transition = plan.voices[static_cast<std::size_t>(voice)];
+            if (! transition.noteOn
+                || transition.newNote < 0
+                || transition.newNote >= midiNoteCount)
+                continue;
+
+            heldNoteVelocities[static_cast<std::size_t>(transition.newNote)] =
+                static_cast<std::uint8_t>(routedVelocity);
+            pushNoteToVoice(voice, transition.newNote, samplePosition);
+        }
+    }
+    else
+    {
+        for (int voice = 0; voice < voiceCount; ++voice)
+        {
+            const auto& slot = voicing.voices[static_cast<std::size_t>(voice)];
+            if (! slot.active || slot.midiNote < 0 || slot.midiNote >= midiNoteCount)
+                continue;
+
+            heldNoteVelocities[static_cast<std::size_t>(slot.midiNote)] =
+                static_cast<std::uint8_t>(routedVelocity);
+            pushNoteToVoice(voice, slot.midiNote, samplePosition);
+        }
     }
 
     activeMelodyInputNote = melodyNote;
