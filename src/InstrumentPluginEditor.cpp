@@ -47,7 +47,7 @@ juce::String channelsText(std::uint32_t mask)
 
 juce::String counterText(std::uint32_t value)
 {
-    return juce::String(static_cast<juce::int64>(value));
+    return juce::String(static_cast<juce::int64_t>(value));
 }
 
 juce::String noteText(int note)
@@ -130,7 +130,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4a - Stage 5 Foundation",
+    titleLabel.setText("Smart Voicing 0.4b - Drop 2",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -176,13 +176,14 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     addAndMakeVisible(voicingTypeLabel);
 
     voicingTypeBox.addItem("Closed", static_cast<int>(smartvoicing::harmony::VoicingType::closed) + 1);
+    voicingTypeBox.addItem("Drop 2", static_cast<int>(smartvoicing::harmony::VoicingType::drop2) + 1);
     voicingTypeBox.setSelectedId(static_cast<int>(processor.getVoicingType()) + 1,
                                  juce::dontSendNotification);
     voicingTypeBox.onChange = [this]
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+            static_cast<int>(smartvoicing::harmony::VoicingType::drop2),
             voicingTypeBox.getSelectedId() - 1);
         processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
         refreshContextMonitor();
@@ -235,7 +236,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(diagnosticsButton);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.4a | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.4b | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -529,7 +530,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.4a: VoicingStrategy foundation on stable Stage 4 harmonic semantics\n";
+    debugText << "Stage 5 / 0.4b: Drop 2 transforms selected Closed material; Stage 4 semantics unchanged\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -619,6 +620,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << smartvoicing::harmony::kColorTensionKeyswitchNote << "=Color, "
               << smartvoicing::harmony::kRichTensionKeyswitchNote << "=Rich; note-on/off swallowed\n";
     debugText << "Closed policy: guide + characteristic tones, contextual omissions, soft Upper Voice Spacing\n";
+    debugText << "Drop 2 policy: same Closed pitch classes; second voice from top lowered one octave; slash bass falls back to Closed\n";
     debugText << "Tension levels: Clean=structural | Color=target-aware inside colour | Rich=functionally intensified tension\n";
     debugText << "Tension policy: Explicit authoritative; Avoid/Unavailable excluded from generated V2-V4\n";
     debugText << "Resolution policy: ONLY actual next Chord root+quality drives target-aware dominant profile\n";
