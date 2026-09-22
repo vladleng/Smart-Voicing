@@ -1,23 +1,24 @@
 # Smart Voicing 0.3f — Target-aware Color
 
-Статус: **IN DEVELOPMENT**.
+Статус: **ACCEPTED / CLOSED — 2026-09-22**.
 
-Цель: довести `Functional Tension Profile` после Studio Pro тестов 0.3e так, чтобы `Color` и `Rich` опирались на **реальный следующий Chord Track event**, а не на предполагаемое разрешение.
+0.3f завершает музыкальную корректировку Stage 4 перед стабильным checkpoint 0.4.
 
-## 1. Главное правило 0.3f
+## 1. Финальный контракт
 
 ```text
 No next chord
 → no assumed resolution target
+→ Dominant / unresolved
 
-Real next chord
+Real next chord on expected target root
+→ confirmed target root + target quality
 → target-aware Functional Tension Profile
-→ appropriate Color / Rich vocabulary
 ```
 
-Smart Voicing не должен додумывать будущий аккорд. Если аранжировщику нужен target-aware dominant colour, target должен присутствовать в Chord Track.
+Smart Voicing интерпретирует реальную progression из Chord Track и не додумывает будущий target.
 
-## 2. Семантика уровней
+## 2. Tension Level — принятая семантика
 
 ```text
 Clean
@@ -30,58 +31,9 @@ Rich
 → functionally intensified tension / altered colour
 ```
 
-Знак `b/#` не определяет уровень автоматически. Например `b13` на `V -> minor` может быть естественной Color-краской, а natural 13 при confirmed minor target может быть менее уместна.
+Знак `b/#` сам по себе не определяет уровень. Для `V -> minor` `b13` может быть нормальной Color-краской, тогда как `b9/#9/#11` чаще относятся к более напряжённому Rich vocabulary.
 
-## 3. Minor-target dominant contract
-
-Для confirmed:
-
-```text
-A7 -> Dm
-E7 -> Am
-```
-
-0.3f policy:
-
-```text
-b13
-→ Preferred / Color candidate
-→ functionallyDirected
-
-b9
-→ Contextual / Rich candidate
-→ functionallyDirected
-
-#9 / #11
-→ Contextual / Rich candidates
-
-natural 13
-→ не inferred Color при confirmed minor target
-```
-
-Explicit `A13 / E13` остаётся authoritative и не переписывается inference.
-
-Natural 9 может оставаться restrained Color candidate только когда его поддерживает текущий tonal context.
-
-## 4. Unresolved dominant contract
-
-Пример:
-
-```text
-A7
-```
-
-без следующего Dm:
-
-```text
-Functional Profile = Dominant / unresolved
-```
-
-Движок не должен выводить `Dm` из Key/Function как будто это реальный target.
-
-Generic natural 9/13 могут оставаться conservative unresolved Color vocabulary; altered candidates не получают directed reward.
-
-## 5. Host-neutral regressions
+## 3. Host-neutral regression — PASS
 
 - [x] `G7` без next chord = `Dominant / unresolved`;
 - [x] no target -> `resolutionConfirmed = false`;
@@ -89,39 +41,54 @@ Generic natural 9/13 могут оставаться conservative unresolved Col
 - [x] `A7 -> Dm` = confirmed `Dominant -> minor target`;
 - [x] `A7 -> Dm`: b13 доступна Color;
 - [x] `A7 -> Dm`: natural 13 не inferred Color;
-- [x] `A7 -> Dm`: b9 Rich-only;
-- [x] `E7 -> Am`: тот же target-aware contract;
-- [ ] existing 0.3a–0.3e regressions green в Windows CI.
+- [x] `A7 -> Dm`: b9 доступна Rich, не Color;
+- [x] `E7 -> Am` следует тому же target-aware contract;
+- [x] `Bm7b5` сохраняет characteristic b5;
+- [x] explicit chord material остаётся authoritative;
+- [x] regressions 0.3a–0.3e прошли Windows CI.
 
-## 6. Studio Pro acceptance
+## 4. CI — PASS
 
-### A. Major II–V–I
+**Windows Build #302**  
+Run: `35682905650`  
+HEAD: `40922a936e725c297009cb38620a0cd098c0aad7`  
+Result: **success**.
+
+Подтверждено:
+- обе VST3 собираются;
+- Harmony Core tests проходят;
+- package/artifact 0.3f создаётся;
+- host-neutral Tension Policy / Closed / Key-aware regressions green.
+
+## 5. Studio Pro musical acceptance — PASS
+
+Пользователь подтвердил завершение этапа после сравнения Clean / Color / Rich на нескольких гармонических примерах.
+
+### Major II–V–I
 
 ```text
-Dm7 | G7 | Cmaj7
+Dm7 | G7 | Cmaj7 | Am7
 ```
 
-Ожидание:
-- Clean structural;
-- Color inside natural colour;
-- Rich более напряжённая dominant окраска при confirmed target.
+Результат:
+- Clean сохраняет structural harmony;
+- Color использует natural inside colour;
+- Rich усиливает dominant tension при реальном target, не альтерируя всё подряд.
 
-### B. Minor II–V–I
+### Minor II–V–I
 
 ```text
-Bm7b5 | E7 | Am
+Bm7b5 | E7 | Am7
 ```
 
-Ожидание:
-- Bm7b5 сохраняет b5;
-- Color не использует natural 13 как generic Mixolydian default;
-- Color может использовать b13 как natural minor-target colour;
-- Rich может предпочесть b9/#9/#11 или другой более напряжённый directed colour;
-- explicit chord material остаётся authoritative.
+Результат:
+- `Bm7b5` сохраняет `F = b5`;
+- Color не использует generic natural 13 как Mixolydian default;
+- Rich получает minor-target altered vocabulary.
 
-### C. No target vs real target
+### No target vs real target
 
-Сравнить:
+Сравнивались:
 
 ```text
 A7
@@ -130,65 +97,72 @@ A7
 и
 
 ```text
-A7 | Dm
+A7 | Dm7
 ```
 
-Ожидание:
-- первый случай unresolved, без target guess;
-- второй случай target-aware minor dominant;
-- различие является намеренным и зависит от реально записанной progression.
+Подтверждено:
 
-### D. Пользовательский regression
+```text
+A7 without target
+Clean → structural A7
+Color → conservative unresolved dominant colour (например 13)
+Rich  → не делает вид, что знает Dm target
+
+A7 -> Dm7
+Clean → structural A7
+Color → target-aware b13 colour
+Rich  → более напряжённые directed colours: b9 / b5(#11) и т. п. в зависимости от melody/vertical context
+```
+
+Это считается ключевым acceptance result 0.3f.
+
+### User regression progression
 
 ```text
 Dm7 | Db7b13 | Cm7 | B7#11 | Bbmaj7 | A7 | Dm7
 ```
 
-Особенно проверить A7 перед Dm на Color/Rich.
+Подтверждено:
+- explicit `Db7b13` и `B7#11` сохраняют заданный harmonic material;
+- A7 меняет inferred Color/Rich vocabulary только при наличии реального Dm target;
+- melody остаётся authoritative V1.
 
-### E. Explicit dominant colours
-
-```text
-E7b9
-E7#5
-E7b5
-E13
-```
-
-Explicit symbol выше Functional Profile/Tension Level.
-
-### F. Regression UI/state/live
-
-- [ ] Clean -> Color -> Rich -> Clean на held melody;
-- [ ] нет transient/stuck notes;
-- [ ] save/reopen сохраняет level;
-- [ ] Key Track change не ломает context;
-- [ ] Direct Router regression.
-
-## 7. Не входит в 0.3f
+## 6. Что намеренно НЕ входит
 
 - inferred future target;
-- previous-state Voice Leading;
-- Melodic Context Engine;
-- новые VoicingStrategy.
+- полноценный previous-state Voice Leading;
+- Melodic Context / approach-note classification;
+- новые VoicingStrategy beyond Closed.
+
+Эти функции не являются блокерами Stage 4.
+
+## 7. Важная граница
+
+Stage 4 отвечает:
+
+> Какие pitch classes музыкально оправданы в реально записанном harmonic turn?
+
+Stage 5 отвечает:
+
+> Как организовать этот правильный harmonic material в разные voicing shapes?
+
+Stage 6 отвечает:
+
+> Как выбрать последовательность voicings с minimum musically necessary motion?
 
 ## 8. Exit
 
-0.3f принимается после:
+- [x] Windows CI green;
+- [x] major II–V–I musical acceptance;
+- [x] minor II–V–I musical acceptance;
+- [x] A7 no-target vs A7->Dm соответствует contract;
+- [x] explicit alterations regression;
+- [x] пользователь объявил Stage 4 завершённым;
+- [x] 0.3f accepted и переводится в stable 0.4 checkpoint.
 
-1. [ ] final Windows CI green;
-2. [ ] Studio Pro major II–V–I pass;
-3. [ ] Studio Pro minor II–V–I pass;
-4. [ ] A7 no-target vs A7->Dm соответствует contract;
-5. [ ] explicit alterations pass;
-6. [ ] state/live regressions pass;
-7. [ ] Issues #8/#25/#28/#29 + PR #22 + docs synchronized.
-
-После acceptance:
+Следующий checkpoint:
 
 ```text
-0.3f ACCEPTED
-→ Smart Voicing 0.4 stable Stage 4 checkpoint
-→ PR #22 ready / merge
-→ Stage 5 / 0.4a
+Smart Voicing 0.4
+= Stable Stage 4 — Key-aware Engine + Functional Tensions
 ```
