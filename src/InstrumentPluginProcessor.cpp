@@ -1,7 +1,8 @@
 #include "InstrumentPluginProcessor.h"
 #include "InstrumentPluginEditor.h"
 #include "ChordModel.h"
-#include "CloseVoicingHarmonizer.h"
+#include "VoicingStrategy.h"
+#include "TensionKeyswitch.h"
 #include "LiveReharmonizer.h"
 
 #include <algorithm>
@@ -24,7 +25,7 @@ constexpr int midiOutputReserveBytes = 32768;
 constexpr double chordGestureWindowSeconds = 0.045;
 constexpr int maxChordBoundariesPerBlock = 16;
 constexpr int stateMagic = 0x53564D32; // "SVM2"
-constexpr int stateVersion = 4;
+constexpr int stateVersion = 5;
 
 bool isNoteMessage(const juce::MidiMessageMetadata& metadata) noexcept
 {
@@ -60,19 +61,22 @@ std::uint8_t voiceBit(int voice) noexcept
     return static_cast<std::uint8_t>(1u << static_cast<unsigned int>(voice));
 }
 
-smartvoicing::harmony::ClosedVoicingContext buildClosedVoicingContext(
+smartvoicing::harmony::VoicingContext buildVoicingContext(
     smartvoicing::harmony::IHarmonicContextProvider& provider,
     const smartvoicing::harmony::HarmonicContext& currentContext,
     const smartvoicing::harmony::NormalizedChord& chord,
-    double requestedPpq) noexcept
+    double requestedPpq,
+    int melodyNote) noexcept
 {
-    smartvoicing::harmony::ClosedVoicingContext result;
+    smartvoicing::harmony::VoicingContext result;
+    result.chord = chord;
     result.key = smartvoicing::harmony::normalizeKey(currentContext.key);
 
     auto analysisPpq = requestedPpq;
     if (analysisPpq < 0.0 && currentContext.positionAvailable)
         analysisPpq = currentContext.ppq;
 
+    bool analyzedWithNextChord = false;
     if (analysisPpq >= 0.0)
     {
         const auto nextPpq = provider.nextChordStartAfter(analysisPpq);
@@ -84,12 +88,16 @@ smartvoicing::harmony::ClosedVoicingContext buildClosedVoicingContext(
             {
                 result.harmonic = smartvoicing::harmony::analyzeHarmonicFunction(
                     chord, result.key, nextChord);
-                return result;
+                analyzedWithNextChord = true;
             }
         }
     }
 
-    result.harmonic = smartvoicing::harmony::analyzeHarmonicFunction(chord, result.key);
+    if (! analyzedWithNextChord)
+        result.harmonic = smartvoicing::harmony::analyzeHarmonicFunction(chord, result.key);
+
+    result.tension = smartvoicing::harmony::buildTensionPolicy(
+        chord, result.key, result.harmonic, melodyNote);
     return result;
 }
 }
@@ -184,6 +192,12 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
         clearHeldNotes();
         activeHarmonyMode = requestedHarmony;
     }
+
+    const auto requestedVoicingValue = juce::jlimit(
+        static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+        static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+        requestedVoicingType.load(std::memory_order_relaxed));
+    activeVoicingType = static_cast<smartvoicing::harmony::VoicingType>(requestedVoicingValue);
 
     const auto requestedTensionValue = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::TensionLevel::clean),
@@ -339,6 +353,29 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             const auto isNoteOn = type == noteOnStatus && velocity > 0;
             const auto isNoteOff = type == noteOffStatus || (type == noteOnStatus && velocity == 0);
 
+            if (smartvoicing::harmony::isTensionLevelKeyswitch(note))
+            {
+                if (isNoteOn)
+                {
+                    auto level = activeTensionLevel;
+                    if (smartvoicing::harmony::tensionLevelFromKeyswitch(note, level))
+                    {
+                        activeTensionLevel = level;
+                        requestedTensionLevel.store(static_cast<int>(level), std::memory_order_release);
+
+                        if (activeMelodyInputNote >= 0)
+                            refreshMelodyHarmonyAtPpq(ppqForSamplePosition(metadata.samplePosition),
+                                                     metadata.samplePosition);
+                        else
+                            midiRevision.fetch_add(1, std::memory_order_release);
+                    }
+                }
+
+                // Both note-on and note-off are reserved performance controls.
+                // They are intentionally swallowed and never reach downstream instruments.
+                continue;
+            }
+
             if (isNoteOn)
             {
                 startMelodyVoicing(note, velocity, metadata.samplePosition);
@@ -402,9 +439,10 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
     const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
-    auto voicingContext = buildClosedVoicingContext(harmonicContextProvider, context, chord, ppq);
+    auto voicingContext = buildVoicingContext(harmonicContextProvider, context, chord, ppq, melodyNote);
     voicingContext.tensionLevel = activeTensionLevel;
-    const auto voicing = smartvoicing::harmony::buildClosedVoicing(melodyNote, chord, voicingContext);
+    const auto voicing = smartvoicing::harmony::buildVoicing(
+        melodyNote, activeVoicingType, voicingContext);
     const auto routedVelocity = juce::jlimit(1, 127, velocity);
 
     for (int voice = 0; voice < voiceCount; ++voice)
@@ -438,10 +476,11 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
     const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
-    auto voicingContext = buildClosedVoicingContext(harmonicContextProvider, context, chord, ppq);
+    auto voicingContext = buildVoicingContext(
+        harmonicContextProvider, context, chord, ppq, activeMelodyInputNote);
     voicingContext.tensionLevel = activeTensionLevel;
-    const auto desired = smartvoicing::harmony::buildClosedVoicing(
-        activeMelodyInputNote, chord, voicingContext);
+    const auto desired = smartvoicing::harmony::buildVoicing(
+        activeMelodyInputNote, activeVoicingType, voicingContext);
     const auto plan = smartvoicing::harmony::planLowerVoiceReharmonization(activeMelodyVoicing, desired);
 
     if (! plan.lowerVoicesChanged)
@@ -1278,6 +1317,7 @@ SmartVoicingInstrumentProcessor::MidiProbeSnapshot SmartVoicingInstrumentProcess
     snapshot.stableOwnership = stableOwnershipForUi.load(std::memory_order_relaxed);
     snapshot.distributionMode = getDistributionMode();
     snapshot.harmonyMode = getHarmonyMode();
+    snapshot.voicingType = getVoicingType();
     snapshot.tensionLevel = getTensionLevel();
 
     for (std::size_t i = 0; i < snapshot.voiceNotes.size(); ++i)
@@ -1332,6 +1372,24 @@ SmartVoicingInstrumentProcessor::HarmonyMode SmartVoicingInstrumentProcessor::ge
     return static_cast<HarmonyMode>(value);
 }
 
+void SmartVoicingInstrumentProcessor::setVoicingType(smartvoicing::harmony::VoicingType type) noexcept
+{
+    const auto value = juce::jlimit(
+        static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+        static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+        static_cast<int>(type));
+    requestedVoicingType.store(value, std::memory_order_release);
+}
+
+smartvoicing::harmony::VoicingType SmartVoicingInstrumentProcessor::getVoicingType() const noexcept
+{
+    const auto value = juce::jlimit(
+        static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+        static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+        requestedVoicingType.load(std::memory_order_acquire));
+    return static_cast<smartvoicing::harmony::VoicingType>(value);
+}
+
 void SmartVoicingInstrumentProcessor::setTensionLevel(smartvoicing::harmony::TensionLevel level) noexcept
 {
     const auto value = juce::jlimit(
@@ -1355,6 +1413,7 @@ void SmartVoicingInstrumentProcessor::resetRouterState() noexcept
     clearHeldNotes();
     activeDistributionMode = getDistributionMode();
     activeHarmonyMode = getHarmonyMode();
+    activeVoicingType = getVoicingType();
     activeTensionLevel = getTensionLevel();
 }
 
@@ -1371,6 +1430,7 @@ void SmartVoicingInstrumentProcessor::getStateInformation(juce::MemoryBlock& des
     stream.writeInt(static_cast<int>(getDistributionMode()));
     stream.writeInt(static_cast<int>(getHarmonyMode()));
     stream.writeInt(static_cast<int>(getTensionLevel()));
+    stream.writeInt(static_cast<int>(getVoicingType()));
 }
 
 void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int sizeInBytes)
@@ -1404,6 +1464,20 @@ void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int 
     else
     {
         setTensionLevel(smartvoicing::harmony::TensionLevel::clean);
+    }
+
+    if (version >= 5 && sizeInBytes >= 24)
+    {
+        const auto value = juce::jlimit(
+            static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+            static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+            stream.readInt());
+        setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
+    }
+    else
+    {
+        // 0.4 and earlier had no Voicing Type field; their behaviour maps to Closed.
+        setVoicingType(smartvoicing::harmony::VoicingType::closed);
     }
 }
 
