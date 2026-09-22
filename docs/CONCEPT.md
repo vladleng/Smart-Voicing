@@ -3,9 +3,9 @@
 **Project:** Smart Voicing  
 **Vendor:** Moon River Studio  
 **Status:** Active Development  
-**Stable checkpoint:** 0.3  
-**Current stage:** Stage 4 — Key-aware Engine  
-**Current working line:** 0.3a–0.3d → 0.4  
+**Stable checkpoint:** 0.4  
+**Current stage:** Stage 5 — Jazz Voicing Engine  
+**Current working line:** 0.4a… → 0.5  
 **Reference host:** Studio Pro  
 **Repository:** `vladleng/Smart-Voicing`
 
@@ -55,13 +55,15 @@ DAW остаётся главным источником гармоническ�
 
 ```text
 1. Played / Melody
-2. Current Chord
-3. Current Key
-4. Harmonic Function
-5. Melodic Role / Tension Policy
-6. Voicing Strategy
-7. Voice Leading
-8. Instrument / Ensemble Profile
+2. Explicit Current Chord
+3. Chord identity / characteristic tones
+4. Current Key
+5. Harmonic Function / real Resolution Target
+6. Functional Tension Profile / Tension Level
+7. Melodic Role / Tension Policy
+8. Voicing Strategy
+9. Voice Leading
+10. Instrument / Ensemble Profile
 ```
 
 Ключевой принцип:
@@ -120,7 +122,7 @@ Harmony Core должен оставаться host-neutral. ARA — provider, �
 
 ---
 
-## 4. Подтверждённая база к 0.3
+## 4. Подтверждённая база к 0.4
 
 К стабильной версии 0.3 подтверждены:
 
@@ -143,6 +145,24 @@ Harmony Core должен оставаться host-neutral. ARA — provider, �
 - sample-accurate chord boundaries без plugin lookahead/latency;
 - `(no chord)` → V1 only;
 - сохранение Harmony Mode / Distribution Mode в project state.
+
+К стабильной версии 0.4 дополнительно подтверждены:
+
+- `KeyModel` и scale-degree analysis;
+- `Tonic / Predominant / Dominant / Other`, `Diatonic / Chromatic`;
+- applied/secondary dominant candidate vs confirmed resolution;
+- real next Chord Track event как единственный target evidence для target-aware profile;
+- modal-interchange candidate MVP;
+- candidate-based `Closed Voicing` с guide-tone priority и soft Upper Voice Spacing;
+- characteristic-tone protection (`m7b5 b5`, augmented `#5`, sus identity, explicit altered fifth);
+- `TensionPolicy` и Harmonic Candidate Pool;
+- UI/state `Clean / Color / Rich`;
+- `FunctionalTensionProfile`: Neutral / Dominant Unresolved / Dominant→Major / Dominant→Minor;
+- target-aware Color и functionally intensified Rich;
+- no next chord → unresolved, без inferred future target;
+- explicit Chord Track material выше inference;
+- Studio Pro musical acceptance major/minor II–V–I и `A7` vs `A7→Dm`;
+- Windows CI 0.3f #302 — success.
 
 ---
 
@@ -233,15 +253,35 @@ relation: Chromatic
 candidate: V/V
 ```
 
-0.3c должен добавить resolution-aware interpretation по соседним Chord Track events и базовое различение borrowed/modal-interchange harmony.
+К 0.4 resolution-aware interpretation реализована. Важный final contract Stage 4:
+
+```text
+No next chord
+→ Dominant / unresolved
+→ no assumed resolution target
+
+Real next chord on expected target root
+→ confirmed target root + target quality
+→ target-aware Functional Tension Profile
+```
+
+Smart Voicing интерпретирует реальную progression из Chord Track и не додумывает будущий target.
 
 ---
 
 ## 7. Tension Policy
 
-Tensions — не команда «автоматически добавить 9/11/13».
+Tensions — не команда «автоматически добавить 9/11/13». К 0.4 Stage 4 использует два связанных слоя:
 
-Нужен отдельный слой классификации:
+```text
+Functional Tension Profile
+→ смысл harmonic colour в данном реальном обороте
+
+Tension Level
+→ интенсивность: Clean / Color / Rich
+```
+
+Классификация tone policy:
 
 ```text
 Explicit
@@ -303,6 +343,25 @@ half-step above chord tone  → generally unavailable
 
 Function/mode/chord-symbol exceptions имеют больший приоритет.
 
+### 7.6 Tension Level — accepted 0.4 contract
+
+```text
+Clean
+→ structural chord identity
+
+Color
+→ functionally natural / inside colour для реального target
+
+Rich
+→ functionally intensified tension / altered colour
+```
+
+Для confirmed `V→minor` `b13` может быть естественной Color-краской, а `b9/#9/#11` — более напряжёнными Rich candidates. Natural 13 не считается автоматически правильной только потому, что chord dominant.
+
+Explicit `E13`, `E7b9`, `E7#5`, `E7b5` остаются authoritative.
+
+Если следующего chord event нет, target не угадывается.
+
 ---
 
 ## 8. Closed Voicing — первый базовый strategy
@@ -354,7 +413,16 @@ V3 B = 3
 V4 D = 5
 ```
 
-Root может отсутствовать, если harmonic identity уже читается. Fifth обычно легче всего уступает место более важной ноте.
+Root может отсутствовать, если harmonic identity уже читается. Ordinary perfect fifth часто легче всего уступает место более важной ноте.
+
+Но `fifth expendable` не является универсальным правилом. Characteristic tones защищаются:
+
+```text
+m7b5: b5
+augmented: #5
+sus2 / sus4 identity tone
+explicit altered fifth
+```
 
 Для simple triads root получает дополнительный вес, чтобы не потерять идентичность harmony.
 
@@ -445,7 +513,11 @@ Support выбирается из chord tone/tension подходящей chord 
 ### 11.6 Итоговая модель
 
 ```text
-Chord + Key + Function + Tension Policy
+Chord + Key + Function + Real Target
+                ↓
+      Functional Tension Profile
+                ↓
+        Tension Policy + Level
                 ↓
         Harmonic Candidate Pool
                 ↓
@@ -745,42 +817,32 @@ Four Voice, Ch1–Ch4, Voice Stack, Sustain, Distribution, Gesture Classifier.
 
 HarmonicContext, ChordModel, Melody Harmonize, basic Close, live reharmonization, state integration.
 
-### Stage 4 — Key-aware Engine 🚧 → 0.4
+### Stage 4 — Key-aware Engine ✅ → 0.4
 
-#### 0.3a — Key + Harmonic Function
+Завершён 2026-09-22. Основные итерации:
 
-- KeyModel;
-- scale degree;
-- Tonic / Predominant / Dominant;
-- Diatonic / Chromatic;
-- Applied Dominant Candidate.
+- **0.3a** — KeyModel + Harmonic Function MVP;
+- **0.3b** — candidate-based Closed Voicing;
+- **0.3c** — resolution-aware function, applied dominant confirmation, modal-interchange candidate, exact realtime chord boundaries;
+- **0.3d** — TensionPolicy + Harmonic Candidate Pool + Clean/Color/Rich;
+- **0.3e** — Functional Tension Profiles + characteristic-tone protection;
+- **0.3f** — target-aware Color, no inferred future target, confirmed `V→minor` colour semantics;
+- **0.4** — stable Stage 4 checkpoint.
 
-#### 0.3b — Melody Harmonize → Closed Voicing
+Final Stage 4 contract:
 
-- candidate-based Closed;
-- guide-tone priority;
-- root/fifth omission;
-- Upper Voice Spacing Policy;
-- compactness;
-- slash bass;
-- melody-imposed tension handling.
+```text
+Played Melody
+> Explicit Chord Track
+> Chord identity / characteristic tones
+> Key
+> Function + REAL next-chord target evidence
+> Functional Tension Profile
+> Tension Level / Tension Policy
+> Voicing Strategy
+```
 
-#### 0.3c — Resolution-aware Function
-
-- secondary/applied dominant confirmation;
-- neighboring-chord analysis;
-- borrowed/modal-interchange MVP.
-
-#### 0.3d — Tension Policy
-
-- Explicit / Available / Preferred / Contextual / Avoid-as-harmony / Melody-imposed;
-- melodic vs harmonic tension;
-- Harmonic Candidate Pool / chord scale;
-- 9/11/13/alterations;
-- minor-ninth penalty and exceptions;
-- integration with Closed.
-
-#### 0.4 — Stable Key-aware + Closed checkpoint
+Stage 4 отвечает на вопрос: **какие pitch classes функционально оправданы в реально записанном harmonic turn?**
 
 ### Stage 5 — Jazz Voicing Engine → 0.5
 
