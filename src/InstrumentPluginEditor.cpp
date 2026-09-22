@@ -47,7 +47,7 @@ juce::String channelsText(std::uint32_t mask)
 
 juce::String counterText(std::uint32_t value)
 {
-    return juce::String(static_cast<juce::int64_t>(value));
+    return juce::String(static_cast<juce::int64>(value));
 }
 
 juce::String noteText(int note)
