@@ -8,6 +8,8 @@ Stable base: **0.4 / Stage 4**
 
 Current test build label: **Smart Voicing 0.4a fix**
 
+> **Development guardrail:** before changing Harmony Core, Voicing Strategy, Voice Leading or MIDI transition semantics, read `docs/MUSICAL-ENGINE-GUARDRAILS.md`. Small musical fixes must stay inside the owning layer and receive regression coverage.
+
 ## Scope approved for 0.4a
 
 - [x] start `stage-5-jazz-voicing-engine` from stable `main / 0.4`;
@@ -22,19 +24,37 @@ Current test build label: **Smart Voicing 0.4a fix**
 - [x] live Tension switching re-harmonizes the held melody through the existing lower-voice transition path;
 - [x] make `Diagnostics` collapsible and reduce editor height in compact mode;
 - [x] preserve Stage 4 harmonic semantics in the Stage 5 input contract;
-- [x] add `0.4a fix` seamless melody-transition path to remove micro-note artifacts at quantized note seams;
+- [x] add `0.4a fix` seamless melody-transition path as preventative MIDI-transition hygiene;
 - [ ] confirm Closed musical output against stable 0.4 in Studio Pro.
 
 ## 0.4a fix — Seamless Melody Transition / MIDI note hygiene
 
-Observed host symptom: recording the four generated Smart Voicing MIDI outputs from an already quantized monophonic source can produce very short micro-notes at exact melody-note seams.
+### Investigation result for the originally reported micro-notes
 
-Root cause addressed in this fix:
+The screenshot that triggered this investigation was **not a Harmony Core bug**.
+
+The source melody note started slightly before the next Chord Track boundary. Therefore the engine correctly saw the previous chord first, built a voicing for that still-current chord, and then reharmonized V2–V4 when the real next chord boundary arrived.
+
+```text
+Melody starts before chord boundary
+→ previous chord is still authoritative
+→ previous-chord voicing is valid
+
+Real Chord Track boundary arrives
+→ new chord becomes authoritative
+→ V2–V4 reharmonize
+```
+
+Do **not** "fix" this by silently adding chord lookahead, anticipation tolerance or snapping an early melody note to a future chord. If such behaviour is wanted for live performance, it must be designed as a separate musical feature with its own contract.
+
+### Why `0.4a fix` remains in the code
+
+Although the original screenshot had a different cause, the investigation exposed an independent transition weakness worth fixing preventively:
 
 - the old Melody Harmonize path stopped the whole current voicing when a new melody Note On arrived;
 - adjacent quantized notes can place old Note Off and new Note On at exactly the same sample;
 - unchanged generated tones could therefore receive an unnecessary `Note Off` + `Note On` pair at the same timestamp;
-- a DAW recording the MIDI output can materialize those pairs as tiny visible note fragments.
+- a DAW recording the MIDI output can materialize such redundant pairs as tiny fragments or unnecessary rearticulations.
 
 Rules implemented in `0.4a fix`:
 
@@ -54,15 +74,16 @@ Automated `0.4a fix` regression verifies:
 - [x] repeated same-pitch melody can retrigger V1 without retriggering V2–V4;
 - [x] existing Chord Track lower-voice reharmonization behaviour remains intact.
 
-Host regression for the reported artifact:
+Host regression for transition hygiene:
 
 - [ ] use an already quantized monophonic Smart Voicing source clip;
 - [ ] record the generated V1–V4 MIDI outputs to four tracks;
 - [ ] inspect exact note boundaries at high zoom;
-- [ ] unchanged lower voices must appear as continuous notes, not a long note plus a tiny fragment;
-- [ ] no zero-length / micro-note artifacts should be created solely by adjacent quantized source notes;
+- [ ] unchanged lower voices must remain continuous across exact melody seams;
+- [ ] no redundant micro-note artifacts should be created solely by same-sample Note Off / Note On handling;
 - [ ] repeated same-pitch melody notes must still articulate V1 correctly;
-- [ ] test a melody boundary that coincides exactly with a Chord Track boundary.
+- [ ] test a melody boundary that coincides exactly with a Chord Track boundary;
+- [ ] separately verify that a melody note intentionally starting before a chord boundary is harmonized first against the previous chord, as dictated by the real timeline.
 
 ## Tension Level keyswitch contract
 
@@ -130,7 +151,8 @@ In Studio Pro verify:
 - [ ] slash bass remains authoritative;
 - [ ] non-chord melody remains V1 and is not rewritten;
 - [ ] live Chord Track changes update V2–V4 without retriggering V1 unnecessarily;
-- [ ] adjacent quantized melody notes do not create micro-note artifacts in recorded V1–V4 MIDI;
+- [ ] exact adjacent melody seams do not unnecessarily retrigger unchanged V2–V4;
+- [ ] early melody before a Chord Track boundary still uses the actually current previous chord;
 - [ ] UI `Clean / Color / Rich` still uses one shared `TensionLevel` state;
 - [ ] MIDI 43 / 44 / 45 switch `Clean / Color / Rich` and the UI follows the same state;
 - [ ] keyswitch notes do not appear in downstream MIDI;
