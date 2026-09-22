@@ -1,36 +1,24 @@
 # Smart Voicing — Tension Level
 
-**Status:** Accepted concept, revised for 0.3e / Stage 4  
-**Related Issues:** #8, #10, #24, #25, #28  
+**Status:** Accepted concept, revised for 0.3f / Stage 4  
+**Related Issues:** #8, #10, #24, #25, #28, #29  
 **Reference:** Ted Pease / Ken Pullig — *Modern Jazz Voicings*  
+**Functional profile contract:** `docs/FUNCTIONAL-TENSION-PROFILES.md`  
 **Voice Leading contract:** `docs/VOICE-LEADING-DIRECTION.md`
 
-`Tension Level` — это **степень гармонической насыщенности**, но начиная с 0.3e она не рассматривается отдельно от функции и resolution target.
+`Tension Level` — это **степень гармонической насыщенности**, но смысл конкретной tension определяется не самим уровнем, а реальным harmonic context.
 
-Это UI/engine abstraction Smart Voicing, а не буквальная терминология книги. Книга даёт музыкальную основу: chord-scale thinking, available tensions, avoid-note semantics, function-aware colour и smooth voice leading.
+Это UI/engine abstraction Smart Voicing, а не буквальная терминология книги.
 
 ---
 
-## 1. Почему 0.3d потребовал пересмотра
-
-Studio Pro test 0.3d показал два принципиальных ограничения ранней модели:
-
-1. `Rich` технически открывал altered candidates, но не понимал **зачем** выбирать их в конкретном harmonic turn;
-2. generic rule `fifth is expendable` мог удалить `b5` из `m7b5`, хотя эта нота определяет chord identity.
-
-Следствие:
-
-```text
-Rich != Color + больше разрешённых pitch classes
-```
-
-Правильная архитектура:
+## 1. Архитектура
 
 ```text
 Chord
  + Key
  + Harmonic Function
- + Resolution Target / Next Chord
+ + Real Next Chord / Resolution Target
         ↓
 Functional Tension Profile
         ↓
@@ -43,6 +31,18 @@ Voicing Strategy
 Stage 6: Voice Leading
 ```
 
+Главное правило 0.3f:
+
+```text
+No next chord
+→ no assumed resolution target
+
+Real next chord
+→ target-aware Functional Tension Profile
+```
+
+Smart Voicing не додумывает будущий аккорд. Если аранжировщику нужен target-aware dominant colour, target должен реально присутствовать в Chord Track.
+
 ---
 
 ## 2. Три уровня
@@ -53,17 +53,16 @@ structural chord identity first
 
 Level 2 — Color
 functionally natural / inside harmonic colour
-без искусственного увеличения tension
+именно для данного real target
 
 Level 3 — Rich
 functionally intensified tension / altered colour,
-особенно на dominant-function harmony,
-если это оправдано target / resolution context
+если это оправдано real target / resolution context
 ```
 
 Главный принцип:
 
-> `Tension Level` регулирует интенсивность, но **Function + Resolution Target определяют смысл цвета**.
+> `Tension Level` регулирует интенсивность, но **Function + Real Resolution Target определяют смысл цвета**.
 
 ---
 
@@ -76,7 +75,9 @@ Explicit Chord Track
     >
 Chord identity / characteristic tones
     >
-Key / Function / Resolution Target
+Key / Function / Real Resolution Target
+    >
+Functional Tension Profile
     >
 Tension Level / Tension Policy
     >
@@ -88,17 +89,12 @@ Voicing Strategy
 - `Melody-imposed` всегда сохраняется как V1;
 - explicit tension/alteration из Chord Track сохраняется при любом Level;
 - `E7b9`, `E7#5`, `E7b5`, `E13` не сводятся к одному generic `E7 rich`;
-- `Avoid-as-harmony` не означает forbidden melody note;
-- Level управляет прежде всего **inferred** colour;
-- inferred colour не имеет права разрушать chord identity.
+- inferred colour не имеет права разрушать chord identity;
+- absence of next chord не даёт движку права предположить target.
 
 ---
 
 ## 4. Characteristic chord tones
-
-Ранняя формулировка «fifth обычно первая на omission» слишком общая.
-
-Новая policy:
 
 ```text
 ordinary perfect 5th
@@ -111,15 +107,13 @@ explicit altered fifth
 → characteristic / identity tone
 ```
 
-Такая нота получает сильную защиту в scoring и не должна исчезать только потому, что nearby tension делает вертикаль компактнее.
-
 Пример:
 
 ```text
 Bm7b5 = B D F A
 ```
 
-`F = b5` — не обычная fifth; удаление F превращает аккорд в другое/неясное звучание.
+`F = b5` — structural identity, а не обычная expendable fifth.
 
 ---
 
@@ -134,117 +128,108 @@ Bm7b5 = B D F A
 - inferred tensions не являются целью;
 - explicit tensions остаются authoritative.
 
-Пример:
-
-```text
-Dm7 | G7 | Cmaj7
-```
-
 ---
 
 ## 6. Level 2 — Color
 
-Цель: добавить естественную окраску, **не увеличивая функциональное напряжение без причины**.
+Цель: естественная окраска **данной функции и данного реального target**, без искусственного повышения tension.
 
-- `Preferred / Available` tensions становятся кандидатами;
-- natural 9/11/13/6 и modal colours могут заменять менее важные structural tones;
-- Color не должен автоматически превращать каждый seventh chord в максимально extended harmony;
-- Color должен учитывать реальный target: generic Mixolydian 13 не считается автоматически правильной только потому, что chord = dominant.
-
-Пример major II–V–I:
+### Major-target dominant
 
 ```text
-Dm7/9/11 | G9/G13 | Cmaj9/13
+G7 -> Cmaj7
 ```
 
-Но в minor II–V–I:
+Natural 9/13 могут быть inside Color.
+
+### Minor-target dominant
 
 ```text
-Bm7b5 | E7 | Am
+E7 -> Am
+A7 -> Dm
 ```
 
-`E7` не обязан получать `C# = natural 13`, если actual target = `Am` и активный minor context этого не поддерживает.
+0.3f фиксирует:
+
+```text
+b13
+→ Preferred / Color candidate
+→ functionallyDirected
+
+natural 13
+→ не inferred Color при confirmed minor target
+```
+
+Natural 9 может оставаться restrained Color option, если его поддерживает текущий tonal context.
+
+Ключевой вывод:
+
+> знак `b/#` сам по себе не означает Rich.
+
+`b13` на `V -> minor` может быть более естественной Color-краской, чем natural 13.
+
+Color не должен автоматически превращать каждый seventh chord в максимально extended harmony.
 
 ---
 
 ## 7. Level 3 — Rich
 
-Цель: **осмысленно усилить tension**, а не просто открыть список alterations.
+Цель: **осмысленно усилить напряжение**, а не просто открыть больше pitch classes.
 
-Особенно важно для dominant -> target:
-
-```text
-G7 -> Cmaj
-E7 -> Am
-```
-
-Эти доминанты имеют одну dominant function, но не обязаны использовать один tension vocabulary.
-
-### Major-target dominant
-
-Inside Color может включать natural 9/13. Rich получает доступ к более напряжённым `b9/#9/#11/b13`, но они должны иметь resolution evidence.
-
-### Minor-target dominant
-
-Natural 13 не должна автоматически продвигаться из generic Mixolydian baseline.
-
-Направленные Rich candidates могут включать:
+Для confirmed minor target:
 
 ```text
 b9
-b13
-#9 / #11 — более контекстно
+→ Contextual / Rich candidate
+→ functionallyDirected
+
+#9 / #11(b5)
+→ Contextual / Rich candidates
 ```
 
-Например:
+`b13` остаётся доступна, потому что уже является function-aware Color-кандидатом, но Rich получает возможность выбрать более напряжённую tension, если vertical scoring это оправдывает.
 
-```text
-E7(b9,b13) -> Am
-
-F  -> E
-G# -> A
-D  -> C
-```
-
-То есть Rich усиливает **направление разрешения**.
-
-Важно:
+Для confirmed major target Rich может использовать altered dominant colours, но они не становятся автоматическим winner только из-за Level 3.
 
 ```text
 Rich != always altered
 ```
 
-Если target/function не дают достаточного evidence, Rich может совпасть с Color.
-
 ---
 
-## 8. Functional Tension Profile
+## 8. Unresolved dominant
 
-0.3e вводит allocation-free profile layer:
+Если реального следующего chord event нет:
 
 ```text
-Neutral
-Dominant / unresolved
-Dominant -> major target
-Dominant -> minor target
+A7
 ```
 
-Профиль выводится из:
+получает:
 
-- current chord quality;
-- active Key;
-- Harmonic Function;
-- actual next Chord Track event;
-- confirmed dominant resolution;
-- target chord quality.
+```text
+Functional Profile = Dominant / unresolved
+```
 
-Primary и secondary dominant используют один общий resolution mechanism: если следующий chord действительно находится на ожидаемом dominant target root, его quality становится evidence для tension profile.
+Движок не выводит Dm из Key/Function.
+
+В unresolved profile:
+- natural 9/13 могут оставаться conservative generic Color vocabulary;
+- altered candidates могут быть доступны Rich;
+- altered candidates не получают `functionallyDirected` reward;
+- profile не объявляет major/minor target.
+
+Если пользователь добавляет:
+
+```text
+A7 | Dm
+```
+
+тогда только этот real target переводит A7 в `Dominant -> minor target`.
 
 ---
 
 ## 9. Explicit chord всегда выше inference
-
-Примеры:
 
 ```text
 E7b9
@@ -253,55 +238,13 @@ E7b5
 E13
 ```
 
-Это разные explicit descriptions. Smart Voicing не должен заменять их своим inferred profile.
+Это разные explicit descriptions.
 
-`Functional Tension Profile` используется прежде всего для **простого chord symbol**, например `E7`, когда нужно решить, какой colour уместен в данном обороте.
-
----
-
-## 10. Связь с Voice Leading
-
-0.3e отвечает на вопрос:
-
-> какие pitch classes музыкально оправданы в этом harmonic turn?
-
-Stage 6 / #10 отвечает:
-
-> какие из этих правильных нот дают лучший переход из previous V1–V4?
-
-Pipeline:
-
-```text
-Functional Tension Profile
-+ Tension Level
-        ↓
-Candidate Pool
-        ↓
-Voicing Strategy
-        ↓
-Previous Voice State / Voice Leading
-```
-
-Future Voice Leading должен учитывать common tones, stepwise motion и tendency-tone resolution, но это не блокирует functional candidate selection 0.3e.
+Даже если simple `E7 -> Am` не получает inferred natural 13, explicit `E13` остаётся authoritative.
 
 ---
 
-## 11. Default Voice Leading остаётся отдельным вопросом
-
-Accepted direction:
-
-```text
-not maximum parallel motion
-not maximum static motion
-
-→ minimum musically necessary motion
-```
-
-`Parallel / Block / Soli` — отдельная musical strategy/policy (#23), а не автоматическое следствие Rich.
-
----
-
-## 12. Internal contract
+## 10. Internal contract
 
 ```text
 enum class TensionLevel
@@ -320,7 +263,7 @@ enum class FunctionalTensionProfile
 };
 ```
 
-`TensionTonePolicy` дополнительно хранит evidence:
+`TensionTonePolicy` хранит evidence:
 
 ```text
 alteredCandidate
@@ -329,30 +272,80 @@ fromActiveKey
 fromFunctionScale
 ```
 
-`functionallyDirected` означает, что pitch не просто допустима, а поддерживается current function + resolution target.
+`functionallyDirected` означает, что pitch поддерживается реальным function + resolution target, а не просто является допустимой dominant colour.
 
 ---
 
-## 13. Regression references
+## 11. Связь с Voice Leading
 
-### Major context
+Stage 4 отвечает:
+
+> какие pitch classes музыкально оправданы в реально записанном harmonic turn?
+
+Stage 6 / #10 отвечает:
+
+> какие из этих правильных нот дают лучший переход из previous V1–V4?
+
+Pipeline:
+
+```text
+Functional Tension Profile
++ Tension Level
+        ↓
+Candidate Pool
+        ↓
+Voicing Strategy
+        ↓
+Previous Voice State / Voice Leading
+```
+
+Accepted future direction:
+
+```text
+minimum musically necessary motion
+```
+
+---
+
+## 12. Regression references
+
+### Major
 
 ```text
 Dm7 | G7 | Cmaj7
 ```
 
-### Minor context
+### Minor
 
 ```text
 Bm7b5 | E7 | Am
 ```
 
-Критерии:
+### Target evidence
+
+```text
+A7
+```
+
+vs
+
+```text
+A7 | Dm
+```
+
+### User progression
+
+```text
+Dm7 | Db7b13 | Cm7 | B7#11 | Bbmaj7 | A7 | Dm7
+```
+
+Критерии 0.3f:
 
 - Bm7b5 сохраняет `b5` на всех уровнях;
-- Color не вставляет natural 13 в E7 механически из generic Mixolydian;
-- Rich может предпочесть functionally directed `b9 / b13` перед Am;
-- explicit altered chords остаются authoritative;
-- одна и та же simple dominant получает разный inferred colour при разных resolution targets.
+- Color на confirmed minor target может использовать `b13`;
+- natural 13 не продвигается как inferred Color при confirmed minor target;
+- Rich получает более напряжённые directed candidates, прежде всего `b9`;
+- без next chord target не угадывается;
+- explicit altered chords остаются authoritative.
 
-Главный итог: **уровень управляет интенсивностью, функция управляет смыслом tension**.
+Главный итог: **уровень управляет интенсивностью, а реальная progression управляет смыслом tension**.
