@@ -4,6 +4,7 @@
 #include "TensionPolicy.h"
 #include "VoicingStrategy.h"
 
+#include <array>
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
@@ -100,6 +101,30 @@ void expectSameVoicing(const VoiceOutput& expected,
     }
 }
 
+int pitchClass(int midiNote)
+{
+    const auto value = midiNote % 12;
+    return value < 0 ? value + 12 : value;
+}
+
+std::array<int, 4> sortedPitchClasses(const VoiceOutput& voicing)
+{
+    std::array<int, 4> result {};
+    for (std::size_t i = 0; i < result.size(); ++i)
+        result[i] = voicing.voices[i].active ? pitchClass(voicing.voices[i].midiNote) : -1;
+
+    for (std::size_t i = 0; i < result.size(); ++i)
+    {
+        for (std::size_t j = i + 1; j < result.size(); ++j)
+        {
+            if (result[j] < result[i])
+                std::swap(result[i], result[j]);
+        }
+    }
+
+    return result;
+}
+
 void testClosedDispatcherPreservesCmaj7()
 {
     const auto cMajor = normalizeKey(key(0, false));
@@ -135,10 +160,67 @@ void testClosedDispatcherPreservesMinorTargetRichColour()
     expectSameVoicing(expected, actual, "E7 -> Am Rich Closed dispatcher");
 }
 
+void testDrop2TransformsSelectedClosedMaterial()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto context = makeContext(cmaj7, cMajor, 69, TensionLevel::color);
+
+    const auto closed = buildVoicing(69, VoicingType::closed, context);
+    const auto drop2 = buildVoicing(69, VoicingType::drop2, context);
+
+    expect(drop2.voices[0].active && drop2.voices[0].midiNote == closed.voices[0].midiNote,
+           "Drop 2 must preserve performer-owned V1 melody");
+    expect(sortedPitchClasses(drop2) == sortedPitchClasses(closed),
+           "Drop 2 must preserve the exact Closed pitch-class material");
+
+    const auto expectedDropped = closed.voices[1].midiNote - 12;
+    bool foundDropped = false;
+    for (std::size_t i = 1; i < drop2.voices.size(); ++i)
+        foundDropped = foundDropped || drop2.voices[i].midiNote == expectedDropped;
+    expect(foundDropped,
+           "Drop 2 must lower the Closed second voice by exactly one octave");
+
+    expect(drop2.voices[1].midiNote >= drop2.voices[2].midiNote
+           && drop2.voices[2].midiNote >= drop2.voices[3].midiNote,
+           "Drop 2 lower output slots must remain in sounding top-down order");
+}
+
+void testDrop2PreservesMinorTargetRichVocabulary()
+{
+    const auto cMinor = normalizeKey(key(0, true));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto cm = normalizeChord(chord(0, 0, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+    const auto context = makeContext(g7, cMinor, 65, TensionLevel::rich, &cm);
+
+    const auto closed = buildVoicing(65, VoicingType::closed, context);
+    const auto drop2 = buildVoicing(65, VoicingType::drop2, context);
+
+    expect(sortedPitchClasses(drop2) == sortedPitchClasses(closed),
+           "G7 -> Cm Rich Drop 2 must keep Closed b9/b13 vocabulary unchanged");
+}
+
+void testDrop2FallsBackForExplicitSlashBass()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    // Cmaj7/E: E is encoded as four fifths from C in the provider model.
+    const auto cmaj7OverE = normalizeChord(chord(0, 4, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto context = makeContext(cmaj7OverE, cMajor, 67, TensionLevel::color);
+
+    expect(cmaj7OverE.slashBass, "Cmaj7/E test chord must be recognized as slash bass");
+
+    const auto closed = buildVoicing(67, VoicingType::closed, context);
+    const auto drop2 = buildVoicing(67, VoicingType::drop2, context);
+    expectSameVoicing(closed, drop2,
+                      "Drop 2 slash-bass safety fallback must preserve Closed vertical");
+}
+
 void testVoicingTypeName()
 {
     expect(std::string(voicingTypeName(VoicingType::closed)) == "Closed",
            "Closed voicing type name");
+    expect(std::string(voicingTypeName(VoicingType::drop2)) == "Drop 2",
+           "Drop 2 voicing type name");
 }
 }
 
@@ -147,6 +229,9 @@ int main()
     testClosedDispatcherPreservesCmaj7();
     testClosedDispatcherPreservesTargetAwareDominant();
     testClosedDispatcherPreservesMinorTargetRichColour();
+    testDrop2TransformsSelectedClosedMaterial();
+    testDrop2PreservesMinorTargetRichVocabulary();
+    testDrop2FallsBackForExplicitSlashBass();
     testVoicingTypeName();
 
     if (failures != 0)
