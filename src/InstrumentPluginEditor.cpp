@@ -2,6 +2,7 @@
 #include "ChordModel.h"
 #include "KeyModel.h"
 #include "HarmonicFunction.h"
+#include "TensionPolicy.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
 
@@ -127,7 +128,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.3d - Tension Level",
+    titleLabel.setText("Smart Voicing 0.3e - Functional Tensions",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -206,7 +207,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.3d | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.3e | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -332,6 +333,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     const auto harmonicAnalysis = nextChord.valid
         ? smartvoicing::harmony::analyzeHarmonicFunction(normalizedChord, normalizedKey, nextChord)
         : smartvoicing::harmony::analyzeHarmonicFunction(normalizedChord, normalizedKey);
+    const auto tensionPolicy = smartvoicing::harmony::buildTensionPolicy(
+        normalizedChord, normalizedKey, harmonicAnalysis);
 
     juce::String chord = "n/a";
     juce::String hostChord = "n/a";
@@ -462,7 +465,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 4 / 0.3d: Tension Policy + Tension Level + Harmonic Candidate Pool + Resolution-aware Function\n";
+    debugText << "Stage 4 / 0.3e: Functional Tension Profiles + Tension Level + Harmonic Candidate Pool\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -510,6 +513,14 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
                       << " " << (harmonicAnalysis.appliedDominantConfirmed ? "CONFIRMED" : "candidate");
         }
 
+        if (harmonicAnalysis.dominantResolutionConfirmed)
+        {
+            debugText << " | dominant target CONFIRMED: PC "
+                      << harmonicAnalysis.dominantTargetPitchClass
+                      << " / "
+                      << smartvoicing::harmony::chordQualityName(harmonicAnalysis.dominantTargetQuality);
+        }
+
         if (harmonicAnalysis.modalInterchangeCandidate)
         {
             debugText << " | modal interchange candidate: parallel "
@@ -518,24 +529,30 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     }
     debugText << "\n";
 
+    debugText << "Functional tension: "
+              << smartvoicing::harmony::functionalTensionProfileName(tensionPolicy.functionalProfile)
+              << " | resolution " << (tensionPolicy.resolutionConfirmed ? "CONFIRMED" : "not confirmed")
+              << "\n";
+
     debugText << "Resolution context: ";
     if (nextChord.valid)
         debugText << "next @ PPQ " << juce::String(nextChordPpq, 6)
                   << " = " << nextSymbol
-                  << " | root PC " << nextChord.rootPitchClass;
+                  << " | root PC " << nextChord.rootPitchClass
+                  << " | quality " << smartvoicing::harmony::chordQualityName(nextChord.quality);
     else
         debugText << "no next chord";
     debugText << "\n";
 
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
-    debugText << "Priority: Played/Melody > Chord > Key > Function > Tension Level/Policy > Voicing Strategy\n";
+    debugText << "Priority: Melody > Explicit Chord > Characteristic tones > Key > Function/Target > Functional Profile > Tension Level > Strategy\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
               << " | Tension Level: " << tensionLevelText(midiProbe.tensionLevel)
               << " | V1 melody immutable | V2-V4 candidate-based Closed vertical\n";
-    debugText << "Closed policy: guide tones + contextual root/fifth omission + soft Upper Voice Spacing\n";
-    debugText << "Tension levels: Clean=chord-tone priority | Color=Preferred/Available when voicing improves | Rich=contextual/altered freedom\n";
-    debugText << "Tension policy: Explicit always authoritative; Avoid/Unavailable excluded from generated V2-V4\n";
-    debugText << "Resolution policy: static candidate != confirmed; next Chord Track root supplies confirmation evidence\n";
+    debugText << "Closed policy: guide + characteristic tones, contextual omissions, soft Upper Voice Spacing\n";
+    debugText << "Tension levels: Clean=structural | Color=inside/function-natural | Rich=functionally intensified tension\n";
+    debugText << "Tension policy: Explicit authoritative; Avoid/Unavailable excluded from generated V2-V4\n";
+    debugText << "Resolution policy: actual next Chord root+quality drives target-aware dominant profile\n";
     debugText << "Live reharmonization count: " << counterText(midiProbe.reharmonizationCount)
               << " | chord boundaries are scheduled inside the current audio block\n";
     debugText << "MIDI input/output: YES / YES | Direct Router 0.2 remains available\n";
