@@ -35,14 +35,15 @@
 - `Smart Voicing 0.3b` — `Melody Harmonize` развивается в базовый `Closed Voicing`: candidate-based vertical selection, guide-tone priority, context-aware root/fifth omission, compactness и `Upper Voice Spacing Policy` как soft constraint. Windows Build #243 — success; пользователь подтвердил результат в Studio Pro 2026-09-21.
 - `Smart Voicing 0.3c` — **принято**: resolution-aware harmonic function, `Applied Dominant Candidate/Confirmed`, parallel major/minor `Modal Interchange Candidate`, live `ClosedVoicingContext` и exact realtime Chord Track boundaries. Windows Build #268 — success; полная Studio Pro regression подтверждена 2026-09-21.
 - `Smart Voicing 0.3d` — Tension Policy + Harmonic Candidate Pool + UI `Clean / Color / Rich`. Studio Pro подтвердил полезную разницу Clean/Color, но acceptance выявил два архитектурных gap: generic dominant Mixolydian не учитывал quality реального resolution target, а обычная fifth-omission policy могла удалить characteristic `b5` из half-diminished. Поэтому 0.3d не закрывается как финальная musical acceptance и продолжается в 0.3e.
-- `Smart Voicing 0.3e` — **в разработке**: `Functional Tension Profile`, target-aware major/minor dominant colour, защита characteristic chord tones и новая трактовка Rich как функционального напряжения, а не просто более широкого altered candidate pool.
+- `Smart Voicing 0.3e` — `Functional Tension Profile`, target-aware major/minor dominant colour, защита characteristic chord tones и трактовка Rich как функционального напряжения. Studio Pro подтвердил сам принцип target-aware Rich и characteristic-tone protection, но показал, что Color тоже должен учитывать real target, а target нельзя додумывать при отсутствии next chord.
+- `Smart Voicing 0.3f` — **в разработке**: target-aware Color; no-next-chord = unresolved без inferred target; confirmed `V -> minor` допускает `b13` как functionally natural Color, natural 13 не inferred, более сильные `b9/#9/#11` остаются Rich-oriented.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.3e/
+Smart Voicing 0.3f/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -98,6 +99,7 @@ Smart Voicing 0.3e/
 0.3c → 0.3.3
 0.3d → 0.3.4
 0.3e → 0.3.5
+0.3f → 0.3.6
 ```
 
 ## Отложенная стабилизация
