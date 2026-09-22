@@ -45,7 +45,16 @@ struct HarmonicAnalysis
     // an automatic rejection: delayed/deceptive resolutions remain possible.
     bool nextChordAvailable = false;
     int nextChordRootPitchClass = -1;
+    ChordQuality nextChordQuality = ChordQuality::undefined;
     bool appliedDominantConfirmed = false;
+
+    // 0.3e generic dominant-resolution evidence. Unlike
+    // appliedDominantConfirmed this also covers the primary V -> I case. The
+    // target quality is preserved because dominant colour depends on whether the
+    // actual resolution target is major-like or minor.
+    bool dominantResolutionConfirmed = false;
+    int dominantTargetPitchClass = -1;
+    ChordQuality dominantTargetQuality = ChordQuality::undefined;
 
     // Parallel-mode borrowing MVP. This is deliberately a candidate layer:
     // if a chromatic chord's complete pitch set belongs to the parallel major
@@ -59,9 +68,9 @@ struct HarmonicAnalysis
 HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
                                          const NormalizedKey& key) noexcept;
 
-// 0.3c resolution-aware overload. The following Chord Track event is evidence
-// used to confirm an applied/secondary dominant candidate when its root matches
-// the predicted target.
+// 0.3c/0.3e resolution-aware overload. The following Chord Track event is
+// evidence used both to confirm applied/secondary dominant candidates and to
+// expose the actual target quality for functional tension profiles.
 HarmonicAnalysis analyzeHarmonicFunction(const NormalizedChord& chord,
                                          const NormalizedKey& key,
                                          const NormalizedChord& nextChord) noexcept;
