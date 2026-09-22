@@ -54,6 +54,14 @@ private:
 ReharmonizationPlan planLowerVoiceReharmonization(const VoiceOutput& current,
                                                   const VoiceOutput& desired) noexcept;
 
+// 0.4a fix: build an atomic transition for a new played melody articulation.
+// Common tones remain sounding instead of being needlessly retriggered. V1 is
+// allowed to move with the performer; retriggerMelody=true also rearticulates
+// repeated same-pitch melody notes while still preserving common V2..V4 tones.
+ReharmonizationPlan planVoicingTransition(const VoiceOutput& current,
+                                          const VoiceOutput& desired,
+                                          bool retriggerMelody) noexcept;
+
 // Timeline helpers for scheduling a known future Chord Track boundary inside
 // the current audio block. Values outside the block return -1 instead of being
 // clamped, so the next block owns that event. They do not add lookahead/latency.
