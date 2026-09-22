@@ -88,7 +88,6 @@ int main()
     expect(cMaj7Policy.tone(9).role == TensionRole::preferred, "A/13 is preferred on Cmaj7");
     expect(! cMaj7Policy.isHarmonyCandidate(5, TensionLevel::rich), "avoid 11 is not generated harmony candidate");
 
-    // Tension Level changes inferred-colour eligibility without changing role.
     expect(! cMaj7Policy.isHarmonyCandidate(2, TensionLevel::clean),
            "Clean does not auto-generate inferred Cmaj7 9");
     expect(cMaj7Policy.isHarmonyCandidate(2, TensionLevel::color),
@@ -96,9 +95,7 @@ int main()
     expect(cMaj7Policy.isHarmonyCandidate(2, TensionLevel::rich),
            "Rich also admits Preferred Cmaj7 9");
 
-    // Avoid-as-harmony never means forbidden melody. A performer-owned F remains
-    // valid and is marked independently as melody-imposed.
-    const auto cMaj7WithMelodyF = buildTensionPolicy(cMaj7, cMajor, cMaj7Analysis, 65); // F4
+    const auto cMaj7WithMelodyF = buildTensionPolicy(cMaj7, cMajor, cMaj7Analysis, 65);
     expect(cMaj7WithMelodyF.tone(5).role == TensionRole::avoidAsHarmony,
            "F remains avoid-as-harmony classification");
     expect(cMaj7WithMelodyF.tone(5).melodyImposed,
@@ -114,13 +111,13 @@ int main()
     const auto g7 = normalizeChord(makeChord(1, { 0, 4, 7, 10 }));
     const auto g7Analysis = analyzeHarmonicFunction(g7, cMajor);
     const auto g7Policy = buildTensionPolicy(g7, cMajor, g7Analysis);
-    expect(g7Policy.functionalProfile == FunctionalTensionProfile::dominantMajorTarget,
-           "primary G7 in C falls back to major-target profile when next chord is unavailable");
+    expect(g7Policy.functionalProfile == FunctionalTensionProfile::dominantUnresolved,
+           "G7 without real next chord stays unresolved; target is not inferred from Key");
     expect(! g7Policy.resolutionConfirmed,
-           "key-only major-target fallback is not marked as confirmed resolution");
-    expect(g7Policy.tone(2).role == TensionRole::preferred, "G7 natural 9 is preferred");
+           "G7 without next chord has no confirmed resolution");
+    expect(g7Policy.tone(2).role == TensionRole::preferred, "unresolved G7 natural 9 keeps generic Color status");
     expect(g7Policy.tone(5).role == TensionRole::avoidAsHarmony, "G7 natural 11 is avoid above B");
-    expect(g7Policy.tone(9).role == TensionRole::preferred, "G7 natural 13 is preferred");
+    expect(g7Policy.tone(9).role == TensionRole::preferred, "unresolved G7 natural 13 keeps generic Color status");
     expect(g7Policy.tone(2).fromFunctionScale, "dominant baseline comes from function profile");
 
     expect(g7Policy.tone(1).role == TensionRole::contextual,
@@ -132,9 +129,9 @@ int main()
     expect(! g7Policy.isHarmonyCandidate(1, TensionLevel::clean),
            "Clean rejects inferred dominant b9");
     expect(! g7Policy.isHarmonyCandidate(1, TensionLevel::color),
-           "Color keeps inferred dominant b9 conservative");
+           "Color keeps unresolved dominant b9 conservative");
     expect(g7Policy.isHarmonyCandidate(1, TensionLevel::rich),
-           "Rich admits context-supported dominant b9 candidate");
+           "Rich may admit unresolved altered candidate but receives no directed reward");
 
     // Major-target resolution evidence: G7 -> Cmaj7.
     const auto g7ToCMajAnalysis = analyzeHarmonicFunction(g7, cMajor, cMaj7);
@@ -150,8 +147,6 @@ int main()
     expect(g7ToCMajPolicy.tone(1).functionallyDirected,
            "confirmed major-target G7 marks altered b9 as directed Rich candidate");
 
-    // Applied dominant must not blindly inherit the global key. D7 in C uses a
-    // major-target dominant profile when the actual next root confirms G.
     const auto d7 = normalizeChord(makeChord(2, { 0, 4, 7, 10 }));
     const auto gMajor = normalizeChord(makeChord(1, { 0, 4, 7 }));
     const auto d7Analysis = analyzeHarmonicFunction(d7, cMajor, gMajor);
@@ -168,7 +163,6 @@ int main()
     expect(! d7Policy.isHarmonyCandidate(3, TensionLevel::color),
            "Color does not admit altered D7 #9 candidate");
 
-    // A non-confirming next chord must not borrow its target quality.
     const auto aMin7InC = normalizeChord(makeChord(3, { 0, 3, 7, 10 }));
     const auto d7ToAmAnalysis = analyzeHarmonicFunction(d7, cMajor, aMin7InC);
     const auto d7ToAmPolicy = buildTensionPolicy(d7, cMajor, d7ToAmAnalysis);
@@ -177,9 +171,7 @@ int main()
     expect(d7ToAmPolicy.functionalProfile == FunctionalTensionProfile::dominantUnresolved,
            "D7->Am stays unresolved rather than stealing Am target mode");
 
-    // Minor-target dominant is the critical 0.3e regression from Studio Pro:
-    // Bm7b5 | E7 | Am. E7 must not promote Mixolydian natural 13 C# merely
-    // because it is a generic dominant colour; b9/b13 carry the minor target.
+    // Minor-target dominant regression: Bm7b5 | E7 | Am.
     const auto aMinor = normalizeKey(makeKey(3, true));
     const auto e7 = normalizeChord(makeChord(4, { 0, 4, 7, 10 }));
     const auto aMin7 = normalizeChord(makeChord(3, { 0, 3, 7, 10 }));
@@ -198,20 +190,52 @@ int main()
            && e7ToAmPolicy.tone(1).alteredCandidate
            && e7ToAmPolicy.tone(1).functionallyDirected,
            "E7 b9 is a directed Rich candidate into Am");
-    expect(e7ToAmPolicy.tone(8).role == TensionRole::contextual
+    expect(e7ToAmPolicy.tone(8).role == TensionRole::preferred
            && e7ToAmPolicy.tone(8).alteredCandidate
            && e7ToAmPolicy.tone(8).functionallyDirected,
-           "E7 b13 is a directed Rich candidate into Am");
+           "E7 b13 is target-aware inside Color for confirmed minor target");
     expect(e7ToAmPolicy.tone(9).role == TensionRole::unavailable,
-           "E7 natural 13 C# is not generic inferred Color in A minor");
+           "E7 natural 13 C# is not inferred Color for confirmed A minor target");
     expect(! e7ToAmPolicy.isHarmonyCandidate(1, TensionLevel::color),
-           "Color does not auto-alter E7 with b9");
+           "Color does not auto-add stronger E7 b9 tension");
     expect(e7ToAmPolicy.isHarmonyCandidate(1, TensionLevel::rich),
            "Rich may use functionally directed E7 b9");
+    expect(e7ToAmPolicy.isHarmonyCandidate(8, TensionLevel::color),
+           "Color may use functionally natural E7 b13 into Am");
     expect(e7ToAmPolicy.isHarmonyCandidate(8, TensionLevel::rich),
-           "Rich may use functionally directed E7 b13");
+           "Rich keeps functionally natural E7 b13 available");
 
-    // Explicit tensions from Chord Track outrank level/inference and avoid heuristics.
+    // 0.3f user regression: no next chord means no target guess. Adding the
+    // explicit Dm target changes A7 from unresolved generic colour to a real
+    // minor-target profile.
+    const auto a7 = normalizeChord(makeChord(3, { 0, 4, 7, 10 }));
+    const auto a7NoTarget = buildTensionPolicy(a7, cMajor,
+        analyzeHarmonicFunction(a7, cMajor));
+    expect(a7NoTarget.functionalProfile == FunctionalTensionProfile::dominantUnresolved,
+           "A7 without following Dm does not invent a resolution target");
+    expect(! a7NoTarget.resolutionConfirmed,
+           "A7 without next chord remains unconfirmed");
+    expect(a7NoTarget.tone(9).role == TensionRole::preferred,
+           "unresolved A7 may retain generic natural-13 Color vocabulary");
+
+    const auto a7ToDmAnalysis = analyzeHarmonicFunction(a7, cMajor, dMin7);
+    const auto a7ToDmPolicy = buildTensionPolicy(a7, cMajor, a7ToDmAnalysis);
+    expect(a7ToDmAnalysis.dominantResolutionConfirmed,
+           "A7->Dm confirms real dominant target from Chord Track");
+    expect(a7ToDmAnalysis.dominantTargetQuality == ChordQuality::minor,
+           "A7->Dm preserves minor target quality");
+    expect(a7ToDmPolicy.functionalProfile == FunctionalTensionProfile::dominantMinorTarget,
+           "A7->Dm selects minor-target profile only when Dm is actually present");
+    expect(a7ToDmPolicy.tone(8).role == TensionRole::preferred
+           && a7ToDmPolicy.isHarmonyCandidate(8, TensionLevel::color),
+           "A7 b13/F becomes functionally natural Color into Dm");
+    expect(a7ToDmPolicy.tone(9).role == TensionRole::unavailable,
+           "A7 natural 13/F# is not inferred Color once Dm target is confirmed");
+    expect(! a7ToDmPolicy.isHarmonyCandidate(1, TensionLevel::color),
+           "A7 b9 stays outside Color");
+    expect(a7ToDmPolicy.isHarmonyCandidate(1, TensionLevel::rich),
+           "A7 b9 becomes available to Rich with confirmed Dm target");
+
     const auto cMaj7Sharp11 = normalizeChord(makeDegreeChord(0,
         { { 0, 1 }, { 4, 3 }, { 7, 5 }, { 11, 7 }, { 6, 11 } }));
     const auto cMaj7Sharp11Policy = buildTensionPolicy(
@@ -232,7 +256,6 @@ int main()
     expect(c7Flat9Policy.isHarmonyCandidate(1, TensionLevel::clean),
            "explicit b9 survives Clean level");
 
-    // Modal interchange inference uses the parallel source collection.
     const auto fMin7 = normalizeChord(makeChord(-1, { 0, 3, 7, 10 }));
     const auto fMinAnalysis = analyzeHarmonicFunction(fMin7, cMajor);
     const auto fMinPolicy = buildTensionPolicy(fMin7, cMajor, fMinAnalysis);
@@ -267,6 +290,6 @@ int main()
                == "Dominant -> minor target",
            "functional profile diagnostic name");
 
-    std::cout << "SmartVoicingTensionPolicyTests 0.3e: OK\n";
+    std::cout << "SmartVoicingTensionPolicyTests 0.3f: OK\n";
     return 0;
 }
