@@ -8,6 +8,8 @@ Stable base: **0.4b — Drop 2**
 
 Target build label: **Smart Voicing 0.4c**
 
+Current substep: **0.4c1 — Unison host-integration candidate**
+
 > Read `docs/MUSICAL-ENGINE-GUARDRAILS.md` before changing musical logic. 0.4c is an orchestration/vertical-organization slice. It must not introduce a second Harmony Core or silently reinterpret Chord / Function / Resolution Target / Tension Policy.
 
 ## Why this slice comes now
@@ -47,6 +49,19 @@ Rules:
 - no allocation/locks/I/O in realtime path;
 - same input + same state = same output.
 
+Implementation checkpoint:
+- [x] `VoicingType::unison` added without changing `Closed=0` / `Drop2=1` state meaning;
+- [x] pure `buildUnisonVoicing()` returns four independent active voice slots at the performer melody pitch;
+- [x] dispatcher bypasses Closed/Harmony Core for Unison;
+- [x] Clean/Color/Rich do not alter Unison pitch output;
+- [x] repeated same-note Unison articulation can explicitly retrigger V1–V4 together;
+- [x] processor accepts/persists Unison value in existing Voicing Type state field;
+- [x] `Unison` exposed in Voicing Type UI;
+- [x] UI/build diagnostics identify 0.4c1;
+- [x] core regressions green in Windows Build #348;
+- [ ] host-integration Windows build green;
+- [ ] Studio Pro acceptance.
+
 ### 0.4c2 — Octaves
 
 Goal: distribute the same melodic pitch class across octave-related voices.
@@ -72,14 +87,14 @@ Rules:
 
 ## Shared invariants
 
-- [ ] `VoicingType` can represent the new orchestration strategies without changing old state meaning;
-- [ ] old 0.4a/0.4b projects continue to load as their saved `Closed` / `Drop 2` values;
-- [ ] V1 melody is never changed by Stage 5;
-- [ ] duplicate MIDI pitches on different output channels remain valid independent voices;
-- [ ] strategy switching does not create stuck notes;
-- [ ] strategy switching reuses the existing transition planner rather than tearing down all voices unnecessarily;
-- [ ] deterministic playback remains guaranteed;
-- [ ] no new harmonic inference is added to implement Unison/Octaves/Doubling.
+- [x] `VoicingType` can represent Unison without changing old `Closed` / `Drop 2` numeric meaning;
+- [ ] old 0.4a/0.4b projects continue to load as their saved `Closed` / `Drop 2` values in Studio Pro;
+- [x] V1 melody is never changed by Stage 5;
+- [x] duplicate MIDI pitches remain separate VoiceOutput slots and downstream channels by design;
+- [ ] strategy switching does not create stuck notes in host;
+- [x] strategy switching reuses the existing transition planner rather than introducing a parallel engine;
+- [x] deterministic playback contract remains unchanged;
+- [x] no new harmonic inference is added to implement Unison.
 
 ## Tension Level interaction
 
@@ -113,28 +128,37 @@ A future Voicing Type keyswitch block must use canonical MIDI note numbers and o
 
 ## Automated acceptance targets
 
-- [ ] Unison sends identical melody pitch on all intended voices/channels;
-- [ ] duplicate same-note voices do not collapse into one output;
-- [ ] note-off releases every duplicated voice correctly;
-- [ ] repeated melody notes rearticulate deterministically without stuck notes;
+- [x] Unison generates identical melody pitch on V1–V4;
+- [x] duplicate same-note voices do not collapse inside `VoiceOutput`;
+- [x] repeated melody notes have a full-section retrigger path for Unison;
+- [x] Clean/Color/Rich do not alter pure Unison pitch identity;
+- [ ] note-off releases every duplicated voice correctly in host/router;
 - [ ] Octaves preserve pitch class exactly across all active voices;
 - [ ] octave offsets match the documented default layout exactly;
-- [ ] Clean/Color/Rich do not alter pure Unison/Octave pitch identity;
 - [ ] switching `Closed ↔ Unison ↔ Octaves ↔ Drop 2` preserves V1 semantics;
-- [ ] project state persists all implemented `VoicingType` values;
-- [ ] legacy state compatibility remains green;
-- [ ] full existing CI remains green.
+- [ ] project state persists all implemented `VoicingType` values in host;
+- [ ] legacy state compatibility remains green in host;
+- [ ] full current host-integration CI remains green.
 
 ## Studio Pro acceptance targets
 
-- [ ] Unison sounds/records as independent voices on Ch1–Ch4;
-- [ ] Octaves sound/record with the documented octave layout;
-- [ ] same-pitch duplicate voices do not disappear in the host/router;
-- [ ] live mode switching has no stuck notes or tiny garbage fragments;
-- [ ] project save/reopen restores the selected strategy;
-- [ ] repeated playback is deterministic;
+### 0.4c1 Unison
+- [ ] select `Melody Harmonize → Unison` from Voicing Type;
+- [ ] one melody note sounds/records independently on Ch1–Ch4 at the same MIDI pitch;
+- [ ] changing Chord Track while the note is held does not alter Unison pitches;
+- [ ] Clean / Color / Rich all produce the same Unison pitches;
+- [ ] repeated same-pitch melody note rearticulates all four channels cleanly;
+- [ ] note-off releases all four duplicated voices; no stuck notes;
+- [ ] live `Closed ↔ Drop 2 ↔ Unison` switching has no tiny garbage notes or stale voices;
+- [ ] project save/reopen restores `Unison`;
+- [ ] old 0.4a/0.4b project restores its original Closed/Drop2 selection;
 - [ ] Tension keyswitches remain swallowed and do not leak downstream;
 - [ ] switching back to Closed/Drop 2 restores normal harmonic Tension behavior.
+
+### Later 0.4c
+- [ ] Octaves sound/record with the documented octave layout;
+- [ ] simple doubling policies match their documented layouts;
+- [ ] repeated playback is deterministic.
 
 ## Not part of 0.4c
 
