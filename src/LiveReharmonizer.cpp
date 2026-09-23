@@ -104,7 +104,8 @@ ReharmonizationPlan planLowerVoiceReharmonization(const VoiceOutput& current,
 
 ReharmonizationPlan planVoicingTransition(const VoiceOutput& current,
                                           const VoiceOutput& desired,
-                                          bool retriggerMelody) noexcept
+                                          bool retriggerMelody,
+                                          bool retriggerMatchingLowerVoices) noexcept
 {
     ReharmonizationPlan plan;
 
@@ -113,12 +114,15 @@ ReharmonizationPlan planVoicingTransition(const VoiceOutput& current,
         const auto index = static_cast<std::size_t>(voice);
         const auto oldNote = slotNote(current.voices[index]);
         const auto newNote = slotNote(desired.voices[index]);
+        const auto matchingActiveNote = oldNote >= 0 && oldNote == newNote;
         const auto forceMelodyRetrigger = voice == 0
                                        && retriggerMelody
-                                       && oldNote >= 0
-                                       && oldNote == newNote;
+                                       && matchingActiveNote;
+        const auto forceLowerRetrigger = voice > 0
+                                      && retriggerMatchingLowerVoices
+                                      && matchingActiveNote;
 
-        if (oldNote == newNote && ! forceMelodyRetrigger)
+        if (oldNote == newNote && ! forceMelodyRetrigger && ! forceLowerRetrigger)
             continue;
 
         auto& transition = plan.voices[index];
