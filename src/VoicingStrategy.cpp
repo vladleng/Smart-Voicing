@@ -74,10 +74,35 @@ VoiceOutput transformClosedToDrop2(const VoiceOutput& closed,
     return result;
 }
 
+VoiceOutput buildUnisonVoicing(int melodyNote) noexcept
+{
+    VoiceOutput result;
+    result.clear();
+
+    if (melodyNote < 0 || melodyNote > 127)
+        return result;
+
+    // Four independent sounding slots intentionally share the same MIDI note.
+    // The downstream router keeps them separated by channels Ch1..Ch4.
+    for (auto& voice : result.voices)
+    {
+        voice.active = true;
+        voice.midiNote = melodyNote;
+    }
+
+    return result;
+}
+
 VoiceOutput buildVoicing(int melodyNote,
                          VoicingType type,
                          const VoicingContext& context) noexcept
 {
+    // Unison is a melodic orchestration strategy, not a harmonic voicing. It
+    // intentionally bypasses Closed and therefore cannot accidentally invent or
+    // reselect chord/tension material.
+    if (type == VoicingType::unison)
+        return buildUnisonVoicing(melodyNote);
+
     // Closed is selected exactly once. Drop-family strategies transform this
     // material and therefore cannot silently choose a different tension set.
     const auto closed = buildClosedVoicing(melodyNote,
@@ -98,6 +123,8 @@ const char* voicingTypeName(VoicingType type) noexcept
 {
     switch (type)
     {
+        case VoicingType::unison:
+            return "Unison";
         case VoicingType::drop2:
             return "Drop 2";
         case VoicingType::closed:
