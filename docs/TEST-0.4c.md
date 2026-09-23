@@ -1,6 +1,6 @@
 # Smart Voicing 0.4c — Unison / Octaves / Doubling test plan
 
-Status: **IN DEVELOPMENT**
+Status: **IN DEVELOPMENT — 0.4c1 accepted, 0.4c2 active**
 
 Stage: **5 — Jazz Voicing Engine**
 
@@ -8,7 +8,7 @@ Stable base: **0.4b — Drop 2**
 
 Target build label: **Smart Voicing 0.4c**
 
-Current substep: **0.4c1 — Unison host-integration candidate**
+Current substep: **0.4c2 — Octaves core**
 
 > Read `docs/MUSICAL-ENGINE-GUARDRAILS.md` before changing musical logic. 0.4c is an orchestration/vertical-organization slice. It must not introduce a second Harmony Core or silently reinterpret Chord / Function / Resolution Target / Tension Policy.
 
@@ -30,9 +30,9 @@ A pure unison or octave texture may intentionally express little or no vertical 
 
 ## 0.4c logical substeps
 
-### 0.4c1 — Unison
+### 0.4c1 — Unison ✅ ACCEPTED
 
-Goal: route the authoritative melody to the section without harmonic generation.
+Accepted in Studio Pro on 2026-09-23.
 
 Contract:
 
@@ -41,38 +41,64 @@ V1 melody
 → V1/V2/V3/V4 same melodic pitch
 ```
 
-Rules:
+Confirmed:
 - melody remains authoritative;
-- no chord-tone/tension generation is required;
-- `Clean / Color / Rich` state is preserved but pure Unison does not need to change pitch output;
 - four output channels remain independent even when their MIDI note number is identical;
-- no allocation/locks/I/O in realtime path;
-- same input + same state = same output.
+- `Clean / Color / Rich` produce identical Unison pitches by design;
+- chord/function/tension material is not invented in pure Unison;
+- repeated same-note Unison articulation has whole-section retrigger semantics;
+- result is deterministic;
+- Windows Build #354 completed successfully, including tests, package preparation and artifact upload.
 
-Implementation checkpoint:
-- [x] `VoicingType::unison` added without changing `Closed=0` / `Drop2=1` state meaning;
-- [x] pure `buildUnisonVoicing()` returns four independent active voice slots at the performer melody pitch;
-- [x] dispatcher bypasses Closed/Harmony Core for Unison;
-- [x] Clean/Color/Rich do not alter Unison pitch output;
-- [x] repeated same-note Unison articulation can explicitly retrigger V1–V4 together;
-- [x] processor accepts/persists Unison value in existing Voicing Type state field;
-- [x] `Unison` exposed in Voicing Type UI;
-- [x] UI/build diagnostics identify 0.4c1;
-- [x] core regressions green in Windows Build #348;
-- [ ] host-integration Windows build green;
-- [ ] Studio Pro acceptance.
+### 0.4c2 — Octaves — ACTIVE
 
-### 0.4c2 — Octaves
+Goal: distribute the same performer-owned melodic pitch class across an explicit octave layout.
 
-Goal: distribute the same melodic pitch class across octave-related voices.
+Approved Stage 5 default layout:
+
+```text
+V1 = melody
+V2 = melody - 12
+V3 = melody - 12
+V4 = melody - 24
+
+relative offsets = [0, -12, -12, -24]
+```
+
+Conceptually:
+
+```text
+upper lead
+↓ one octave
+middle pair in the same octave
+↓ one octave
+lower anchor
+```
+
+This exact mapping is **project-defined**, not quoted as a universal four-instrument formula from the Berklee reference. *Modern Jazz Voicings* supports octave doubling and register-aware orchestration as arranging concepts, but does not prescribe this exact `[0,-12,-12,-24]` mapping for Smart Voicing. The layout is therefore an explicit deterministic Stage 5 orchestration default, while concrete instrument comfortable ranges remain Stage 7.
 
 Rules:
-- all sounding voices represent the same melodic pitch class;
+- all sounding voices represent exactly the melody pitch class;
 - no new harmonic vocabulary is selected;
-- V1 remains performer-owned;
-- octave placement is a Stage 5 layout decision;
-- instrument-specific comfortable ranges are deferred to Stage 7 Instrument Profiles;
-- exact default octave layout must be explicit and regression-tested, not inferred ad hoc from chord function.
+- V1 remains performer-owned and is never transposed;
+- `Clean / Color / Rich` must not change Octaves pitch output;
+- Chord / Key / Function changes must not reharmonize pure Octaves;
+- V2 and V3 intentionally share the same MIDI pitch on separate Voice slots / channels;
+- instrument-specific comfortable ranges remain Stage 7 Instrument Profiles;
+- if a requested lower octave falls below MIDI note 0, that Voice slot is inactive rather than wrapped or silently moved to another octave;
+- no hidden range adaptation is introduced in Stage 5;
+- exact offsets must be regression-tested and deterministic.
+
+Current 0.4c2 core implementation:
+- [x] `VoicingType::octaves` appended after existing values, preserving `Closed=0`, `Drop2=1`, `Unison=2`;
+- [x] `buildOctaveVoicing()` implements `[0,-12,-12,-24]`;
+- [x] Octaves bypass Closed/Harmony Core exactly like Unison;
+- [x] V2/V3 duplicate pitch remains represented as two independent VoiceOutput slots;
+- [x] invalid lower MIDI targets remain inactive instead of wrapping;
+- [x] regression tests added for layout, pitch-class identity, Tension/Harmony independence and low-range safety;
+- [ ] latest 0.4c2 core Windows CI green;
+- [ ] processor/state/UI host integration;
+- [ ] Studio Pro acceptance.
 
 ### 0.4c3 — Simple Doubling
 
@@ -87,14 +113,14 @@ Rules:
 
 ## Shared invariants
 
-- [x] `VoicingType` can represent Unison without changing old `Closed` / `Drop 2` numeric meaning;
-- [ ] old 0.4a/0.4b projects continue to load as their saved `Closed` / `Drop 2` values in Studio Pro;
-- [x] V1 melody is never changed by Stage 5;
-- [x] duplicate MIDI pitches remain separate VoiceOutput slots and downstream channels by design;
-- [ ] strategy switching does not create stuck notes in host;
-- [x] strategy switching reuses the existing transition planner rather than introducing a parallel engine;
+- [x] `VoicingType` can represent Unison/Octaves without changing old `Closed` / `Drop 2` numeric meaning;
+- [x] V1 melody is never changed by Unison/Octaves core;
+- [x] duplicate MIDI pitches remain separate VoiceOutput slots by design;
 - [x] deterministic playback contract remains unchanged;
-- [x] no new harmonic inference is added to implement Unison.
+- [x] no new harmonic inference is added to implement Unison/Octaves;
+- [ ] old 0.4a/0.4b projects continue to load as their saved `Closed` / `Drop 2` values in Studio Pro after Octaves integration;
+- [ ] strategy switching does not create stuck notes in host;
+- [ ] strategy switching reuses the existing transition planner rather than introducing a parallel engine.
 
 ## Tension Level interaction
 
@@ -129,40 +155,44 @@ A future Voicing Type keyswitch block must use canonical MIDI note numbers and o
 ## Automated acceptance targets
 
 - [x] Unison generates identical melody pitch on V1–V4;
-- [x] duplicate same-note voices do not collapse inside `VoiceOutput`;
-- [x] repeated melody notes have a full-section retrigger path for Unison;
+- [x] duplicate same-note Unison voices remain separate VoiceOutput slots;
+- [x] repeated Unison melody notes have a full-section retrigger path;
 - [x] Clean/Color/Rich do not alter pure Unison pitch identity;
-- [ ] note-off releases every duplicated voice correctly in host/router;
-- [ ] Octaves preserve pitch class exactly across all active voices;
-- [ ] octave offsets match the documented default layout exactly;
-- [ ] switching `Closed ↔ Unison ↔ Octaves ↔ Drop 2` preserves V1 semantics;
+- [x] Octaves preserve melody pitch class across all active VoiceOutput slots;
+- [x] octave offsets match `[0,-12,-12,-24]` exactly in core;
+- [x] V2/V3 same-note duplicates remain separate VoiceOutput slots;
+- [x] out-of-MIDI-range lower octave does not wrap or mutate V1;
+- [x] Clean/Color/Rich and harmonic context do not alter pure Octaves pitch identity in core;
+- [ ] switching `Closed ↔ Unison ↔ Octaves ↔ Drop 2` preserves V1 semantics in processor/host;
 - [ ] project state persists all implemented `VoicingType` values in host;
 - [ ] legacy state compatibility remains green in host;
-- [ ] full current host-integration CI remains green.
+- [ ] full current 0.4c2 CI remains green.
 
 ## Studio Pro acceptance targets
 
-### 0.4c1 Unison
-- [ ] select `Melody Harmonize → Unison` from Voicing Type;
-- [ ] one melody note sounds/records independently on Ch1–Ch4 at the same MIDI pitch;
-- [ ] changing Chord Track while the note is held does not alter Unison pitches;
-- [ ] Clean / Color / Rich all produce the same Unison pitches;
-- [ ] repeated same-pitch melody note rearticulates all four channels cleanly;
-- [ ] note-off releases all four duplicated voices; no stuck notes;
-- [ ] live `Closed ↔ Drop 2 ↔ Unison` switching has no tiny garbage notes or stale voices;
-- [ ] project save/reopen restores `Unison`;
-- [ ] old 0.4a/0.4b project restores its original Closed/Drop2 selection;
-- [ ] Tension keyswitches remain swallowed and do not leak downstream;
-- [ ] switching back to Closed/Drop 2 restores normal harmonic Tension behavior.
+### 0.4c1 Unison ✅
+- [x] Unison plays as a four-channel melodic section texture;
+- [x] Clean / Color / Rich produce identical Unison pitches.
 
-### Later 0.4c
-- [ ] Octaves sound/record with the documented octave layout;
-- [ ] simple doubling policies match their documented layouts;
+### 0.4c2 Octaves
+- [ ] select `Melody Harmonize → Octaves` from Voicing Type;
+- [ ] normal-range melody records as Ch1=`0`, Ch2=`-12`, Ch3=`-12`, Ch4=`-24` relative to V1;
+- [ ] Ch2/Ch3 same-pitch duplicates remain independent and do not disappear;
+- [ ] changing Chord Track while a note is held does not alter Octaves pitches;
+- [ ] Clean / Color / Rich all produce the same Octaves pitches;
+- [ ] repeated same-pitch melody note rearticulates the octave section cleanly;
+- [ ] note-off releases every active octave voice; no stuck notes;
+- [ ] live `Closed ↔ Drop 2 ↔ Unison ↔ Octaves` switching has no stale/tiny garbage notes;
+- [ ] project save/reopen restores `Octaves`;
+- [ ] old 0.4a/0.4b projects preserve their original Closed/Drop2 selection;
+- [ ] Tension keyswitches remain swallowed and do not leak downstream;
+- [ ] switching back to Closed/Drop 2 restores normal harmonic Tension behavior;
 - [ ] repeated playback is deterministic.
 
 ## Not part of 0.4c
 
 - permanent Voicing Type keyswitch map;
+- instrument-specific octave/range adaptation;
 - Drop 3;
 - Drop 2+4;
 - Spread;
