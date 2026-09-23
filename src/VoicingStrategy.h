@@ -9,15 +9,16 @@ namespace smartvoicing::harmony
 // Public Stage 5 selector.
 //
 // Harmonic strategies (Closed / Drop family) organize already interpreted
-// Stage 4 harmonic material. Melodic orchestration strategies such as Unison
-// and Octaves organize performer-owned melody directly and do not invent
-// harmony merely to make Tension Level audible.
+// Stage 4 harmonic material. Melodic orchestration strategies such as Unison,
+// Octaves and Doubling organize performer-owned melody directly and do not
+// invent harmony merely to make Tension Level audible.
 enum class VoicingType : std::uint8_t
 {
     closed = 0,
     drop2 = 1,
     unison = 2,
-    octaves = 3
+    octaves = 3,
+    doubling = 4
 };
 
 // Stage 4 hands Stage 5 an already interpreted harmonic context. A strategy
@@ -54,6 +55,13 @@ VoiceOutput buildUnisonVoicing(int melodyNote) noexcept;
 // Any target below the MIDI domain is left inactive rather than wrapping or
 // changing the performer-owned V1 melody.
 VoiceOutput buildOctaveVoicing(int melodyNote) noexcept;
+
+// 0.4c3 paired doubling texture. The first pair doubles the melody in unison,
+// while the second pair doubles the same pitch class one octave below:
+// V1 = melody, V2 = melody, V3 = melody-12, V4 = melody-12.
+// This remains a deterministic Stage 5 melodic-layout decision; instrument
+// register adaptation is intentionally deferred to Stage 7.
+VoiceOutput buildDoublingVoicing(int melodyNote) noexcept;
 
 // Stage 5 dispatcher. Drop-family strategies transform the exact Closed material;
 // melodic-section strategies may intentionally bypass harmonic generation.
