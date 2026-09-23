@@ -130,7 +130,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4b - Drop 2",
+    titleLabel.setText("Smart Voicing 0.4c1 - Unison",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -177,13 +177,14 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
 
     voicingTypeBox.addItem("Closed", static_cast<int>(smartvoicing::harmony::VoicingType::closed) + 1);
     voicingTypeBox.addItem("Drop 2", static_cast<int>(smartvoicing::harmony::VoicingType::drop2) + 1);
+    voicingTypeBox.addItem("Unison", static_cast<int>(smartvoicing::harmony::VoicingType::unison) + 1);
     voicingTypeBox.setSelectedId(static_cast<int>(processor.getVoicingType()) + 1,
                                  juce::dontSendNotification);
     voicingTypeBox.onChange = [this]
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::drop2),
+            static_cast<int>(smartvoicing::harmony::VoicingType::unison),
             voicingTypeBox.getSelectedId() - 1);
         processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
         refreshContextMonitor();
@@ -236,7 +237,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(diagnosticsButton);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.4b | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.4c1 | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -530,7 +531,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.4b: Drop 2 transforms selected Closed material; Stage 4 semantics unchanged\n";
+    debugText << "Stage 5 / 0.4c1: Unison duplicates performer melody across V1-V4; harmonic semantics unchanged\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -621,6 +622,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << smartvoicing::harmony::kRichTensionKeyswitchNote << "=Rich; note-on/off swallowed\n";
     debugText << "Closed policy: guide + characteristic tones, contextual omissions, soft Upper Voice Spacing\n";
     debugText << "Drop 2 policy: same Closed pitch classes; second voice from top lowered one octave; slash bass falls back to Closed\n";
+    debugText << "Unison policy: V1-V4 same performer melody pitch on independent MIDI channels; no harmonic generation\n";
     debugText << "Tension levels: Clean=structural | Color=target-aware inside colour | Rich=functionally intensified tension\n";
     debugText << "Tension policy: Explicit authoritative; Avoid/Unavailable excluded from generated V2-V4\n";
     debugText << "Resolution policy: ONLY actual next Chord root+quality drives target-aware dominant profile\n";
