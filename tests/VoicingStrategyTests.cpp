@@ -258,6 +258,55 @@ void testUnisonRejectsInvalidMelodyNote()
     }
 }
 
+void testOctavesUseDocumentedDefaultLayout()
+{
+    VoicingContext context;
+    context.tensionLevel = TensionLevel::clean;
+
+    const auto octaves = buildVoicing(72, VoicingType::octaves, context);
+    const std::array<int, 4> expected { 72, 60, 60, 48 };
+
+    for (std::size_t i = 0; i < expected.size(); ++i)
+    {
+        expect(octaves.voices[i].active,
+               "Octaves voice " + std::to_string(i + 1) + " must be active in valid range");
+        expect(octaves.voices[i].midiNote == expected[i],
+               "Octaves voice " + std::to_string(i + 1)
+               + " must follow [0,-12,-12,-24] layout");
+        expect(pitchClass(octaves.voices[i].midiNote) == pitchClass(72),
+               "Octaves voice " + std::to_string(i + 1) + " must preserve melody pitch class");
+    }
+}
+
+void testOctavesDoNotDependOnTensionLevelOrHarmony()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+
+    const auto cleanContext = makeContext(cmaj7, cMajor, 74, TensionLevel::clean);
+    const auto richContext = makeContext(g7, cMajor, 74, TensionLevel::rich, &cmaj7);
+
+    const auto clean = buildVoicing(74, VoicingType::octaves, cleanContext);
+    const auto rich = buildVoicing(74, VoicingType::octaves, richContext);
+    expectSameVoicing(clean, rich,
+                      "Pure Octaves must not invent harmonic differences for Chord or Tension Level");
+}
+
+void testOctavesDoNotWrapBelowMidiRange()
+{
+    const auto octaves = buildOctaveVoicing(12);
+
+    expect(octaves.voices[0].active && octaves.voices[0].midiNote == 12,
+           "Low Octaves V1 must preserve performer melody");
+    expect(octaves.voices[1].active && octaves.voices[1].midiNote == 0,
+           "Low Octaves V2 must use melody-12 when valid");
+    expect(octaves.voices[2].active && octaves.voices[2].midiNote == 0,
+           "Low Octaves V3 must independently duplicate melody-12 when valid");
+    expect(! octaves.voices[3].active && octaves.voices[3].midiNote == -1,
+           "Low Octaves V4 must stay inactive instead of wrapping melody-24");
+}
+
 void testVoicingTypeName()
 {
     expect(std::string(voicingTypeName(VoicingType::closed)) == "Closed",
@@ -266,6 +315,8 @@ void testVoicingTypeName()
            "Drop 2 voicing type name");
     expect(std::string(voicingTypeName(VoicingType::unison)) == "Unison",
            "Unison voicing type name");
+    expect(std::string(voicingTypeName(VoicingType::octaves)) == "Octaves",
+           "Octaves voicing type name");
 }
 }
 
@@ -280,6 +331,9 @@ int main()
     testUnisonDuplicatesPerformerMelodyAcrossAllVoices();
     testUnisonDoesNotDependOnTensionLevelOrHarmony();
     testUnisonRejectsInvalidMelodyNote();
+    testOctavesUseDocumentedDefaultLayout();
+    testOctavesDoNotDependOnTensionLevelOrHarmony();
+    testOctavesDoNotWrapBelowMidiRange();
     testVoicingTypeName();
 
     if (failures != 0)
