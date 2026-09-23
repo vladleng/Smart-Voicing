@@ -119,18 +119,47 @@ VoiceOutput buildOctaveVoicing(int melodyNote) noexcept
     return result;
 }
 
+VoiceOutput buildDoublingVoicing(int melodyNote) noexcept
+{
+    VoiceOutput result;
+    result.clear();
+
+    if (melodyNote < 0 || melodyNote > 127)
+        return result;
+
+    // 0.4c3 project default: two independent unison pairs one octave apart.
+    // This complements Unison [0,0,0,0] and Octaves [0,-12,-12,-24]
+    // without introducing harmony or instrument-specific range adaptation.
+    constexpr std::array<int, 4> offsets { 0, 0, -12, -12 };
+
+    for (std::size_t i = 0; i < offsets.size(); ++i)
+    {
+        const auto note = melodyNote + offsets[i];
+        if (note < 0 || note > 127)
+            continue;
+
+        result.voices[i].active = true;
+        result.voices[i].midiNote = note;
+    }
+
+    return result;
+}
+
 VoiceOutput buildVoicing(int melodyNote,
                          VoicingType type,
                          const VoicingContext& context) noexcept
 {
-    // Unison and Octaves are melodic orchestration strategies, not harmonic
-    // voicings. They intentionally bypass Closed and therefore cannot
+    // Unison, Octaves and Doubling are melodic orchestration strategies, not
+    // harmonic voicings. They intentionally bypass Closed and therefore cannot
     // accidentally invent or reselect chord/tension material.
     if (type == VoicingType::unison)
         return buildUnisonVoicing(melodyNote);
 
     if (type == VoicingType::octaves)
         return buildOctaveVoicing(melodyNote);
+
+    if (type == VoicingType::doubling)
+        return buildDoublingVoicing(melodyNote);
 
     // Closed is selected exactly once. Drop-family strategies transform this
     // material and therefore cannot silently choose a different tension set.
@@ -152,6 +181,8 @@ const char* voicingTypeName(VoicingType type) noexcept
 {
     switch (type)
     {
+        case VoicingType::doubling:
+            return "Doubling";
         case VoicingType::octaves:
             return "Octaves";
         case VoicingType::unison:
