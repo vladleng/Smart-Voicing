@@ -215,12 +215,57 @@ void testDrop2FallsBackForExplicitSlashBass()
                       "Drop 2 slash-bass safety fallback must preserve Closed vertical");
 }
 
+void testUnisonDuplicatesPerformerMelodyAcrossAllVoices()
+{
+    VoicingContext context;
+    context.tensionLevel = TensionLevel::clean;
+
+    const auto unison = buildVoicing(69, VoicingType::unison, context);
+    for (std::size_t i = 0; i < unison.voices.size(); ++i)
+    {
+        expect(unison.voices[i].active,
+               "Unison voice " + std::to_string(i + 1) + " must be active");
+        expect(unison.voices[i].midiNote == 69,
+               "Unison voice " + std::to_string(i + 1) + " must duplicate melody pitch exactly");
+    }
+}
+
+void testUnisonDoesNotDependOnTensionLevelOrHarmony()
+{
+    VoicingContext cleanContext;
+    cleanContext.tensionLevel = TensionLevel::clean;
+
+    VoicingContext richContext;
+    richContext.tensionLevel = TensionLevel::rich;
+
+    const auto clean = buildVoicing(73, VoicingType::unison, cleanContext);
+    const auto rich = buildVoicing(73, VoicingType::unison, richContext);
+    expectSameVoicing(clean, rich,
+                      "Pure Unison must not invent harmonic differences for Tension Level");
+}
+
+void testUnisonRejectsInvalidMelodyNote()
+{
+    const auto below = buildUnisonVoicing(-1);
+    const auto above = buildUnisonVoicing(128);
+
+    for (std::size_t i = 0; i < below.voices.size(); ++i)
+    {
+        expect(! below.voices[i].active && below.voices[i].midiNote == -1,
+               "Invalid low melody must return empty Unison output");
+        expect(! above.voices[i].active && above.voices[i].midiNote == -1,
+               "Invalid high melody must return empty Unison output");
+    }
+}
+
 void testVoicingTypeName()
 {
     expect(std::string(voicingTypeName(VoicingType::closed)) == "Closed",
            "Closed voicing type name");
     expect(std::string(voicingTypeName(VoicingType::drop2)) == "Drop 2",
            "Drop 2 voicing type name");
+    expect(std::string(voicingTypeName(VoicingType::unison)) == "Unison",
+           "Unison voicing type name");
 }
 }
 
@@ -232,6 +277,9 @@ int main()
     testDrop2TransformsSelectedClosedMaterial();
     testDrop2PreservesMinorTargetRichVocabulary();
     testDrop2FallsBackForExplicitSlashBass();
+    testUnisonDuplicatesPerformerMelodyAcrossAllVoices();
+    testUnisonDoesNotDependOnTensionLevelOrHarmony();
+    testUnisonRejectsInvalidMelodyNote();
     testVoicingTypeName();
 
     if (failures != 0)
