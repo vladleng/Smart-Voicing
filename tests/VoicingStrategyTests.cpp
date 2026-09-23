@@ -307,6 +307,55 @@ void testOctavesDoNotWrapBelowMidiRange()
            "Low Octaves V4 must stay inactive instead of wrapping melody-24");
 }
 
+void testDoublingUsesDocumentedPairedLayout()
+{
+    VoicingContext context;
+    context.tensionLevel = TensionLevel::clean;
+
+    const auto doubling = buildVoicing(72, VoicingType::doubling, context);
+    const std::array<int, 4> expected { 72, 72, 60, 60 };
+
+    for (std::size_t i = 0; i < expected.size(); ++i)
+    {
+        expect(doubling.voices[i].active,
+               "Doubling voice " + std::to_string(i + 1) + " must be active in valid range");
+        expect(doubling.voices[i].midiNote == expected[i],
+               "Doubling voice " + std::to_string(i + 1)
+               + " must follow [0,0,-12,-12] layout");
+        expect(pitchClass(doubling.voices[i].midiNote) == pitchClass(72),
+               "Doubling voice " + std::to_string(i + 1) + " must preserve melody pitch class");
+    }
+}
+
+void testDoublingDoesNotDependOnTensionLevelOrHarmony()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+
+    const auto cleanContext = makeContext(cmaj7, cMajor, 76, TensionLevel::clean);
+    const auto richContext = makeContext(g7, cMajor, 76, TensionLevel::rich, &cmaj7);
+
+    const auto clean = buildVoicing(76, VoicingType::doubling, cleanContext);
+    const auto rich = buildVoicing(76, VoicingType::doubling, richContext);
+    expectSameVoicing(clean, rich,
+                      "Pure Doubling must not invent harmonic differences for Chord or Tension Level");
+}
+
+void testDoublingDoesNotWrapBelowMidiRange()
+{
+    const auto doubling = buildDoublingVoicing(5);
+
+    expect(doubling.voices[0].active && doubling.voices[0].midiNote == 5,
+           "Low Doubling V1 must preserve performer melody");
+    expect(doubling.voices[1].active && doubling.voices[1].midiNote == 5,
+           "Low Doubling V2 must preserve upper unison pair");
+    expect(! doubling.voices[2].active && doubling.voices[2].midiNote == -1,
+           "Low Doubling V3 must stay inactive instead of wrapping melody-12");
+    expect(! doubling.voices[3].active && doubling.voices[3].midiNote == -1,
+           "Low Doubling V4 must stay inactive instead of wrapping melody-12");
+}
+
 void testVoicingTypeName()
 {
     expect(std::string(voicingTypeName(VoicingType::closed)) == "Closed",
@@ -317,6 +366,8 @@ void testVoicingTypeName()
            "Unison voicing type name");
     expect(std::string(voicingTypeName(VoicingType::octaves)) == "Octaves",
            "Octaves voicing type name");
+    expect(std::string(voicingTypeName(VoicingType::doubling)) == "Doubling",
+           "Doubling voicing type name");
 }
 }
 
@@ -334,6 +385,9 @@ int main()
     testOctavesUseDocumentedDefaultLayout();
     testOctavesDoNotDependOnTensionLevelOrHarmony();
     testOctavesDoNotWrapBelowMidiRange();
+    testDoublingUsesDocumentedPairedLayout();
+    testDoublingDoesNotDependOnTensionLevelOrHarmony();
+    testDoublingDoesNotWrapBelowMidiRange();
     testVoicingTypeName();
 
     if (failures != 0)
