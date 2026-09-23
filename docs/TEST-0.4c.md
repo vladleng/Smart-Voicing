@@ -8,7 +8,7 @@ Stable base: **0.4b — Drop 2**
 
 Target build label: **Smart Voicing 0.4c**
 
-Current substep: **0.4c2 — Octaves core**
+Current substep: **0.4c2 — Octaves host-integration candidate**
 
 > Read `docs/MUSICAL-ENGINE-GUARDRAILS.md` before changing musical logic. 0.4c is an orchestration/vertical-organization slice. It must not introduce a second Harmony Core or silently reinterpret Chord / Function / Resolution Target / Tension Policy.
 
@@ -89,15 +89,19 @@ Rules:
 - no hidden range adaptation is introduced in Stage 5;
 - exact offsets must be regression-tested and deterministic.
 
-Current 0.4c2 core implementation:
+Current 0.4c2 implementation:
 - [x] `VoicingType::octaves` appended after existing values, preserving `Closed=0`, `Drop2=1`, `Unison=2`;
 - [x] `buildOctaveVoicing()` implements `[0,-12,-12,-24]`;
 - [x] Octaves bypass Closed/Harmony Core exactly like Unison;
 - [x] V2/V3 duplicate pitch remains represented as two independent VoiceOutput slots;
 - [x] invalid lower MIDI targets remain inactive instead of wrapping;
 - [x] regression tests added for layout, pitch-class identity, Tension/Harmony independence and low-range safety;
-- [ ] latest 0.4c2 core Windows CI green;
-- [ ] processor/state/UI host integration;
+- [x] core Windows CI #359 green;
+- [x] processor accepts/persists `VoicingType::octaves` in the existing state field without changing prior numeric meanings;
+- [x] `Octaves` exposed in Voicing Type UI;
+- [x] repeated same-note Octaves uses whole-section retrigger semantics, like Unison;
+- [x] UI/diagnostics identify `0.4c2 - Octaves`;
+- [ ] latest host-integration Windows CI green;
 - [ ] Studio Pro acceptance.
 
 ### 0.4c3 — Simple Doubling
@@ -118,9 +122,9 @@ Rules:
 - [x] duplicate MIDI pitches remain separate VoiceOutput slots by design;
 - [x] deterministic playback contract remains unchanged;
 - [x] no new harmonic inference is added to implement Unison/Octaves;
+- [x] strategy switching reuses the existing transition planner rather than introducing a parallel engine;
 - [ ] old 0.4a/0.4b projects continue to load as their saved `Closed` / `Drop 2` values in Studio Pro after Octaves integration;
-- [ ] strategy switching does not create stuck notes in host;
-- [ ] strategy switching reuses the existing transition planner rather than introducing a parallel engine.
+- [ ] strategy switching does not create stuck notes in host.
 
 ## Tension Level interaction
 
@@ -163,10 +167,12 @@ A future Voicing Type keyswitch block must use canonical MIDI note numbers and o
 - [x] V2/V3 same-note duplicates remain separate VoiceOutput slots;
 - [x] out-of-MIDI-range lower octave does not wrap or mutate V1;
 - [x] Clean/Color/Rich and harmonic context do not alter pure Octaves pitch identity in core;
-- [ ] switching `Closed ↔ Unison ↔ Octaves ↔ Drop 2` preserves V1 semantics in processor/host;
+- [x] processor/state/UI can represent `Octaves` without renumbering prior Voicing Types;
+- [x] repeated Octaves melody articulation requests full-section transition semantics;
+- [ ] switching `Closed ↔ Unison ↔ Octaves ↔ Drop 2` preserves V1 semantics in host;
 - [ ] project state persists all implemented `VoicingType` values in host;
 - [ ] legacy state compatibility remains green in host;
-- [ ] full current 0.4c2 CI remains green.
+- [ ] latest host-integration CI green.
 
 ## Studio Pro acceptance targets
 
