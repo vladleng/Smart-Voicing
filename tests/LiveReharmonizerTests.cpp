@@ -91,11 +91,6 @@ void testChordChangeKeepsMelodyAndCommonClosedVoices()
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
     const auto fmaj7 = normalizeChord(chord(-1, -1, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
 
-    // 0.3b candidate-based Closed:
-    // Cmaj7 + G4 -> G4 / E4 / C4 / B3
-    // Fmaj7 + G4 -> G4 / E4 / C4 / A3
-    // E4 and C4 are valid common tones and must not be retriggered just because
-    // the chord changes. Only V4 moves B3 -> A3.
     const auto current = buildCloseVoicing(67, cmaj7);
     const auto desired = buildCloseVoicing(67, fmaj7);
     const auto plan = planLowerVoiceReharmonization(current, desired);
@@ -120,7 +115,7 @@ void testMelodyChangePreservesCommonLowerVoices()
     expect(plan.lowerVoicesChanged, "one changed generated voice is reported");
 }
 
-void testRepeatedMelodyRetriggersOnlyV1()
+void testRepeatedMelodyRetriggersOnlyV1ByDefault()
 {
     const auto current = voicing(67, 64, 60, 59);
     const auto desired = current;
@@ -131,6 +126,19 @@ void testRepeatedMelodyRetriggersOnlyV1()
     expectNoTransition(plan, 2, "repeated melody keeps V3 sounding");
     expectNoTransition(plan, 3, "repeated melody keeps V4 sounding");
     expect(! plan.lowerVoicesChanged, "repeated melody does not report lower voice change");
+}
+
+void testRepeatedUnisonRetriggersWholeSection()
+{
+    const auto current = voicing(67, 67, 67, 67);
+    const auto desired = current;
+    const auto plan = planVoicingTransition(current, desired, true, true);
+
+    for (int voice = 0; voice < kVoiceCount; ++voice)
+        expectTransition(plan, voice, 67, 67,
+                         "repeated Unison must rearticulate voice " + std::to_string(voice + 1));
+    expect(plan.lowerVoicesChanged,
+           "repeated Unison must report lower voice articulations");
 }
 
 void testNoChordFallbackClearsOnlyLowerVoices()
@@ -154,8 +162,8 @@ void testChordReturnsAfterFallback()
     NormalizedChord noChord;
     const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
 
-    const auto current = buildCloseVoicing(67, noChord); // only G4
-    const auto desired = buildCloseVoicing(67, g7);     // G4 / F4 / D4 / B3
+    const auto current = buildCloseVoicing(67, noChord);
+    const auto desired = buildCloseVoicing(67, g7);
     const auto plan = planLowerVoiceReharmonization(current, desired);
 
     expect(plan.lowerVoicesChanged, "valid chord after fallback must restore harmony");
@@ -268,7 +276,8 @@ int main()
     testSameChordProducesNoTransition();
     testChordChangeKeepsMelodyAndCommonClosedVoices();
     testMelodyChangePreservesCommonLowerVoices();
-    testRepeatedMelodyRetriggersOnlyV1();
+    testRepeatedMelodyRetriggersOnlyV1ByDefault();
+    testRepeatedUnisonRetriggersWholeSection();
     testNoChordFallbackClearsOnlyLowerVoices();
     testChordReturnsAfterFallback();
     testSequenceCanBeAppliedWithoutStaleVoices();
@@ -284,6 +293,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.4a fix live-reharmonization/integration tests passed.\n";
+    std::cout << "All Smart Voicing live-reharmonization/integration tests passed.\n";
     return EXIT_SUCCESS;
 }
