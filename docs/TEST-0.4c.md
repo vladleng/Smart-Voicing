@@ -1,0 +1,152 @@
+# Smart Voicing 0.4c — Unison / Octaves / Doubling test plan
+
+Status: **IN DEVELOPMENT**
+
+Stage: **5 — Jazz Voicing Engine**
+
+Stable base: **0.4b — Drop 2**
+
+Target build label: **Smart Voicing 0.4c**
+
+> Read `docs/MUSICAL-ENGINE-GUARDRAILS.md` before changing musical logic. 0.4c is an orchestration/vertical-organization slice. It must not introduce a second Harmony Core or silently reinterpret Chord / Function / Resolution Target / Tension Policy.
+
+## Why this slice comes now
+
+Unison and octave doubling are among the most common real arranging textures. They are therefore moved ahead of Drop 3 / Drop 2+4 / Spread in Stage 5.
+
+The important architectural distinction is:
+
+```text
+Closed / Drop family
+→ organize harmonic material vertically
+
+Unison / Octaves / Doubling
+→ organize performer-owned melodic material across voices
+```
+
+A pure unison or octave texture may intentionally express little or no vertical chord information. That is not a Harmony Core failure; it is the musical objective of the selected strategy.
+
+## 0.4c logical substeps
+
+### 0.4c1 — Unison
+
+Goal: route the authoritative melody to the section without harmonic generation.
+
+Contract:
+
+```text
+V1 melody
+→ V1/V2/V3/V4 same melodic pitch
+```
+
+Rules:
+- melody remains authoritative;
+- no chord-tone/tension generation is required;
+- `Clean / Color / Rich` state is preserved but pure Unison does not need to change pitch output;
+- four output channels remain independent even when their MIDI note number is identical;
+- no allocation/locks/I/O in realtime path;
+- same input + same state = same output.
+
+### 0.4c2 — Octaves
+
+Goal: distribute the same melodic pitch class across octave-related voices.
+
+Rules:
+- all sounding voices represent the same melodic pitch class;
+- no new harmonic vocabulary is selected;
+- V1 remains performer-owned;
+- octave placement is a Stage 5 layout decision;
+- instrument-specific comfortable ranges are deferred to Stage 7 Instrument Profiles;
+- exact default octave layout must be explicit and regression-tested, not inferred ad hoc from chord function.
+
+### 0.4c3 — Simple Doubling
+
+Goal: add a small set of deterministic doubling layouts useful in real arranging without becoming an Instrument Profile engine.
+
+Rules:
+- doubling policies operate on melody/octave identity only;
+- voice count may intentionally be less than four where the selected policy requires it;
+- duplicate pitch classes are intentional and must not be deduplicated by the router;
+- no random choice or hidden variation;
+- profile/range-specific reassignment remains Stage 7.
+
+## Shared invariants
+
+- [ ] `VoicingType` can represent the new orchestration strategies without changing old state meaning;
+- [ ] old 0.4a/0.4b projects continue to load as their saved `Closed` / `Drop 2` values;
+- [ ] V1 melody is never changed by Stage 5;
+- [ ] duplicate MIDI pitches on different output channels remain valid independent voices;
+- [ ] strategy switching does not create stuck notes;
+- [ ] strategy switching reuses the existing transition planner rather than tearing down all voices unnecessarily;
+- [ ] deterministic playback remains guaranteed;
+- [ ] no new harmonic inference is added to implement Unison/Octaves/Doubling.
+
+## Tension Level interaction
+
+`TensionLevel` remains one persistent global state because it is part of the project/performance control model. However:
+
+```text
+Unison / Octaves
+→ melodic orchestration strategy
+→ Clean / Color / Rich may legitimately produce identical pitches
+```
+
+This is intentional. Tension Level becomes audible again when a harmonic strategy such as Closed or Drop 2 is selected.
+
+The engine must not invent extra harmony merely to make the Tension selector audibly different in a pure unison/octave strategy.
+
+## Keyswitch policy for 0.4c
+
+Do **not** assign permanent Voicing Type keyswitch notes yet.
+
+Reason: after 0.4c the project will finally have enough real strategy types (`Closed`, `Drop 2`, `Unison`, `Octaves`, plus future Drop/Spread/Modern modes) to design the keyswitch map as a coherent block rather than accumulating arbitrary historical note assignments.
+
+Current stable Tension keyswitches remain unchanged:
+
+```text
+MIDI 43 = Clean
+MIDI 44 = Color
+MIDI 45 = Rich
+```
+
+A future Voicing Type keyswitch block must use canonical MIDI note numbers and one shared state with UI/project persistence.
+
+## Automated acceptance targets
+
+- [ ] Unison sends identical melody pitch on all intended voices/channels;
+- [ ] duplicate same-note voices do not collapse into one output;
+- [ ] note-off releases every duplicated voice correctly;
+- [ ] repeated melody notes rearticulate deterministically without stuck notes;
+- [ ] Octaves preserve pitch class exactly across all active voices;
+- [ ] octave offsets match the documented default layout exactly;
+- [ ] Clean/Color/Rich do not alter pure Unison/Octave pitch identity;
+- [ ] switching `Closed ↔ Unison ↔ Octaves ↔ Drop 2` preserves V1 semantics;
+- [ ] project state persists all implemented `VoicingType` values;
+- [ ] legacy state compatibility remains green;
+- [ ] full existing CI remains green.
+
+## Studio Pro acceptance targets
+
+- [ ] Unison sounds/records as independent voices on Ch1–Ch4;
+- [ ] Octaves sound/record with the documented octave layout;
+- [ ] same-pitch duplicate voices do not disappear in the host/router;
+- [ ] live mode switching has no stuck notes or tiny garbage fragments;
+- [ ] project save/reopen restores the selected strategy;
+- [ ] repeated playback is deterministic;
+- [ ] Tension keyswitches remain swallowed and do not leak downstream;
+- [ ] switching back to Closed/Drop 2 restores normal harmonic Tension behavior.
+
+## Not part of 0.4c
+
+- permanent Voicing Type keyswitch map;
+- Drop 3;
+- Drop 2+4;
+- Spread;
+- Quartal / Cluster / UST;
+- Stage 6 previous-state voice-leading scoring;
+- Stage 7 instrument/range-aware octave placement;
+- random variation.
+
+## Acceptance boundary
+
+0.4c is complete when Smart Voicing can intentionally choose a **melodic section texture** (Unison / Octaves / simple deterministic doubling) as cleanly as 0.4b can choose a harmonic Drop 2 texture, while preserving the same realtime/state architecture and without leaking orchestration decisions into Harmony Core.
