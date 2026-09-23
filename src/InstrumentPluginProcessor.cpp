@@ -195,7 +195,7 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 
     const auto requestedVoicingValue = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-        static_cast<int>(smartvoicing::harmony::VoicingType::unison),
+        static_cast<int>(smartvoicing::harmony::VoicingType::octaves),
         requestedVoicingType.load(std::memory_order_relaxed));
     activeVoicingType = static_cast<smartvoicing::harmony::VoicingType>(requestedVoicingValue);
 
@@ -532,11 +532,12 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
 
     if (hadActiveVoicing)
     {
-        // Harmonic strategies preserve common lower tones. Unison is a melodic
-        // section texture, so a repeated melody articulation rearticulates all
-        // four duplicated voices together.
+        // Harmonic strategies preserve common lower tones. Melodic section
+        // textures (Unison / Octaves) rearticulate the whole section when the
+        // performer repeats the same melody note.
         const auto fullSectionRetrigger =
-            activeVoicingType == smartvoicing::harmony::VoicingType::unison;
+            activeVoicingType == smartvoicing::harmony::VoicingType::unison
+            || activeVoicingType == smartvoicing::harmony::VoicingType::octaves;
         const auto plan = smartvoicing::harmony::planVoicingTransition(
             activeMelodyVoicing, voicing, true, fullSectionRetrigger);
 
@@ -1494,7 +1495,7 @@ void SmartVoicingInstrumentProcessor::setVoicingType(smartvoicing::harmony::Voic
 {
     const auto value = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-        static_cast<int>(smartvoicing::harmony::VoicingType::unison),
+        static_cast<int>(smartvoicing::harmony::VoicingType::octaves),
         static_cast<int>(type));
     requestedVoicingType.store(value, std::memory_order_release);
 }
@@ -1503,7 +1504,7 @@ smartvoicing::harmony::VoicingType SmartVoicingInstrumentProcessor::getVoicingTy
 {
     const auto value = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-        static_cast<int>(smartvoicing::harmony::VoicingType::unison),
+        static_cast<int>(smartvoicing::harmony::VoicingType::octaves),
         requestedVoicingType.load(std::memory_order_acquire));
     return static_cast<smartvoicing::harmony::VoicingType>(value);
 }
@@ -1588,7 +1589,7 @@ void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int 
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::unison),
+            static_cast<int>(smartvoicing::harmony::VoicingType::octaves),
             stream.readInt());
         setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
     }
