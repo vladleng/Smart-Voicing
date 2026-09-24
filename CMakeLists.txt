@@ -74,6 +74,8 @@ target_sources(SmartVoicing
         src/TensionKeyswitch.h
         src/VoicingKeyswitch.cpp
         src/VoicingKeyswitch.h
+        src/HarmonyModeKeyswitch.cpp
+        src/HarmonyModeKeyswitch.h
         src/CloseVoicingHarmonizer.cpp
         src/CloseVoicingHarmonizer.h
         src/VoicingStrategy.cpp
@@ -219,6 +221,18 @@ add_executable(SmartVoicingVoicingKeyswitchTests
 target_include_directories(SmartVoicingVoicingKeyswitchTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(SmartVoicingVoicingKeyswitchTests PRIVATE cxx_std_20)
 
+add_executable(SmartVoicingHarmonyModeKeyswitchTests
+    tests/HarmonyModeKeyswitchTests.cpp
+    src/HarmonyModeKeyswitch.cpp
+    src/HarmonyModeKeyswitch.h
+    src/TensionKeyswitch.cpp
+    src/TensionKeyswitch.h
+    src/TensionPolicy.h
+)
+
+target_include_directories(SmartVoicingHarmonyModeKeyswitchTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingHarmonyModeKeyswitchTests PRIVATE cxx_std_20)
+
 add_executable(SmartVoicingLiveReharmonizerTests
     tests/LiveReharmonizerTests.cpp
     src/ChordModel.cpp
@@ -275,6 +289,7 @@ if(MSVC)
     target_compile_options(SmartVoicingVoicingStrategyTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingTensionKeyswitchTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingVoicingKeyswitchTests PRIVATE /utf-8)
+    target_compile_options(SmartVoicingHarmonyModeKeyswitchTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingLiveReharmonizerTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingKeyAwareTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingTensionPolicyTests PRIVATE /utf-8)
@@ -285,6 +300,7 @@ add_test(NAME SmartVoicingHarmonizerTests COMMAND SmartVoicingHarmonizerTests)
 add_test(NAME SmartVoicingVoicingStrategyTests COMMAND SmartVoicingVoicingStrategyTests)
 add_test(NAME SmartVoicingTensionKeyswitchTests COMMAND SmartVoicingTensionKeyswitchTests)
 add_test(NAME SmartVoicingVoicingKeyswitchTests COMMAND SmartVoicingVoicingKeyswitchTests)
+add_test(NAME SmartVoicingHarmonyModeKeyswitchTests COMMAND SmartVoicingHarmonyModeKeyswitchTests)
 add_test(NAME SmartVoicingLiveReharmonizerTests COMMAND SmartVoicingLiveReharmonizerTests)
 add_test(NAME SmartVoicingKeyAwareTests COMMAND SmartVoicingKeyAwareTests)
 add_test(NAME SmartVoicingTensionPolicyTests COMMAND SmartVoicingTensionPolicyTests)
