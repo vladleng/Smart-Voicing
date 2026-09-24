@@ -34,7 +34,17 @@ bool voicingTypeFromKeyswitch(int midiNote, VoicingType& type) noexcept
 
 bool isReservedVoicingTypeKeyswitch(int midiNote) noexcept
 {
-    return midiNote >= kDrop3ReservedVoicingKeyswitchNote
-        && midiNote <= kUstReservedVoicingKeyswitchNote;
+    switch (midiNote)
+    {
+        case kUstReservedVoicingKeyswitchNote:
+        case kClusterReservedVoicingKeyswitchNote:
+        case kQuartalReservedVoicingKeyswitchNote:
+        case kSpreadReservedVoicingKeyswitchNote:
+        case kDrop3ReservedVoicingKeyswitchNote:
+        case kDrop24ReservedVoicingKeyswitchNote:
+            return true;
+        default:
+            return false;
+    }
 }
 }
