@@ -4,7 +4,7 @@
 
 namespace smartvoicing::harmony
 {
-// 0.4d realtime selector for the existing shared VoicingType state.
+// 0.4e realtime selector for the shared VoicingType state.
 //
 // Stable contract uses canonical MIDI note numbers. Studio Pro octave labels
 // below are convenience labels for the current host convention only.
@@ -20,7 +20,7 @@ namespace smartvoicing::harmony
 //   36 C1  Closed
 //   37 C#1 Drop 2
 //   38 D1  Drop 3
-//   39 D#1 Drop 2+4    (reserved)
+//   39 D#1 Drop 2+4
 //   40 E1  Unison
 //   41 F1  Octaves
 //   42 F#1 Doubling
@@ -33,7 +33,7 @@ constexpr int kSpreadReservedVoicingKeyswitchNote = 35;
 constexpr int kClosedVoicingKeyswitchNote = 36;
 constexpr int kDrop2VoicingKeyswitchNote = 37;
 constexpr int kDrop3VoicingKeyswitchNote = 38;
-constexpr int kDrop24ReservedVoicingKeyswitchNote = 39;
+constexpr int kDrop24VoicingKeyswitchNote = 39;
 constexpr int kUnisonVoicingKeyswitchNote = 40;
 constexpr int kOctavesVoicingKeyswitchNote = 41;
 constexpr int kDoublingVoicingKeyswitchNote = 42;
