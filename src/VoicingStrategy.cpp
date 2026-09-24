@@ -74,6 +74,38 @@ VoiceOutput transformClosedToDrop2(const VoiceOutput& closed,
     return result;
 }
 
+VoiceOutput transformClosedToDrop3(const VoiceOutput& closed,
+                                   const NormalizedChord& chord) noexcept
+{
+    // The same Stage 5 safety rule as Drop 2 applies here: an explicit slash
+    // bass is authoritative. A literal Drop 3 would place the former Closed V3
+    // below that bass, so this MVP keeps the accepted Closed vertical instead.
+    if (chord.slashBass || ! hasCompleteFourVoiceVertical(closed))
+        return closed;
+
+    const auto droppedThirdVoice = closed.voices[2].midiNote - 12;
+    if (droppedThirdVoice < 0)
+        return closed;
+
+    std::array<int, 3> lowerVoices {
+        closed.voices[1].midiNote,
+        closed.voices[3].midiNote,
+        droppedThirdVoice
+    };
+    sortDescending(lowerVoices);
+
+    VoiceOutput result = closed;
+    // V1 is never transformed. The three lower abstract Voice slots are kept in
+    // actual sounding top-down order after the octave displacement.
+    for (std::size_t i = 0; i < lowerVoices.size(); ++i)
+    {
+        result.voices[i + 1].active = true;
+        result.voices[i + 1].midiNote = lowerVoices[i];
+    }
+
+    return result;
+}
+
 VoiceOutput buildUnisonVoicing(int melodyNote) noexcept
 {
     VoiceOutput result;
@@ -169,6 +201,8 @@ VoiceOutput buildVoicing(int melodyNote,
 
     switch (type)
     {
+        case VoicingType::drop3:
+            return transformClosedToDrop3(closed, context.chord);
         case VoicingType::drop2:
             return transformClosedToDrop2(closed, context.chord);
         case VoicingType::closed:
@@ -181,6 +215,8 @@ const char* voicingTypeName(VoicingType type) noexcept
 {
     switch (type)
     {
+        case VoicingType::drop3:
+            return "Drop 3";
         case VoicingType::doubling:
             return "Doubling";
         case VoicingType::octaves:
