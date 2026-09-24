@@ -25,7 +25,7 @@ MIDI 35 / B0   → Spread    RESERVED
 MIDI 36 / C1   → Closed
 MIDI 37 / C#1  → Drop 2
 MIDI 38 / D1   → Drop 3
-MIDI 39 / D#1  → Drop 2+4     RESERVED
+MIDI 39 / D#1  → Drop 2+4
 MIDI 40 / E1   → Unison
 MIDI 41 / F1   → Octaves
 MIDI 42 / F#1  → Doubling
@@ -91,7 +91,6 @@ Sound Variations **не создают отдельное состояние**. 
 
 Рекомендуется сразу создать в Sound Variations и будущие пункты:
 
-- Drop 2+4;
 - Spread;
 - Quartal;
 - Cluster;
@@ -103,7 +102,7 @@ Sound Variations **не создают отдельное состояние**. 
 - не меняет Voicing Type;
 - не доходит до downstream instrument tracks.
 
-После реализации нового strategy существующая карта Sound Variations уже готова и не требует перенастройки. `Drop 3` стал первым таким переходом: в 0.4d ранее reserved `D1 / MIDI 38` активирован без изменения карты.
+После реализации нового strategy существующая карта Sound Variations уже готова и не требует перенастройки. `D1 / MIDI 38` был активирован как Drop 3 в 0.4d, а `D#1 / MIDI 39` активируется как Drop 2+4 в 0.4e без изменения карты.
 
 ## Harmony Mode controls
 
@@ -125,6 +124,7 @@ Melody Harmonize
 → Closed + Clean
 → Drop 2 + Color
 → Drop 3 + Rich
+→ Drop 2+4 + Rich
 → Unison
 → Octaves
 → Direct Router
@@ -163,4 +163,4 @@ Melody Harmonize
 
 Схема зафиксирована как **рекомендуемый и практически проверенный Studio Pro workflow** по результатам настройки и host-тестов пользователя 2026-09-24.
 
-`docs/TEST-0.4c4.md` является техническим acceptance record для keyswitch layer; данный документ фиксирует пользовательский workflow и ergonomic layout. Начиная с 0.4d `Drop 3` использует уже существующий слот D1 / MIDI 38.
+`docs/TEST-0.4c4.md` является техническим acceptance record для keyswitch layer; данный документ фиксирует пользовательский workflow и ergonomic layout. Drop 3 и Drop 2+4 используют уже заранее зарезервированные позиции и не требуют перенастройки существующего Sound Variations набора.
