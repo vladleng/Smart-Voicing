@@ -18,6 +18,9 @@ bool voicingTypeFromKeyswitch(int midiNote, VoicingType& type) noexcept
         case kDrop2VoicingKeyswitchNote:
             type = VoicingType::drop2;
             return true;
+        case kDrop3VoicingKeyswitchNote:
+            type = VoicingType::drop3;
+            return true;
         case kUnisonVoicingKeyswitchNote:
             type = VoicingType::unison;
             return true;
@@ -40,7 +43,6 @@ bool isReservedVoicingTypeKeyswitch(int midiNote) noexcept
         case kClusterReservedVoicingKeyswitchNote:
         case kQuartalReservedVoicingKeyswitchNote:
         case kSpreadReservedVoicingKeyswitchNote:
-        case kDrop3ReservedVoicingKeyswitchNote:
         case kDrop24ReservedVoicingKeyswitchNote:
             return true;
         default:
