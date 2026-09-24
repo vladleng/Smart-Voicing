@@ -1,6 +1,6 @@
 # Smart Voicing 0.4e — Drop 2+4
 
-Status: **IN DEVELOPMENT — core first**
+Status: **IN DEVELOPMENT — host candidate integration**
 
 Stage: **5 — Jazz Voicing Engine**
 
@@ -53,36 +53,38 @@ output = [V1, lower[0], lower[1], lower[2]]
 - V1 melody is immutable.
 - Exact Closed pitch-class multiset must be preserved.
 - Existing `VoicingType` numeric meanings 0..5 remain frozen; `drop24 = 6` is appended.
+- `stateVersion` remains 5 because the serialized layout is unchanged; only the accepted VoicingType range is extended.
 - Instrument-specific ranges/register correction remain Stage 7.
 - Incomplete four-voice input or MIDI underflow falls back to Closed rather than wrapping or inventing notes.
 - Explicit slash bass remains authoritative. Unlike Drop 2/Drop 3, Drop 2+4 lowers Closed V4 itself, so the slash-bass pitch class remains the lowest member and no automatic slash-bass fallback is required when the transform is otherwise valid.
 
 ## Keyswitch contract
 
-The accepted Sound Variations map already reserves:
+The accepted Sound Variations map uses:
 
 ```text
 MIDI 39 / D#1 → Drop 2+4
 ```
 
-0.4e will activate exactly this slot. No remap is allowed.
+0.4e activates exactly this slot. No remap is introduced.
 
-## Implementation order
+## Implementation checkpoint
 
 - [x] append `VoicingType::drop24 = 6` without renumbering existing values;
 - [x] add pure `transformClosedToDrop24()`;
 - [x] dispatcher integration;
 - [x] host-neutral regressions for exact V2/V4 octave drops, V1 preservation, pitch-class preservation, sorted lower slots, slash-bass preservation, incomplete/underflow fallback and stable enum values;
 - [x] dedicated `SmartVoicingDrop24StrategyTests` target added to CMake/ctest;
-- [ ] core Windows CI green;
-- [ ] processor/state accepted range extended through `drop24`;
-- [ ] UI item + diagnostics;
-- [ ] activate MIDI 39 / D#1 decoder and remove only Drop 2+4 from reserved list;
-- [ ] keyswitch regression update;
-- [ ] Windows host candidate;
+- [x] core Windows CI **#411 green**;
+- [x] processor/state accepted range extended through `drop24`;
+- [x] UI item + diagnostics integrated;
+- [x] activate MIDI 39 / D#1 decoder and remove Drop 2+4 from reserved list;
+- [x] keyswitch regression updated;
+- [x] package renamed to `Smart Voicing 0.4e` / `Smart-Voicing-0.4e-Windows`;
+- [ ] latest full Windows host-candidate CI green;
 - [ ] Studio Pro acceptance.
 
-## Studio Pro acceptance later
+## Studio Pro acceptance
 
 1. `D#1 / MIDI 39` selects **Drop 2+4** and UI follows.
 2. Closed vs Drop 2+4 on the same melody/chord keeps V1 and exact pitch classes while lowering Closed V2 and V4 one octave.
@@ -90,9 +92,11 @@ MIDI 39 / D#1 → Drop 2+4
 4. confirmed V7→minor remains target-aware before the Drop transform.
 5. explicit slash bass remains the lowest authoritative pitch class after a valid Drop 2+4 transform.
 6. switching `Closed ↔ Drop 2 ↔ Drop 3 ↔ Drop 2+4 ↔ Unison ↔ Octaves ↔ Doubling` produces no stuck/tiny notes.
-7. save/reopen preserves Drop 2+4.
-8. existing keyswitch blocks 32..47 keep the accepted map.
+7. `D#1 / MIDI 39` is swallowed as a performance control and never reaches downstream instruments.
+8. save/reopen preserves Drop 2+4.
+9. existing keyswitch blocks 32..47 keep the accepted map.
+10. repeated playback with the same input/state is deterministic.
 
 ## Acceptance boundary
 
-0.4e is accepted when Drop 2+4 is a deterministic, host-confirmed Closed-family shape transform, the existing `D#1 / MIDI 39` Sound Variation becomes functional, and no Stage 4 harmonic semantics or previously accepted performance controls regress.
+0.4e is accepted when Drop 2+4 is a deterministic, host-confirmed Closed-family shape transform, the existing `D#1 / MIDI 39` Sound Variation is functional, and no Stage 4 harmonic semantics or previously accepted performance controls regress.
