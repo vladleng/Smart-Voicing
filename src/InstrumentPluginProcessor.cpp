@@ -4,6 +4,7 @@
 #include "VoicingStrategy.h"
 #include "TensionKeyswitch.h"
 #include "VoicingKeyswitch.h"
+#include "HarmonyModeKeyswitch.h"
 #include "LiveReharmonizer.h"
 
 #include <algorithm>
@@ -39,6 +40,50 @@ bool isNoteMessage(const juce::MidiMessageMetadata& metadata) noexcept
 
     const auto type = static_cast<std::uint8_t>(status & statusMask);
     return type == noteOnStatus || type == noteOffStatus;
+}
+
+struct HarmonyModePreflight
+{
+    bool valid = false;
+    int modeValue = 0;
+    int samplePosition = 0;
+};
+
+HarmonyModePreflight findLeadingHarmonyModeKeyswitch(const juce::MidiBuffer& midiMessages) noexcept
+{
+    HarmonyModePreflight result;
+    int firstNoteSample = -1;
+
+    for (const auto metadata : midiMessages)
+    {
+        if (! isNoteMessage(metadata) || metadata.data == nullptr || metadata.numBytes < 2)
+            continue;
+
+        if (firstNoteSample < 0)
+            firstNoteSample = metadata.samplePosition;
+        else if (metadata.samplePosition != firstNoteSample)
+            break;
+
+        const auto status = metadata.data[0];
+        const auto type = static_cast<std::uint8_t>(status & statusMask);
+        const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
+        if (type != noteOnStatus || velocity <= 0)
+            continue;
+
+        const auto note = static_cast<int>(metadata.data[1]);
+        int modeValue = 0;
+        if (! smartvoicing::harmony::harmonyModeValueFromKeyswitch(note, modeValue))
+            continue;
+
+        // Last mode Note On in the first note-message sample group wins. This
+        // lets a Sound Variation placed on the same sample as the first musical
+        // note select the target processing path before that note is interpreted.
+        result.valid = true;
+        result.modeValue = modeValue;
+        result.samplePosition = metadata.samplePosition;
+    }
+
+    return result;
 }
 
 bool getSustainState(const juce::MidiMessageMetadata& metadata, bool& down) noexcept
@@ -183,12 +228,24 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
     routedMidi.clear();
     const auto blockStartSample = processedSampleCounter;
 
+    // Harmony Mode must be selectable even when the current processing path is
+    // Direct Router. If a mode keyswitch is part of the first note-message
+    // sample group, preflight it before choosing the block's processing path so
+    // a same-sample Sound Variation + first musical note uses the new mode.
+    const auto harmonyModePreflight = findLeadingHarmonyModeKeyswitch(midiMessages);
+    if (harmonyModePreflight.valid)
+        requestedHarmonyMode.store(harmonyModePreflight.modeValue, std::memory_order_release);
+
     const auto requestedHarmonyValue = juce::jlimit(0, 1, requestedHarmonyMode.load(std::memory_order_relaxed));
     const auto requestedHarmony = static_cast<HarmonyMode>(requestedHarmonyValue);
     if (requestedHarmony != activeHarmonyMode)
     {
+        const auto transitionSample = harmonyModePreflight.valid
+            ? harmonyModePreflight.samplePosition
+            : 0;
+
         for (int voice = 0; voice < voiceCount; ++voice)
-            clearVoiceStack(voice, 0);
+            clearVoiceStack(voice, transitionSample);
 
         clearHeldNotes();
         activeHarmonyMode = requestedHarmony;
@@ -248,6 +305,30 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 
         currentSamplePosition = metadata.samplePosition;
         recordMidiInputEventForProbe(metadata);
+
+        if (isNoteMessage(metadata) && metadata.data != nullptr && metadata.numBytes >= 2)
+        {
+            const auto status = metadata.data[0];
+            const auto type = static_cast<std::uint8_t>(status & statusMask);
+            const auto note = static_cast<int>(metadata.data[1]);
+            const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
+            const auto isNoteOn = type == noteOnStatus && velocity > 0;
+
+            if (smartvoicing::harmony::isHarmonyModeKeyswitch(note))
+            {
+                if (isNoteOn)
+                {
+                    int modeValue = static_cast<int>(activeHarmonyMode);
+                    if (smartvoicing::harmony::harmonyModeValueFromKeyswitch(note, modeValue))
+                        requestedHarmonyMode.store(modeValue, std::memory_order_release);
+                }
+
+                // Mode keyswitches are global controls in both Harmony Modes.
+                // A later-in-block switch is latched safely for the next block;
+                // first-note-group switches were already applied by preflight.
+                continue;
+            }
+        }
 
         if (isNoteMessage(metadata))
         {
@@ -317,7 +398,8 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
 
         const auto note = static_cast<int>(metadata.data[1]);
         if (! smartvoicing::harmony::isTensionLevelKeyswitch(note)
-            && ! smartvoicing::harmony::isVoicingTypeKeyswitch(note))
+            && ! smartvoicing::harmony::isVoicingTypeKeyswitch(note)
+            && ! smartvoicing::harmony::isHarmonyModeKeyswitch(note))
         {
             melodyEventAtBlockStart = true;
             break;
@@ -443,6 +525,20 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
             const auto isNoteOn = type == noteOnStatus && velocity > 0;
             const auto isNoteOff = type == noteOffStatus || (type == noteOnStatus && velocity == 0);
+
+            if (smartvoicing::harmony::isHarmonyModeKeyswitch(note))
+            {
+                if (isNoteOn)
+                {
+                    int modeValue = static_cast<int>(activeHarmonyMode);
+                    if (smartvoicing::harmony::harmonyModeValueFromKeyswitch(note, modeValue))
+                        requestedHarmonyMode.store(modeValue, std::memory_order_release);
+                }
+
+                // Mode controls are always swallowed, including Note Off, so
+                // A#1/B1 never leak to downstream instrument tracks.
+                continue;
+            }
 
             if (smartvoicing::harmony::isVoicingTypeKeyswitch(note))
             {
