@@ -155,6 +155,20 @@ void testRepeatedOctavesRetriggersWholeSection()
            "repeated Octaves must report lower voice articulations");
 }
 
+void testRepeatedDoublingRetriggersWholeSection()
+{
+    const auto current = voicing(72, 72, 60, 60);
+    const auto desired = current;
+    const auto plan = planVoicingTransition(current, desired, true, true);
+    const int expected[] { 72, 72, 60, 60 };
+
+    for (int voice = 0; voice < kVoiceCount; ++voice)
+        expectTransition(plan, voice, expected[voice], expected[voice],
+                         "repeated Doubling must rearticulate voice " + std::to_string(voice + 1));
+    expect(plan.lowerVoicesChanged,
+           "repeated Doubling must report lower voice articulations");
+}
+
 void testNoChordFallbackClearsOnlyLowerVoices()
 {
     const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
@@ -293,6 +307,7 @@ int main()
     testRepeatedMelodyRetriggersOnlyV1ByDefault();
     testRepeatedUnisonRetriggersWholeSection();
     testRepeatedOctavesRetriggersWholeSection();
+    testRepeatedDoublingRetriggersWholeSection();
     testNoChordFallbackClearsOnlyLowerVoices();
     testChordReturnsAfterFallback();
     testSequenceCanBeAppliedWithoutStaleVoices();
