@@ -5,6 +5,7 @@
 #include "TensionPolicy.h"
 #include "TensionKeyswitch.h"
 #include "VoicingKeyswitch.h"
+#include "HarmonyModeKeyswitch.h"
 #include "VoicingStrategy.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
@@ -131,7 +132,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4c4 - Voicing Keyswitches",
+    titleLabel.setText("Smart Voicing 0.4c4 fix2 - Mode Keyswitches",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -240,7 +241,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(diagnosticsButton);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.4c4 | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.4c4 fix2 | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -534,7 +535,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.4c4: Voicing Type keyswitch block MIDI 32..42; UI/project/MIDI share one state\n";
+    debugText << "Stage 5 / 0.4c4 fix2: Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -619,11 +620,14 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << " | Voicing Type: " << smartvoicing::harmony::voicingTypeName(midiProbe.voicingType)
               << " | Tension Level: " << tensionLevelText(midiProbe.tensionLevel)
               << " | V1 melody immutable\n";
-    debugText << "Voicing keyswitches: 32=Closed, 33=Drop2, 34..39=RESERVED, 40=Unison, 41=Octaves, 42=Doubling; swallowed in Melody Harmonize\n";
+    debugText << "Voicing keyswitches: 32=UST(R), 33=Cluster(R), 34=Quartal(R), 35=Spread(R), 36=Closed, 37=Drop2, 38=Drop3(R), 39=Drop2+4(R), 40=Unison, 41=Octaves, 42=Doubling\n";
     debugText << "Tension keyswitches: MIDI "
               << smartvoicing::harmony::kCleanTensionKeyswitchNote << "=Clean, "
               << smartvoicing::harmony::kColorTensionKeyswitchNote << "=Color, "
-              << smartvoicing::harmony::kRichTensionKeyswitchNote << "=Rich; note-on/off swallowed\n";
+              << smartvoicing::harmony::kRichTensionKeyswitchNote << "=Rich; swallowed in Melody Harmonize\n";
+    debugText << "Harmony Mode keyswitches: MIDI "
+              << smartvoicing::harmony::kDirectRouterModeKeyswitchNote << "=Direct Router, "
+              << smartvoicing::harmony::kMelodyHarmonizeModeKeyswitchNote << "=Melody Harmonize; swallowed in both modes\n";
     debugText << "Closed policy: guide + characteristic tones, contextual omissions, soft Upper Voice Spacing\n";
     debugText << "Drop 2 policy: same Closed pitch classes; second voice from top lowered one octave; slash bass falls back to Closed\n";
     debugText << "Unison policy: V1-V4 same performer melody pitch on independent MIDI channels; no harmonic generation\n";
