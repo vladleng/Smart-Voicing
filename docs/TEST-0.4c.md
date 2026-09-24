@@ -1,6 +1,6 @@
 # Smart Voicing 0.4c — Unison / Octaves / Doubling test plan
 
-Status: **IN DEVELOPMENT — 0.4c1/0.4c2 accepted, 0.4c3 active**
+Status: **IN DEVELOPMENT — 0.4c1/0.4c2 accepted, 0.4c3 host-integration candidate**
 
 Stage: **5 — Jazz Voicing Engine**
 
@@ -14,7 +14,7 @@ Current substep: **0.4c3 — Simple deterministic Doubling**
 
 ## Why this slice comes now
 
-Unison, octave layouts and simple doubling are among the most common real arranging textures. They therefore come before Drop 3 / Drop 2+4 / Spread.
+Unison, octave layouts and simple doubling are among the most common real arranging textures. They therefore come before Drop 3 / Drop 2+4 / Spread in Stage 5.
 
 Architectural distinction:
 
@@ -79,7 +79,7 @@ Confirmed contract:
 
 The exact `[0,-12,-12,-24]` mapping is **project-defined**, not quoted as a universal four-instrument formula from *Modern Jazz Voicings*.
 
-### 0.4c3 — Simple deterministic Doubling — ACTIVE
+### 0.4c3 — Simple deterministic Doubling — HOST CANDIDATE
 
 Goal: add one simple, common, deterministic paired doubling texture without turning Stage 5 into an Instrument Profile engine.
 
@@ -112,16 +112,19 @@ Rules:
 - if `melody - 12` is below MIDI note 0, V3/V4 stay inactive rather than wrapping;
 - instrument-specific comfortable ranges remain Stage 7.
 
-Current 0.4c3 core implementation:
+Current 0.4c3 implementation:
 - [x] `VoicingType::doubling = 4`, preserving prior numeric meanings;
 - [x] `buildDoublingVoicing()` implements `[0,0,-12,-12]`;
 - [x] Doubling bypasses Closed/Harmony Core;
 - [x] duplicate pairs remain separate VoiceOutput slots;
 - [x] low-MIDI safety is explicit;
 - [x] regressions added for exact layout, pitch-class identity and Harmony/Tension independence;
-- [ ] latest 0.4c3 core Windows CI green;
-- [ ] processor/state/UI integration;
-- [ ] full-section repeated-note retrigger regression;
+- [x] core Windows CI #370 green;
+- [x] processor/state accept and persist `VoicingType::doubling` in the existing state field;
+- [x] `Doubling` exposed in Voicing Type UI;
+- [x] repeated same-note Doubling uses whole-section retrigger semantics;
+- [x] full-section repeated-note retrigger regression added;
+- [ ] latest 0.4c3 host-integration Windows CI green;
 - [ ] Studio Pro acceptance.
 
 ## Shared invariants
@@ -132,9 +135,9 @@ Current 0.4c3 core implementation:
 - [x] duplicate MIDI pitches remain separate VoiceOutput slots by design;
 - [x] deterministic playback contract remains unchanged;
 - [x] no new harmonic inference is added for melodic textures;
-- [ ] old projects preserve saved Voicing Type values after Doubling integration;
-- [ ] strategy switching does not create stuck notes in host;
-- [ ] strategy switching reuses the existing transition planner rather than a parallel engine.
+- [x] strategy switching continues to reuse the existing transition planner rather than a parallel engine;
+- [ ] old projects preserve saved Voicing Type values after Doubling integration in Studio Pro;
+- [ ] strategy switching does not create stuck notes in host.
 
 ## Tension Level interaction
 
@@ -173,11 +176,12 @@ Canonical MIDI note numbers, UI and project state must share one internal state.
 - [x] duplicate notes remain separate VoiceOutput slots;
 - [x] melodic textures do not depend on Chord/Tension in core;
 - [x] invalid lower notes do not wrap;
-- [ ] repeated Doubling notes rearticulate all active duplicated voices;
-- [ ] switching `Closed ↔ Drop 2 ↔ Unison ↔ Octaves ↔ Doubling` preserves V1 semantics;
-- [ ] project state persists Doubling;
+- [x] repeated Doubling notes request whole-section rearticulation for all active duplicated voices;
+- [x] processor/state/UI can represent `Doubling` without renumbering prior Voicing Types;
+- [ ] switching `Closed ↔ Drop 2 ↔ Unison ↔ Octaves ↔ Doubling` preserves V1 semantics in host;
+- [ ] project save/reopen persists Doubling in host;
 - [ ] legacy state compatibility remains green in host;
-- [ ] full current 0.4c3 CI remains green.
+- [ ] latest host-integration CI green.
 
 ## Studio Pro acceptance targets — 0.4c3
 
