@@ -1,133 +1,119 @@
-# Smart Voicing 0.4c4 fix1 — Voicing Type Keyswitches
+# Smart Voicing 0.4c4 — Performance Keyswitch Layer
 
-Status: **IN DEVELOPMENT — ergonomic remap host candidate**
+Status: **ACCEPTED / COMPLETED**
 
 Stage: **5 — Jazz Voicing Engine**
 
-Stable musical base: **0.4c3 — Unison / Octaves / Doubling accepted in Studio Pro**
+Accepted in Studio Pro: **2026-09-24**
 
-## Why fix1
+Stable musical base: **0.4c3 — Unison / Octaves / Doubling accepted**
 
-The first 0.4c4 host build confirmed that realtime Voicing Type keyswitches, UI/state synchronization, swallowing and combined Voicing+Tension switching work as intended.
+## Result
 
-On a 49-key controller, however, placing the most frequently used harmonic voicings below C1 is inconvenient. fix1 keeps the same contiguous canonical MIDI control block `32..42`, but moves the everyday voicings so they begin at C1 in the Studio Pro octave convention used for host testing.
+0.4c4 completes the first practical performance-control layer for Stage 5. The user can select Voicing Type, Tension Level and Harmony Mode from one compact Sound Variations / keyswitch zone while all controls continue to use the same plugin state as the UI and project persistence.
 
-The existing Tension keyswitches remain unchanged.
-
-## Shared-state contract
+Canonical MIDI note numbers are authoritative. Studio Pro note names below follow the octave convention used during host acceptance.
 
 ```text
-UI Voicing Type
-      +
-Project state
-      +
-MIDI keyswitch
-      ↓
-one shared requestedVoicingType / activeVoicingType state
-```
-
-## Canonical MIDI map — fix1
-
-**MIDI note numbers are authoritative.** The note names below correspond to the current Studio Pro octave convention used in testing and are included only for ergonomics/reference.
-
-```text
-VOICING TYPE — MIDI 32..42
-
+FUTURE / MODERN VOICINGS
 32  G#0  UST         RESERVED
 33  A0   Cluster     RESERVED
 34  A#0  Quartal     RESERVED
 35  B0   Spread      RESERVED
 
+PRIMARY VOICING TYPE
 36  C1   Closed
 37  C#1  Drop 2
-38  D1   Drop 3      RESERVED
+38  D1   Drop 3      RESERVED until 0.4d
 39  D#1  Drop 2+4    RESERVED
 40  E1   Unison
 41  F1   Octaves
 42  F#1  Doubling
 
-TENSION — unchanged
+TENSION LEVEL
 43  G1   Clean
 44  G#1  Color
 45  A1   Rich
+
+HARMONY MODE
+46  A#1  Direct Router
+47  B1   Melody Harmonize
 ```
 
-Ergonomic logic:
+## Accepted architecture
 
 ```text
-C1 ... F#1
-→ primary/high-frequency Voicing Type controls
-
-G1 ... A1
-→ existing Tension block
-
-below C1
-→ less frequently used modern/future voicing families
+Studio Pro Sound Variation / MIDI keyswitch
+                    ↓
+              canonical MIDI note
+                    ↓
+           Smart Voicing decoder
+                    ↓
+      shared plugin state (no duplicate state)
+                    ↓
+     UI + project persistence + realtime engine
 ```
 
-Thus the most-used block becomes chromatically contiguous on a 49-key controller:
+### Voicing Type
 
-```text
-C1    Closed
-C#1   Drop 2
-D1    Drop 3
-D#1   Drop 2+4
-E1    Unison
-F1    Octaves
-F#1   Doubling
-G1    Clean
-G#1   Color
-A1    Rich
-```
+- `36 Closed`, `37 Drop 2`, `40 Unison`, `41 Octaves`, `42 Doubling` select the shared `VoicingType` state.
+- `32..35`, `38..39` are reserved future slots and remain swallowed/inert in Melody Harmonize until implemented.
+- Voicing Type switching while melody is held uses the existing transition path rather than a second rebuild engine.
+- V1 remains performer-owned during harmonic Voicing Type changes.
 
-## Control-block semantics
+### Tension
 
-In `Melody Harmonize`:
+- Stable map remains `43 Clean`, `44 Color`, `45 Rich`.
+- Tension and Voicing Type controls at the same sample are coalesced into one musical refresh.
+- Pure melodic textures (Unison / Octaves / Doubling) retain their pitch layout even if Tension state changes; the selected Tension remains stored for the next harmonic voicing.
 
-- note-on and note-off for the entire MIDI `32..42` block are control events and are swallowed;
-- implemented notes change the same `VoicingType` state used by UI/project persistence;
-- reserved notes `32..35` and `38..39` are swallowed but do not mutate state;
-- Tension `43..45` remains unchanged and separate;
-- a Voicing Type keyswitch never reaches downstream instrument tracks;
-- `Direct Router` is not changed by this slice: notes `32..42` retain their ordinary musical/router meaning there.
+### Harmony Mode — fix2
 
-## Realtime switching contract
+- `46 / A#1` selects **Direct Router**.
+- `47 / B1` selects **Melody Harmonize**.
+- Mode keyswitches are global controls: they are recognized in both Harmony Modes so the user can always switch back and forth from the same Sound Variations map.
+- Note On and Note Off for 46/47 are swallowed and never reach downstream instruments.
+- The mode keyswitch writes the same `HarmonyMode` state used by UI/project persistence.
+- A mode keyswitch in the first note-message sample group is preflighted before the processing path is selected, allowing a same-sample Sound Variation + first musical note to start in the requested mode.
+- A later-in-block mode switch is latched safely for the following processing block; host acceptance found this workflow correct for the current Sound Variations use case.
 
-When a mapped Voicing Type keyswitch arrives while a melody note is held:
+## Compatibility
 
-1. update `activeVoicingType` and `requestedVoicingType` atomically;
-2. keep performer-owned V1 sounding;
-3. recompute lower voices through the existing transition/reharmonization path;
-4. do not create a second teardown/rebuild engine;
-5. coalesce same-sample Tension + Voicing controls into one musical refresh;
-6. if a melody Note On exists at the same sample, that new melody note starts directly with the new Voicing Type.
+- Existing enum/state meanings remain unchanged.
+- Existing Tension keyswitches remain unchanged.
+- 0.4c4 fix1 changed only the ergonomic MIDI map for Voicing Type.
+- 0.4c4 fix2 added Harmony Mode keyswitches without changing the saved state schema (`stateVersion = 5`).
+- Direct Router remains available and its existing distribution logic is unchanged.
 
-## Automated acceptance — fix1
+## Automated acceptance
 
-- [x] `36 Closed`, `37 Drop2`, `40 Unison`, `41 Octaves`, `42 Doubling` decode exactly;
-- [x] `32 UST`, `33 Cluster`, `34 Quartal`, `35 Spread`, `38 Drop3`, `39 Drop2+4` remain reserved and do not decode prematurely;
-- [x] whole `32..42` block remains swallowed in Melody Harmonize;
-- [x] Tension block remains exactly `43/44/45`;
-- [x] prior `VoicingType` enum numeric meanings remain unchanged;
-- [x] processor still uses shared Voicing Type state rather than a keyswitch-only state;
-- [ ] fix1 Windows CI green;
-- [ ] Studio Pro ergonomic remap acceptance.
+- [x] Voicing Type map decodes exact implemented notes.
+- [x] Reserved future Voicing Type notes stay inert/swallowed in Melody Harmonize.
+- [x] Tension map stays exactly 43/44/45.
+- [x] Harmony Mode map is exactly 46/47.
+- [x] Harmony Mode block is adjacent above Rich=45.
+- [x] Invalid keyswitch decoder input does not mutate state.
+- [x] UI/project/MIDI share the same state for Voicing Type, Tension and Harmony Mode.
+- [x] Windows Build #387 completed successfully, including build, all tests, packaging and artifact upload.
+- [x] Artifact: `Smart-Voicing-0.4c4-fix2-Windows`.
 
-## Studio Pro acceptance — fix1
+## Studio Pro acceptance
 
-1. Select `Melody Harmonize`.
-2. Verify `MIDI 36 / C1` → `Closed`.
-3. Verify `MIDI 37 / C#1` → `Drop 2`.
-4. Verify `MIDI 40 / E1` → `Unison`.
-5. Verify `MIDI 41 / F1` → `Octaves`.
-6. Verify `MIDI 42 / F#1` → `Doubling`.
-7. While holding melody, switch `36 → 37 → 40 → 41 → 42 → 36`; no stuck/tiny notes.
-8. Verify reserved `32..35` and `38..39` neither change UI/state nor reach downstream tracks.
-9. Verify `43/44/45` still select `Clean/Color/Rich` exactly as before.
-10. Put one Voicing keyswitch and one Tension keyswitch at the same timestamp; only one final musical refresh should occur.
-11. Save/reopen after a mapped Voicing keyswitch selection and verify the same Voicing Type is restored.
-12. Confirm `Direct Router` behavior remains unchanged.
+User-confirmed in Studio Pro:
+
+- [x] ergonomic C1-centered Voicing Type map works correctly;
+- [x] Closed / Drop 2 / Unison / Octaves / Doubling switch correctly;
+- [x] Tension keyswitches work correctly;
+- [x] Sound Variations workflow is practical and convenient;
+- [x] `A#1 / MIDI 46` selects Direct Router;
+- [x] `B1 / MIDI 47` selects Melody Harmonize;
+- [x] switching back and forth between both Harmony Modes behaves correctly;
+- [x] control notes do not create unwanted downstream musical notes in the accepted workflow.
 
 ## Acceptance boundary
 
-0.4c4 fix1 is accepted when the five currently implemented Voicing Types are reliably selected from the new C1-centered ergonomic map, the reserved future slots stay inert/swallowed, and the existing Tension block remains unchanged.
+**0.4c4 is closed.**
+
+The performance keyswitch layer is now considered stable enough to remain fixed while new Stage 5 voicing strategies are added. Reserved keys receive their implementation later without remapping the accepted Sound Variations layout.
+
+Next slice: **0.4d — Drop 3**. Drop 3 remains a Closed-family transformation: Stage 4/Closed chooses the harmonic material once, then Stage 5 changes only vertical octave placement/shape.
