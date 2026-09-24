@@ -43,6 +43,7 @@ void testImplementedMap()
 {
     expectMapping(36, VoicingType::closed, "MIDI 36 / C1 Closed");
     expectMapping(37, VoicingType::drop2, "MIDI 37 / C#1 Drop 2");
+    expectMapping(38, VoicingType::drop3, "MIDI 38 / D1 Drop 3");
     expectMapping(40, VoicingType::unison, "MIDI 40 / E1 Unison");
     expectMapping(41, VoicingType::octaves, "MIDI 41 / F1 Octaves");
     expectMapping(42, VoicingType::doubling, "MIDI 42 / F#1 Doubling");
@@ -54,7 +55,6 @@ void testFutureSlotsAreReservedButNotDecoded()
     expectReserved(33, "MIDI 33 / A0 Cluster reserved");
     expectReserved(34, "MIDI 34 / A#0 Quartal reserved");
     expectReserved(35, "MIDI 35 / B0 Spread reserved");
-    expectReserved(38, "MIDI 38 / D1 Drop 3 reserved");
     expectReserved(39, "MIDI 39 / D#1 Drop 2+4 reserved");
 }
 
@@ -68,8 +68,9 @@ void testBlockBoundariesAndTensionSeparation()
            "Voicing Type block must end immediately before stable Tension block");
     expect(kClosedVoicingKeyswitchNote == 36,
            "frequently used Voicing block must start at MIDI 36 / C1");
-    expect(kDrop2VoicingKeyswitchNote == 37,
-           "Drop 2 must follow Closed chromatically");
+    expect(kDrop2VoicingKeyswitchNote == 37
+           && kDrop3VoicingKeyswitchNote == 38,
+           "Drop 2 and Drop 3 must follow Closed chromatically at C#1/D1");
     expect(kUnisonVoicingKeyswitchNote == 40
            && kOctavesVoicingKeyswitchNote == 41
            && kDoublingVoicingKeyswitchNote == 42,
