@@ -96,6 +96,8 @@ Base Expression automation
         ↓
 per-Voice Expression Gain / Trim
         ↓
+per-Voice gain-adjusted Expression baseline
+        ↓
 per-Voice humanization / response / smoothing
         ↓
 Instrument Profile mapping
@@ -103,27 +105,53 @@ Instrument Profile mapping
 MIDI Ch1..Ch4
 ```
 
+### Important invariant: Humanize starts from the gain-adjusted Voice level
+
+Expression Humanization must **not** re-center all Voices around the original common Expression curve. Each Voice first receives its own `Expression Gain / Trim`; only after that is Humanize applied around that Voice's resulting baseline.
+
+Conceptually:
+
+```text
+VoiceExpressionBase = BaseExpression × VoiceExpressionGain
+VoiceExpressionOut  = Humanize(VoiceExpressionBase)
+```
+
+Example:
+
+```text
+Base Expression = 100
+
+V1 Gain 100% → baseline 100 → humanize around 100
+V2 Gain  95% → baseline  95 → humanize around 95
+V3 Gain  90% → baseline  90 → humanize around 90
+V4 Gain  80% → baseline  80 → humanize around 80
+```
+
+A deliberately quieter Baritone Voice must remain quieter after Humanize. Humanization may add subtle movement, response and timing differences, but it must not cancel the section balance set by the four Gain/Trim controls.
+
+For the first implementation, Expression variation should preferably be **relative/proportional** to the gain-adjusted baseline rather than a large fixed CC offset. This keeps variation naturally smaller at low dynamic levels and larger at high dynamic levels while preserving the shape and balance of the section.
+
 ## Expression Humanization
 
 Future controls can include:
 
 - `Expression Humanize Amount`;
-- slight per-Voice deviation around the common curve;
+- slight per-Voice deviation around the **post-Gain/Trim per-Voice baseline**;
 - response/smoothing differences;
 - Attack Variation;
 - profile-aware defaults.
 
-Avoid sample-to-sample random jitter. The musical shape of the common Expression curve remains authoritative.
+Avoid sample-to-sample random jitter. The musical shape of the common Expression curve remains authoritative, while the per-Voice Gain/Trim remains the authoritative balance offset for each performer.
 
 Illustrative only:
 
 ```text
-Base Expression = 74%
+Base Expression = 100
 
-V1 Trumpet   ≈ 76%
-V2 Tenor     ≈ 71%
-V3 Trombone  ≈ 74%
-V4 Bari      ≈ 69%
+V1 Gain 100% → baseline 100 → e.g. 102
+V2 Gain  95% → baseline  95 → e.g.  92
+V3 Gain  90% → baseline  90 → e.g.  93
+V4 Gain  80% → baseline  80 → e.g.  78
 ```
 
 Exact ranges/defaults are not fixed by this roadmap.
