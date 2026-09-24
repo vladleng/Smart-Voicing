@@ -21,7 +21,9 @@ enum class VoicingType : std::uint8_t
     doubling = 4,
     // Appended in 0.4d. Existing 0..4 numeric meanings are intentionally
     // frozen for saved-project compatibility.
-    drop3 = 5
+    drop3 = 5,
+    // Appended in 0.4e. Existing 0..5 meanings remain frozen.
+    drop24 = 6
 };
 
 // Stage 4 hands Stage 5 an already interpreted harmonic context. A strategy
@@ -52,6 +54,16 @@ VoiceOutput transformClosedToDrop2(const VoiceOutput& closed,
 // Closed fallback policy as Drop 2 for this MVP.
 VoiceOutput transformClosedToDrop3(const VoiceOutput& closed,
                                    const NormalizedChord& chord) noexcept;
+
+// 0.4e Drop 2+4 family transform. The second and fourth voices from the
+// selected Closed vertical are each lowered exactly one octave. V1/melody is
+// immutable and the exact Closed pitch-class multiset is preserved. V2..V4 are
+// then assigned in actual sounding top-down order. Unlike Drop 2/Drop 3, an
+// explicit slash bass in Closed V4 remains authoritative because V4 itself is
+// displaced down an octave and therefore stays the lowest pitch class owner.
+// Incomplete input or MIDI underflow falls back to the accepted Closed vertical.
+VoiceOutput transformClosedToDrop24(const VoiceOutput& closed,
+                                    const NormalizedChord& chord) noexcept;
 
 // 0.4c1 melodic-section texture: every output voice receives exactly the
 // performer-owned melody pitch. The voices remain independent output slots / MIDI
