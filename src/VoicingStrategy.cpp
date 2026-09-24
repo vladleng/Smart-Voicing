@@ -106,6 +106,37 @@ VoiceOutput transformClosedToDrop3(const VoiceOutput& closed,
     return result;
 }
 
+VoiceOutput transformClosedToDrop24(const VoiceOutput& closed,
+                                    const NormalizedChord&) noexcept
+{
+    if (! hasCompleteFourVoiceVertical(closed))
+        return closed;
+
+    const auto droppedSecondVoice = closed.voices[1].midiNote - 12;
+    const auto droppedFourthVoice = closed.voices[3].midiNote - 12;
+    if (droppedSecondVoice < 0 || droppedFourthVoice < 0)
+        return closed;
+
+    std::array<int, 3> lowerVoices {
+        droppedSecondVoice,
+        closed.voices[2].midiNote,
+        droppedFourthVoice
+    };
+    sortDescending(lowerVoices);
+
+    VoiceOutput result = closed;
+    // Drop 2+4 lowers two Closed voices but still changes only register/shape.
+    // The original V4 pitch class remains the lowest member after both drops,
+    // so an explicit slash bass stays authoritative without a special fallback.
+    for (std::size_t i = 0; i < lowerVoices.size(); ++i)
+    {
+        result.voices[i + 1].active = true;
+        result.voices[i + 1].midiNote = lowerVoices[i];
+    }
+
+    return result;
+}
+
 VoiceOutput buildUnisonVoicing(int melodyNote) noexcept
 {
     VoiceOutput result;
@@ -201,6 +232,8 @@ VoiceOutput buildVoicing(int melodyNote,
 
     switch (type)
     {
+        case VoicingType::drop24:
+            return transformClosedToDrop24(closed, context.chord);
         case VoicingType::drop3:
             return transformClosedToDrop3(closed, context.chord);
         case VoicingType::drop2:
@@ -215,6 +248,8 @@ const char* voicingTypeName(VoicingType type) noexcept
 {
     switch (type)
     {
+        case VoicingType::drop24:
+            return "Drop 2+4";
         case VoicingType::drop3:
             return "Drop 3";
         case VoicingType::doubling:
