@@ -3,6 +3,7 @@
 #include "ChordModel.h"
 #include "VoicingStrategy.h"
 #include "TensionKeyswitch.h"
+#include "VoicingKeyswitch.h"
 #include "LiveReharmonizer.h"
 
 #include <algorithm>
@@ -315,7 +316,8 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             continue;
 
         const auto note = static_cast<int>(metadata.data[1]);
-        if (! smartvoicing::harmony::isTensionLevelKeyswitch(note))
+        if (! smartvoicing::harmony::isTensionLevelKeyswitch(note)
+            && ! smartvoicing::harmony::isVoicingTypeKeyswitch(note))
         {
             melodyEventAtBlockStart = true;
             break;
@@ -359,6 +361,7 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
     int pendingNoteOn = -1;
     int pendingVelocity = 0;
     bool pendingTensionRefresh = false;
+    bool pendingVoicingRefresh = false;
     std::array<bool, midiNoteCount> pendingNoteOffs {};
 
     const auto resetMelodyGroup = [&]
@@ -366,6 +369,7 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
         pendingNoteOn = -1;
         pendingVelocity = 0;
         pendingTensionRefresh = false;
+        pendingVoicingRefresh = false;
         pendingNoteOffs.fill(false);
     };
 
@@ -374,6 +378,7 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
                                    &pendingNoteOn,
                                    &pendingVelocity,
                                    &pendingTensionRefresh,
+                                   &pendingVoicingRefresh,
                                    &pendingNoteOffs,
                                    &resetMelodyGroup]
     {
@@ -400,10 +405,10 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
                 stopMelodyVoicing(groupedSample);
         }
 
-        // A keyswitch at the same timestamp is folded into the same musical
+        // Performance controls at one sample are folded into the same musical
         // decision. If a new melody note was started above, it already used the
-        // new Tension Level, so a second intermediate reharmonization is avoided.
-        if (pendingTensionRefresh && pendingNoteOn < 0)
+        // new Tension + Voicing states, so no intermediate old-state voicing is emitted.
+        if ((pendingTensionRefresh || pendingVoicingRefresh) && pendingNoteOn < 0)
         {
             if (activeMelodyInputNote >= 0)
                 refreshMelodyHarmonyAtPpq(ppqForSamplePosition(groupedSample), groupedSample);
@@ -438,6 +443,26 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
             const auto velocity = metadata.numBytes > 2 ? static_cast<int>(metadata.data[2]) : 0;
             const auto isNoteOn = type == noteOnStatus && velocity > 0;
             const auto isNoteOff = type == noteOffStatus || (type == noteOnStatus && velocity == 0);
+
+            if (smartvoicing::harmony::isVoicingTypeKeyswitch(note))
+            {
+                if (isNoteOn)
+                {
+                    auto voicingType = activeVoicingType;
+                    if (smartvoicing::harmony::voicingTypeFromKeyswitch(note, voicingType))
+                    {
+                        const auto changed = voicingType != activeVoicingType;
+                        activeVoicingType = voicingType;
+                        requestedVoicingType.store(static_cast<int>(voicingType), std::memory_order_release);
+                        pendingVoicingRefresh = pendingVoicingRefresh || changed;
+                    }
+                }
+
+                // The entire MIDI 32..42 block is reserved in Melody Harmonize.
+                // Implemented keys select the shared VoicingType state; future
+                // reserved slots are swallowed without mutating state.
+                continue;
+            }
 
             if (smartvoicing::harmony::isTensionLevelKeyswitch(note))
             {

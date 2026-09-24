@@ -1,20 +1,20 @@
 # Smart Voicing 0.4c — Unison / Octaves / Doubling test plan
 
-Status: **IN DEVELOPMENT — 0.4c1/0.4c2 accepted, 0.4c3 host-integration candidate**
+Status: **ACCEPTED — 0.4c1 / 0.4c2 / 0.4c3 accepted in Studio Pro**
 
 Stage: **5 — Jazz Voicing Engine**
 
 Stable base: **0.4b — Drop 2**
 
-Target build label: **Smart Voicing 0.4c**
+Accepted package line: **Smart Voicing 0.4c**
 
-Current substep: **0.4c3 — Simple deterministic Doubling**
+Next substep: **0.4c4 — Voicing Type Keyswitches** (`docs/TEST-0.4c4.md`)
 
 > Read `docs/MUSICAL-ENGINE-GUARDRAILS.md` before changing musical logic. 0.4c is an orchestration/vertical-organization slice. It must not introduce a second Harmony Core or silently reinterpret Chord / Function / Resolution Target / Tension Policy.
 
 ## Why this slice comes now
 
-Unison, octave layouts and simple doubling are among the most common real arranging textures. They therefore come before Drop 3 / Drop 2+4 / Spread in Stage 5.
+Unison, octave layouts and simple doubling are among the most common real arranging textures. They therefore come before Drop 3 / Drop 2+4 / Spread.
 
 Architectural distinction:
 
@@ -79,11 +79,11 @@ Confirmed contract:
 
 The exact `[0,-12,-12,-24]` mapping is **project-defined**, not quoted as a universal four-instrument formula from *Modern Jazz Voicings*.
 
-### 0.4c3 — Simple deterministic Doubling — HOST CANDIDATE
+### 0.4c3 — Simple deterministic Doubling ✅ ACCEPTED
 
-Goal: add one simple, common, deterministic paired doubling texture without turning Stage 5 into an Instrument Profile engine.
+Accepted in Studio Pro on 2026-09-24 after user confirmation that Unison, Octaves and Doubling all work as intended.
 
-Approved MVP layout:
+Approved layout:
 
 ```text
 V1 = melody
@@ -93,41 +93,20 @@ V4 = melody - 12
 relative offsets = [0, 0, -12, -12]
 ```
 
-Conceptually:
-
-```text
-upper unison pair
-↓ one octave
-lower unison pair
-```
-
-Rules:
+Confirmed contract:
 - all sounding voices represent exactly the melody pitch class;
 - no chord-tone/tension generation is used;
 - V1 remains performer-owned and is never transposed;
 - V1/V2 and V3/V4 are intentional duplicates on independent Voice slots/channels;
-- `Clean / Color / Rich` must not change the layout;
-- Chord / Key / Function changes must not alter pure Doubling pitches;
+- `Clean / Color / Rich` do not change the layout;
+- Chord / Key / Function changes do not alter pure Doubling pitches;
 - no random policy selection;
 - if `melody - 12` is below MIDI note 0, V3/V4 stay inactive rather than wrapping;
-- instrument-specific comfortable ranges remain Stage 7.
+- instrument-specific comfortable ranges remain Stage 7;
+- repeated same-note Doubling uses whole-section retrigger semantics;
+- Windows Build #375 completed successfully with package upload.
 
-Current 0.4c3 implementation:
-- [x] `VoicingType::doubling = 4`, preserving prior numeric meanings;
-- [x] `buildDoublingVoicing()` implements `[0,0,-12,-12]`;
-- [x] Doubling bypasses Closed/Harmony Core;
-- [x] duplicate pairs remain separate VoiceOutput slots;
-- [x] low-MIDI safety is explicit;
-- [x] regressions added for exact layout, pitch-class identity and Harmony/Tension independence;
-- [x] core Windows CI #370 green;
-- [x] processor/state accept and persist `VoicingType::doubling` in the existing state field;
-- [x] `Doubling` exposed in Voicing Type UI;
-- [x] repeated same-note Doubling uses whole-section retrigger semantics;
-- [x] full-section repeated-note retrigger regression added;
-- [ ] latest 0.4c3 host-integration Windows CI green;
-- [ ] Studio Pro acceptance.
-
-## Shared invariants
+## Shared invariants — accepted
 
 - [x] prior numeric meanings remain stable: `Closed=0`, `Drop2=1`, `Unison=2`, `Octaves=3`;
 - [x] `Doubling=4` is appended rather than inserted;
@@ -135,9 +114,8 @@ Current 0.4c3 implementation:
 - [x] duplicate MIDI pitches remain separate VoiceOutput slots by design;
 - [x] deterministic playback contract remains unchanged;
 - [x] no new harmonic inference is added for melodic textures;
-- [x] strategy switching continues to reuse the existing transition planner rather than a parallel engine;
-- [ ] old projects preserve saved Voicing Type values after Doubling integration in Studio Pro;
-- [ ] strategy switching does not create stuck notes in host.
+- [x] old Voicing Type values remain load-compatible through the existing state field;
+- [x] strategy switching reuses the existing transition planner rather than a parallel engine.
 
 ## Tension Level interaction
 
@@ -152,13 +130,11 @@ This is intentional. Tension Level becomes audible again when a harmonic strateg
 
 The engine must not invent harmony merely to make the Tension selector audibly different.
 
-## Keyswitch policy for 0.4c
+## Keyswitch follow-up
 
-Do **not** assign permanent Voicing Type keyswitch notes during individual mode implementation.
+The planned follow-up now starts as **0.4c4 — Voicing Type Keyswitches**.
 
-After 0.4c3 is accepted, the next small slice is planned to design the **whole Voicing Type keyswitch block** at once, with reserved space for future Drop 3 / Drop 2+4 / Spread / Quartal / Cluster / UST.
-
-Current stable Tension keyswitches remain unchanged:
+The complete control-map and host acceptance contract live in `docs/TEST-0.4c4.md`. Existing stable Tension keyswitches remain unchanged:
 
 ```text
 MIDI 43 = Clean
@@ -166,43 +142,10 @@ MIDI 44 = Color
 MIDI 45 = Rich
 ```
 
-Canonical MIDI note numbers, UI and project state must share one internal state.
+Voicing Type keyswitches must change the same persistent `VoicingType` state already used by UI/project state; no keyswitch-only state is allowed.
 
-## Automated acceptance targets
+## Not part of accepted 0.4c1–0.4c3
 
-- [x] Unison exact `[0,0,0,0]` layout;
-- [x] Octaves exact `[0,-12,-12,-24]` layout;
-- [x] Doubling exact `[0,0,-12,-12]` layout in core;
-- [x] duplicate notes remain separate VoiceOutput slots;
-- [x] melodic textures do not depend on Chord/Tension in core;
-- [x] invalid lower notes do not wrap;
-- [x] repeated Doubling notes request whole-section rearticulation for all active duplicated voices;
-- [x] processor/state/UI can represent `Doubling` without renumbering prior Voicing Types;
-- [ ] switching `Closed ↔ Drop 2 ↔ Unison ↔ Octaves ↔ Doubling` preserves V1 semantics in host;
-- [ ] project save/reopen persists Doubling in host;
-- [ ] legacy state compatibility remains green in host;
-- [ ] latest host-integration CI green.
-
-## Studio Pro acceptance targets — 0.4c3
-
-- [ ] select `Melody Harmonize → Doubling`;
-- [ ] normal-range melody records as Ch1=`0`, Ch2=`0`, Ch3=`-12`, Ch4=`-12` relative to V1;
-- [ ] Ch1/Ch2 and Ch3/Ch4 duplicates remain independent parts;
-- [ ] changing Chord Track while a note is held does not alter Doubling pitches;
-- [ ] Clean / Color / Rich all produce the same Doubling pitches;
-- [ ] repeated same-pitch melody note rearticulates all active voices cleanly;
-- [ ] note-off releases every active voice; no stuck notes;
-- [ ] live `Closed → Drop 2 → Unison → Octaves → Doubling → Closed` creates no stale/tiny garbage notes;
-- [ ] project save/reopen restores `Doubling`;
-- [ ] older projects preserve their original Voicing Type;
-- [ ] Tension keyswitch notes remain swallowed;
-- [ ] switching back to Closed/Drop 2 restores harmonic Tension behavior;
-- [ ] repeated playback is deterministic.
-
-## Not part of 0.4c3
-
-- permanent Voicing Type keyswitch assignments themselves;
-- multiple hidden/random doubling variants;
 - instrument-specific octave/range adaptation;
 - Drop 3;
 - Drop 2+4;
@@ -214,4 +157,4 @@ Canonical MIDI note numbers, UI and project state must share one internal state.
 
 ## Acceptance boundary
 
-0.4c is complete when Smart Voicing can intentionally choose Unison, Octaves and the deterministic paired Doubling texture as cleanly as 0.4b can choose Drop 2, while preserving the same realtime/state architecture and without leaking orchestration decisions into Harmony Core.
+0.4c1–0.4c3 are complete: Smart Voicing can intentionally choose Unison, Octaves and deterministic paired Doubling as cleanly as 0.4b can choose Drop 2, while preserving the same realtime/state architecture and without leaking orchestration decisions into Harmony Core.

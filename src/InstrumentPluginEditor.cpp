@@ -4,6 +4,7 @@
 #include "HarmonicFunction.h"
 #include "TensionPolicy.h"
 #include "TensionKeyswitch.h"
+#include "VoicingKeyswitch.h"
 #include "VoicingStrategy.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
@@ -130,7 +131,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4c3 - Doubling",
+    titleLabel.setText("Smart Voicing 0.4c4 - Voicing Keyswitches",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -239,7 +240,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(diagnosticsButton);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.4c3 | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.4c4 | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -533,7 +534,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.4c3: Doubling layout [0,0,-12,-12]; melodic-section semantics, no harmonic reselection\n";
+    debugText << "Stage 5 / 0.4c4: Voicing Type keyswitch block MIDI 32..42; UI/project/MIDI share one state\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -618,6 +619,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
               << " | Voicing Type: " << smartvoicing::harmony::voicingTypeName(midiProbe.voicingType)
               << " | Tension Level: " << tensionLevelText(midiProbe.tensionLevel)
               << " | V1 melody immutable\n";
+    debugText << "Voicing keyswitches: 32=Closed, 33=Drop2, 34..39=RESERVED, 40=Unison, 41=Octaves, 42=Doubling; swallowed in Melody Harmonize\n";
     debugText << "Tension keyswitches: MIDI "
               << smartvoicing::harmony::kCleanTensionKeyswitchNote << "=Clean, "
               << smartvoicing::harmony::kColorTensionKeyswitchNote << "=Color, "
