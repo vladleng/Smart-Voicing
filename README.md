@@ -18,7 +18,7 @@ For a new chat or developer session, read in this order:
 1. `docs/START-HERE.md` — current checkpoint, architecture boundaries, keyswitch map and NEXT ACTION;
 2. `docs/Smart-Voicing-Handoff-0.5.md` — current Stage 5 handoff;
 3. Issue #9 / PR #30 / latest CI — factual implementation state;
-4. `docs/CONCEPT.md` — long-term product/architecture model;
+4. `docs/CONCEPT.md` + `docs/CONCEPT-STAGE5-ADDENDUM.md` — long-term model plus Stage 5 decisions that supersede older preliminary sections;
 5. `docs/MUSICAL-ENGINE-GUARDRAILS.md` — musical/realtime guardrails.
 
 Useful focused docs:
