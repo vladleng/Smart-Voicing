@@ -24,7 +24,7 @@
 
 ```text
 Stable:          0.4 — Stage 4 complete
-Development:     0.4e — Drop 2+4 host candidate
+Development:     0.4f — Spread (next Stage 5 slice)
 Current Stage:   Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:  stage-5-jazz-voicing-engine
 Main Issue:      #9 — Этап 5 — Jazz Voicing Engine
@@ -88,9 +88,9 @@ Melodic textures организуют performer-owned melody, а не harmonic c
 
 Подробности: `docs/TEST-0.4d.md`.
 
-## 4. Текущая работа — 0.4e Drop 2+4
+## 4. Принято — 0.4e Drop 2+4
 
-**Implemented + CI-confirmed, host acceptance ещё не зафиксирован.**
+**Implemented + CI-confirmed + Studio Pro accepted (2026-09-26).**
 
 Контракт:
 
@@ -112,7 +112,7 @@ V2..V4 re-sort by sounding pitch
 - Windows Build #421 green;
 - artifact `Smart-Voicing-0.4e-Windows` существует.
 
-Осталось: Studio Pro acceptance по `docs/0.4e-HOST-CHECKLIST.md`, после чего обновить `docs/TEST-0.4e.md`, Issue #9 и PR #30.
+Пользователь подтвердил успешный тест Drop 2+4 в Studio Pro. Следующая работа: 0.4f Spread как самостоятельная bottom-up strategy.
 
 ## 5. Финальная performance keyswitch map
 
@@ -293,8 +293,7 @@ Base Expression automation
 ## 12. NEXT ACTION
 
 ```text
-1. Скачать/использовать artifact Smart-Voicing-0.4e-Windows из Build #421.
-2. Выполнить Studio Pro acceptance по docs/0.4e-HOST-CHECKLIST.md.
-3. Если host test green — отметить 0.4e ACCEPTED в TEST-0.4e.md, Issue #9 и PR #30.
-4. После этого определить/начать следующий Stage 5 slice: Spread bottom-up strategy.
+1. Разработать 0.4f Spread как независимую bottom-up strategy поверх готового Stage 4 candidate context.
+2. Сохранить V1 melody и explicit chord/characteristic-tone authority; проверить root/bass anchor, 3/7, spacing, tension levels и slash bass.
+3. Сначала core regressions и CI, затем processor/state/UI/keyswitch MIDI 35 и полный CI; Studio Pro acceptance отдельно.
 ```
