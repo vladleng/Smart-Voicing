@@ -96,7 +96,7 @@ The preliminary keyswitch map in the original `CONCEPT.md` is historical and mus
 Canonical current map:
 
 ```text
-MIDI 32 / G#0  → UST       RESERVED
+MIDI 32 / G#0  → UST       ACTIVE in 0.4h candidate
 MIDI 33 / A0   → Cluster   RESERVED
 MIDI 34 / A#0  → Quartal   ACTIVE in 0.4g host candidate
 MIDI 35 / B0   → Spread    ACTIVE / accepted

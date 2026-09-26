@@ -27,7 +27,9 @@ enum class VoicingType : std::uint8_t
     // 0.4f core candidate. Host state/UI/MIDI 35 stay reserved until core CI.
     spread = 7,
     // 0.4g independent fourth-structure strategy. Values 0..7 are frozen.
-    quartal = 8
+    quartal = 8,
+    // 0.4h upper-structure triad + support voice; older values stay frozen.
+    ust = 9
 };
 
 // Stage 4 hands Stage 5 an already interpreted harmonic context. A strategy
