@@ -318,6 +318,35 @@ void testMinorDominantRichUsesDirectedTension()
            "Rich E7->Am does not use C# natural 13 as blind dominant colour");
 }
 
+void testMinorDominantRichPrefersFlat13OverFlatFive()
+{
+    const auto cMinor = normalizeKey(key(0, true));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto cm7 = normalizeChord(chord(0, 0, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+
+    const auto richCtx = keyAwareContext(g7, cMinor, 53, TensionLevel::rich, &cm7); // F3 = b7 melody
+    const auto rich = buildClosedVoicing(53, g7, richCtx);
+
+    expect(richCtx.tension.functionalProfile == FunctionalTensionProfile::dominantMinorTarget,
+           "G7->Cm7 uses confirmed minor-target profile");
+    expect(richCtx.tension.tone(1).functionallyDirected,
+           "G7 b9 is target-directed into Cm7");
+    expect(richCtx.tension.tone(8).functionallyDirected,
+           "G7 b13 is target-directed into Cm7");
+    expect(! richCtx.tension.tone(6).functionallyDirected,
+           "G7 #11/b5-class pitch is not promoted by minor-target evidence alone");
+
+    // 0.4a fix2 regression from the Studio Pro screenshot:
+    // F3 melody over G7 -> Cm7 should prefer b13 + 3 + b9,
+    // not b5/#11 merely because the target is minor.
+    expectVoice(rich, 0, 53, "Rich G7->Cm7 V1 F3 b7 melody");
+    expectVoice(rich, 1, 51, "Rich G7->Cm7 V2 Eb3 b13");
+    expectVoice(rich, 2, 47, "Rich G7->Cm7 V3 B2 major third");
+    expectVoice(rich, 3, 44, "Rich G7->Cm7 V4 Ab2 b9");
+    expect(! containsPitchClass(rich, 1),
+           "Rich G7->Cm7 does not substitute Db/b5 for functionally natural Eb/b13");
+}
+
 void testPlainTriadStaysConservativeEvenWithKey()
 {
     const auto cMajorKey = normalizeKey(key(0, false));
@@ -383,6 +412,7 @@ int main()
     testRichAdmitsAlteredDominantPoolButDoesNotRewriteChord();
     testHalfDiminishedKeepsCharacteristicFlatFifth();
     testMinorDominantRichUsesDirectedTension();
+    testMinorDominantRichPrefersFlat13OverFlatFive();
     testPlainTriadStaysConservativeEvenWithKey();
     testSlashBassOwnsV4();
     testNoChordFallback();
@@ -394,6 +424,6 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "All Smart Voicing 0.3e Functional Tension tests passed.\n";
+    std::cout << "All Smart Voicing 0.4a fix2 Functional Tension tests passed.\n";
     return EXIT_SUCCESS;
 }

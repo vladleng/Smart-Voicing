@@ -3,6 +3,10 @@
 #include "KeyModel.h"
 #include "HarmonicFunction.h"
 #include "TensionPolicy.h"
+#include "TensionKeyswitch.h"
+#include "VoicingKeyswitch.h"
+#include "HarmonyModeKeyswitch.h"
+#include "VoicingStrategy.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
 
@@ -128,7 +132,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4 - Stable Stage 4",
+    titleLabel.setText("Smart Voicing 0.4f - Spread",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -167,6 +171,33 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
         refreshContextMonitor();
     };
     addAndMakeVisible(harmonyModeBox);
+
+    voicingTypeLabel.setText("Voicing Type:", juce::dontSendNotification);
+    voicingTypeLabel.setJustificationType(juce::Justification::centredLeft);
+    voicingTypeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    addAndMakeVisible(voicingTypeLabel);
+
+    voicingTypeBox.addItem("Closed", static_cast<int>(smartvoicing::harmony::VoicingType::closed) + 1);
+    voicingTypeBox.addItem("Drop 2", static_cast<int>(smartvoicing::harmony::VoicingType::drop2) + 1);
+    voicingTypeBox.addItem("Drop 3", static_cast<int>(smartvoicing::harmony::VoicingType::drop3) + 1);
+    voicingTypeBox.addItem("Drop 2+4", static_cast<int>(smartvoicing::harmony::VoicingType::drop24) + 1);
+    voicingTypeBox.addItem("Spread", static_cast<int>(smartvoicing::harmony::VoicingType::spread) + 1);
+    voicingTypeBox.addItem("Quartal", static_cast<int>(smartvoicing::harmony::VoicingType::quartal) + 1);
+    voicingTypeBox.addItem("Unison", static_cast<int>(smartvoicing::harmony::VoicingType::unison) + 1);
+    voicingTypeBox.addItem("Octaves", static_cast<int>(smartvoicing::harmony::VoicingType::octaves) + 1);
+    voicingTypeBox.addItem("Doubling", static_cast<int>(smartvoicing::harmony::VoicingType::doubling) + 1);
+    voicingTypeBox.setSelectedId(static_cast<int>(processor.getVoicingType()) + 1,
+                                 juce::dontSendNotification);
+    voicingTypeBox.onChange = [this]
+    {
+        const auto value = juce::jlimit(
+            static_cast<int>(smartvoicing::harmony::VoicingType::closed),
+            static_cast<int>(smartvoicing::harmony::VoicingType::quartal),
+            voicingTypeBox.getSelectedId() - 1);
+        processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
+        refreshContextMonitor();
+    };
+    addAndMakeVisible(voicingTypeBox);
 
     tensionLevelLabel.setText("Tensions:", juce::dontSendNotification);
     tensionLevelLabel.setJustificationType(juce::Justification::centredLeft);
@@ -207,7 +238,14 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.4 | V1->Ch1 ... V4->Ch4",
+    diagnosticsButton.onClick = [this]
+    {
+        diagnosticsExpanded = ! diagnosticsExpanded;
+        updateDiagnosticsVisibility();
+    };
+    addAndMakeVisible(diagnosticsButton);
+
+    midiProbeTitleLabel.setText("MIDI Engine 0.4e | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -229,7 +267,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     debugLabel.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(debugLabel);
 
-    setSize(900, 1117);
+    updateDiagnosticsVisibility();
     refreshContextMonitor();
     startTimerHz(8);
 }
@@ -239,6 +277,19 @@ SmartVoicingInstrumentEditor::~SmartVoicingInstrumentEditor()
     stopTimer();
 }
 
+void SmartVoicingInstrumentEditor::updateDiagnosticsVisibility()
+{
+    diagnosticsButton.setButtonText(diagnosticsExpanded ? "Diagnostics [-]" : "Diagnostics [+]");
+
+    midiProbeTitleLabel.setVisible(diagnosticsExpanded);
+    midiProbeLabel.setVisible(diagnosticsExpanded);
+    resetMidiStatsButton.setVisible(diagnosticsExpanded);
+    debugLabel.setVisible(diagnosticsExpanded);
+
+    setSize(editorWidth, diagnosticsExpanded ? expandedEditorHeight : compactEditorHeight);
+    repaint();
+}
+
 void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
 {
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
@@ -246,17 +297,23 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     auto area = getLocalBounds().reduced(20);
     area.removeFromTop(88);
 
-    auto contextArea = area.removeFromTop(190);
+    auto contextArea = area.removeFromTop(228);
     g.setColour(getLookAndFeel().findColour(juce::Label::outlineColourId).withAlpha(0.35f));
     g.drawRoundedRectangle(contextArea.toFloat(), 8.0f, 1.0f);
 
-    area.removeFromTop(52);
-    auto modeArea = area.removeFromTop(134);
+    area.removeFromTop(12);
+    auto modeArea = area.removeFromTop(168);
     g.drawRoundedRectangle(modeArea.toFloat(), 8.0f, 1.0f);
 
     area.removeFromTop(12);
-    auto midiArea = area.removeFromTop(250);
-    g.drawRoundedRectangle(midiArea.toFloat(), 8.0f, 1.0f);
+    area.removeFromTop(32);
+
+    if (diagnosticsExpanded)
+    {
+        area.removeFromTop(12);
+        auto midiArea = area.removeFromTop(250);
+        g.drawRoundedRectangle(midiArea.toFloat(), 8.0f, 1.0f);
+    }
 }
 
 void SmartVoicingInstrumentEditor::resized()
@@ -280,6 +337,10 @@ void SmartVoicingInstrumentEditor::resized()
     harmonyModeLabel.setBounds(harmonyRow.removeFromLeft(130));
     harmonyModeBox.setBounds(harmonyRow.removeFromLeft(280));
 
+    auto voicingRow = area.removeFromTop(42).reduced(12, 4);
+    voicingTypeLabel.setBounds(voicingRow.removeFromLeft(130));
+    voicingTypeBox.setBounds(voicingRow.removeFromLeft(280));
+
     auto tensionRow = area.removeFromTop(42).reduced(12, 4);
     tensionLevelLabel.setBounds(tensionRow.removeFromLeft(130));
     tensionLevelBox.setBounds(tensionRow.removeFromLeft(280));
@@ -287,6 +348,12 @@ void SmartVoicingInstrumentEditor::resized()
     auto distributionRow = area.removeFromTop(42).reduced(12, 4);
     distributionModeLabel.setBounds(distributionRow.removeFromLeft(130));
     distributionModeBox.setBounds(distributionRow.removeFromLeft(280));
+
+    area.removeFromTop(12);
+    diagnosticsButton.setBounds(area.removeFromTop(32).reduced(12, 0));
+
+    if (! diagnosticsExpanded)
+        return;
 
     area.removeFromTop(12);
     midiProbeTitleLabel.setBounds(area.removeFromTop(30).reduced(12, 0));
@@ -416,6 +483,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     if (harmonyModeBox.getSelectedId() != desiredHarmonyId)
         harmonyModeBox.setSelectedId(desiredHarmonyId, juce::dontSendNotification);
 
+    const auto desiredVoicingId = static_cast<int>(midiProbe.voicingType) + 1;
+    if (voicingTypeBox.getSelectedId() != desiredVoicingId)
+        voicingTypeBox.setSelectedId(desiredVoicingId, juce::dontSendNotification);
+
     const auto desiredTensionId = static_cast<int>(midiProbe.tensionLevel);
     if (tensionLevelBox.getSelectedId() != desiredTensionId)
         tensionLevelBox.setSelectedId(desiredTensionId, juce::dontSendNotification);
@@ -427,6 +498,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     const auto directRouter = midiProbe.harmonyMode == SmartVoicingInstrumentProcessor::HarmonyMode::directRouter;
     distributionModeBox.setEnabled(directRouter);
     distributionModeLabel.setEnabled(directRouter);
+    voicingTypeBox.setEnabled(! directRouter);
+    voicingTypeLabel.setEnabled(! directRouter);
     tensionLevelBox.setEnabled(! directRouter);
     tensionLevelLabel.setEnabled(! directRouter);
 
@@ -435,7 +508,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     if (directRouter)
         midiText << " | distribution: " << distributionModeText(midiProbe.distributionMode);
     else
-        midiText << " | Closed Voicing | tension: " << tensionLevelText(midiProbe.tensionLevel)
+        midiText << " | " << smartvoicing::harmony::voicingTypeName(midiProbe.voicingType)
+                 << " Voicing | tension: " << tensionLevelText(midiProbe.tensionLevel)
                  << " | live Chord Track reharmonization";
     midiText << " | ownership: " << (midiProbe.stableOwnership ? "STABLE" : "FRAME") << "\n";
     midiText << "sustain: " << (midiProbe.sustainDown ? "DOWN" : "UP")
@@ -465,7 +539,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 4 / 0.4 STABLE: Key-aware Engine + Functional Tensions\n";
+    debugText << "Stage 5 / 0.4f: Spread active | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")
@@ -547,9 +621,24 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     debugText << "Host chord text: " << hostChord << " | NormalizedChord is authoritative\n";
     debugText << "Priority: Melody > Explicit Chord > Characteristic tones > Key > Function/Real Target > Functional Profile > Tension Level > Strategy\n";
     debugText << "Harmony mode: " << harmonyModeText(midiProbe.harmonyMode)
+              << " | Voicing Type: " << smartvoicing::harmony::voicingTypeName(midiProbe.voicingType)
               << " | Tension Level: " << tensionLevelText(midiProbe.tensionLevel)
-              << " | V1 melody immutable | V2-V4 candidate-based Closed vertical\n";
+              << " | V1 melody immutable\n";
+    debugText << "Voicing keyswitches: 32=UST(R), 33=Cluster(R), 34=Quartal(R), 35=Spread(R), 36=Closed, 37=Drop2, 38=Drop3, 39=Drop2+4, 40=Unison, 41=Octaves, 42=Doubling\n";
+    debugText << "Tension keyswitches: MIDI "
+              << smartvoicing::harmony::kCleanTensionKeyswitchNote << "=Clean, "
+              << smartvoicing::harmony::kColorTensionKeyswitchNote << "=Color, "
+              << smartvoicing::harmony::kRichTensionKeyswitchNote << "=Rich; swallowed in Melody Harmonize\n";
+    debugText << "Harmony Mode keyswitches: MIDI "
+              << smartvoicing::harmony::kDirectRouterModeKeyswitchNote << "=Direct Router, "
+              << smartvoicing::harmony::kMelodyHarmonizeModeKeyswitchNote << "=Melody Harmonize; swallowed in both modes\n";
     debugText << "Closed policy: guide + characteristic tones, contextual omissions, soft Upper Voice Spacing\n";
+    debugText << "Drop 2 policy: same Closed pitch classes; second voice from top lowered one octave; slash bass falls back to Closed\n";
+    debugText << "Drop 3 policy: same Closed pitch classes; third voice from top lowered one octave; slash bass falls back to Closed\n";
+    debugText << "Drop 2+4 policy: same Closed pitch classes; second and fourth voices lowered one octave; slash bass pitch class remains authoritative\n";
+    debugText << "Unison policy: V1-V4 same performer melody pitch on independent MIDI channels; no harmonic generation\n";
+    debugText << "Octaves policy: V1=melody, V2/V3=melody-12, V4=melody-24; out-of-range lower voices inactive\n";
+    debugText << "Doubling policy: V1/V2=melody, V3/V4=melody-12; two independent unison pairs, no harmonic generation\n";
     debugText << "Tension levels: Clean=structural | Color=target-aware inside colour | Rich=functionally intensified tension\n";
     debugText << "Tension policy: Explicit authoritative; Avoid/Unavailable excluded from generated V2-V4\n";
     debugText << "Resolution policy: ONLY actual next Chord root+quality drives target-aware dominant profile\n";
