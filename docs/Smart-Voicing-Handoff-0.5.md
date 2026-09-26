@@ -4,7 +4,7 @@
 
 ```text
 Stable version:             0.4 — Stage 4 complete
-Current development:        0.4f — Spread host candidate, Build #436 green; Studio Pro pending
+Current development:        0.4f — Spread musical mode works in Studio Pro; technical checklist incomplete
 Current Stage:              Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
@@ -101,7 +101,7 @@ Implemented:
 
 Host result: user reported the 0.4e test passed in Studio Pro on 2026-09-26. See `docs/TEST-0.4e.md`.
 
-0.4f Spread core is an independent bottom-up strategy. V1 remains the performer melody; V4 is a root/slash-bass anchor; inner voices come from the Stage 4 candidate pool. Core Build #435 and full host Build #436 are green. Host integration activates `B0 / MIDI 35` without remapping other controls; Studio Pro acceptance is pending. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
+0.4f Spread core is an independent bottom-up strategy. V1 remains the performer melody; V4 is a root/slash-bass anchor; inner voices come from the Stage 4 candidate pool. Core Build #435 and full host Build #436 are green. Host integration activates `B0 / MIDI 35` without remapping other controls; User confirmed Spread works from a marked Clean/Color/Rich score in Studio Pro (2026-09-26). The three levels show little pitch difference; refine later in Stage 5. Technical checklist items were not individually confirmed. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
 
 ## 4. Stable performance-control map
 
@@ -208,7 +208,7 @@ Important accepted semantics:
 - no temporal Melodic Context Engine/approach-note classification yet;
 - no instrument-specific range adaptation yet — Stage 7;
 - no Performance Humanization yet — Stage 7B;
-- Spread core and host integration implemented; Studio Pro acceptance pending. Quartal / Cluster / UST remain unimplemented;
+- Spread core and host integration implemented; musical mode confirmed by user, technical host checklist incomplete, and Clean/Color/Rich differentiation deferred. Quartal / Cluster / UST remain unimplemented;
 - UST/Cluster/Quartal keyswitch notes are reserved and swallowed in Melody Harmonize;
 - host octave labels are convenience labels only; MIDI note numbers are the contract.
 
@@ -259,7 +259,7 @@ Primary literature reference: Ted Pease / Ken Pullig — *Modern Jazz Voicings: 
 ## 10. NEXT ACTION
 
 ```text
-1. Test `Smart-Voicing-0.4f-Windows` from Build #436 in Studio Pro using `docs/0.4f-HOST-CHECKLIST.md`.
-2. Record any host bugs and repair if needed; otherwise mark 0.4f accepted in TEST/Issue/PR.
-3. Continue with the next Stage 5 strategy only after that acceptance.
+1. Define Quartal strategy contract and discriminating harmonic examples as the next Stage 5 item.
+2. Track Spread Clean/Color/Rich selection as deferred refinement; G7 → Cm7 with melody on b7 is a focused regression.
+3. Complete unreported `docs/0.4f-HOST-CHECKLIST.md` technical checks before claiming full 0.4f host acceptance.
 ```
