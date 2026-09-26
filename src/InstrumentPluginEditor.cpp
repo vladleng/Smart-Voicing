@@ -184,6 +184,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     voicingTypeBox.addItem("Spread", static_cast<int>(smartvoicing::harmony::VoicingType::spread) + 1);
     voicingTypeBox.addItem("Quartal", static_cast<int>(smartvoicing::harmony::VoicingType::quartal) + 1);
     voicingTypeBox.addItem("UST", static_cast<int>(smartvoicing::harmony::VoicingType::ust) + 1);
+    voicingTypeBox.addItem("Cluster", static_cast<int>(smartvoicing::harmony::VoicingType::cluster) + 1);
     voicingTypeBox.addItem("Unison", static_cast<int>(smartvoicing::harmony::VoicingType::unison) + 1);
     voicingTypeBox.addItem("Octaves", static_cast<int>(smartvoicing::harmony::VoicingType::octaves) + 1);
     voicingTypeBox.addItem("Doubling", static_cast<int>(smartvoicing::harmony::VoicingType::doubling) + 1);
@@ -193,7 +194,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::ust),
+            static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
             voicingTypeBox.getSelectedId() - 1);
         processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
         refreshContextMonitor();

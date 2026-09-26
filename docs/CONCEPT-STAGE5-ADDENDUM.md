@@ -84,7 +84,9 @@ These organize performer-owned melody across four Voices. They can intentionally
 0.4d  Drop 3                       ACCEPTED
 0.4e  Drop 2+4                     ACCEPTED (Studio Pro, 2026-09-26)
 0.4f  Spread                       ACCEPTED (Studio Pro, 2026-09-26)
-0.4g  Quartal                      independent fourth-structure candidate; CI/host pending
+0.4g  Quartal                      ACCEPTED in Studio Pro (2026-09-26)
+0.4h  UST                          initial Studio Pro operation confirmed; broad interval review deferred
+0.4i  Cluster                      independent density strategy candidate
 ```
 
 Current detailed state is maintained in `docs/START-HERE.md` and `docs/Smart-Voicing-Handoff-0.5.md`.
@@ -97,8 +99,8 @@ Canonical current map:
 
 ```text
 MIDI 32 / G#0  → UST       ACTIVE in 0.4h candidate
-MIDI 33 / A0   → Cluster   RESERVED
-MIDI 34 / A#0  → Quartal   ACTIVE in 0.4g host candidate
+MIDI 33 / A0   → Cluster   ACTIVE in 0.4i candidate
+MIDI 34 / A#0  → Quartal   ACCEPTED
 MIDI 35 / B0   → Spread    ACTIVE / accepted
 
 MIDI 36 / C1   → Closed

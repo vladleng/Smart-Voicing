@@ -24,7 +24,7 @@
 
 ```text
 Stable:          0.4 — Stage 4 complete
-Development:     0.4g — Quartal host candidate; Windows Build #446 green; Studio Pro pending
+Development:     0.4i — Cluster candidate on isolated branch; Quartal accepted, UST initial host pass
 Current Stage:   Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:  stage-5-jazz-voicing-engine
 Main Issue:      #9 — Этап 5 — Jazz Voicing Engine
@@ -126,9 +126,9 @@ V2..V4 re-sort by sounding pitch
 Canonical contract — **MIDI note numbers**. Названия нот соответствуют octave naming Studio Pro, использованному в тестах.
 
 ```text
-32 / G#0  UST             RESERVED
-33 / A0   Cluster         RESERVED
-34 / A#0  Quartal         ACTIVE in 0.4g host candidate
+32 / G#0  UST             ACTIVE in 0.4h
+33 / A0   Cluster         ACTIVE in 0.4i candidate
+34 / A#0  Quartal         ACCEPTED in 0.4g
 35 / B0   Spread          ACTIVE in 0.4f host candidate
 
 36 / C1   Closed
