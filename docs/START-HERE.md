@@ -24,7 +24,7 @@
 
 ```text
 Stable:          0.4 — Stage 4 complete
-Development:     0.4g — Quartal host candidate; Windows CI and Studio Pro pending
+Development:     0.4g — Quartal host candidate; Windows Build #446 green; Studio Pro pending
 Current Stage:   Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:  stage-5-jazz-voicing-engine
 Main Issue:      #9 — Этап 5 — Jazz Voicing Engine
@@ -300,7 +300,7 @@ Base Expression automation
 ## 12. NEXT ACTION
 
 ```text
-1. Проверить полный Windows CI коммита 0.4g и наличие пакета `Smart-Voicing-0.4g-Windows`.
-2. После green CI выполнить `docs/0.4g-HOST-CHECKLIST.md` в Studio Pro; до этого 0.4g остаётся candidate.
+1. Установить пакет `Smart-Voicing-0.4g-Windows` из green Windows Build #446.
+2. Выполнить `docs/0.4g-HOST-CHECKLIST.md` в Studio Pro; до этого 0.4g остаётся candidate.
 3. Сохранить отдельную задачу на различие Clean/Color/Rich в Spread, начиная с G7 → Cm7 и мелодии на b7; не переопределять Stage 4 vocabulary.
 ```
