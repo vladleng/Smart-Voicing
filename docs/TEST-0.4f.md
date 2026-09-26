@@ -1,6 +1,6 @@
 # Smart Voicing 0.4f — Spread
 
-Status: **Studio Pro musical result reviewed; Spread mode works. Full host checklist remains unconfirmed.**
+Status: **ACCEPTED — Studio Pro, 2026-09-26**. Clean/Color/Rich refinement deferred.
 
 Stable input: **0.4e Drop 2+4 — ACCEPTED / COMPLETED** (Studio Pro, 2026-09-26).
 
@@ -31,7 +31,8 @@ Core CI #435 ran before host activation. The previous `B0 / MIDI 35` reservation
 - [x] full Windows Build **#436 / run 36235433989 green**: VST3 + ARA VST3 + ctest;
 - [x] artifact `Smart-Voicing-0.4f-Windows` uploaded (SHA-256 `728ea09669694156fe534a78680ce4aacc8b4d2f049e790355d22ae61cc148b6`);
 - [x] user supplied a Studio Pro four-part score, marked Clean/Color/Rich, and confirmed the Spread mode itself works (2026-09-26);
-- [ ] remaining technical checks in `docs/0.4f-HOST-CHECKLIST.md` have not been individually reported.
+- [x] user confirmed MIDI 35 selection/swallowing, live switching hygiene, existing controls, save/reopen and deterministic repeat playback in Studio Pro on 2026-09-26;
+- [x] low-note MIDI-domain fallback is covered by core tests; the user waived the extreme-low-register host demonstration because the trumpet reaches its lower playable limit before this artificial MIDI edge case.
 
 ## Score review and deferred refinement
 
@@ -39,4 +40,4 @@ The supplied score repeats the same material in Clean, Color and Rich on Cmaj7, 
 
 Potential cause to test: V1 melody plus V4 bass leave two inner voices, and the present spread score strongly favours both 3 and 7. Available/contextual Stage 4 colours often lose to that structural choice. Do not alter Stage 4 meaning or force every chord to differ. Add an explicit regression where a guide is already present in V1 (e.g. confirmed G7 → Cm7 with melody on b7): compare Clean, Color b13 and Rich contextual b9 while preserving chord identity and the root anchor. If the candidate vocabulary is correct but the selected vertical stays identical where colour is musically feasible, refine Spread's vertical objective in a later Stage 5 slice.
 
-User decision: proceed with the next development item; revisit this musical nuance in the next refinement. This is not a claim that every host-checklist item passed.
+User decision: 0.4f host check passed; proceed with the next development item and revisit Clean/Color/Rich differentiation in the next refinement. The extreme-low-register host exercise was waived explicitly; the underlying MIDI safety regression passed in core tests.
