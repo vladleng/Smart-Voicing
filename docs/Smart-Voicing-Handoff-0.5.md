@@ -4,7 +4,7 @@
 
 ```text
 Stable version:             0.4 — Stage 4 complete
-Current development:        0.4f — Spread ACCEPTED in Studio Pro; Quartal next
+Current development:        0.4g — Quartal host candidate; CI and Studio Pro pending
 Current Stage:              Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
@@ -110,7 +110,7 @@ Canonical MIDI note numbers:
 ```text
 32 G#0  UST             RESERVED
 33 A0   Cluster         RESERVED
-34 A#0  Quartal         RESERVED
+34 A#0  Quartal         ACTIVE in 0.4g host candidate
 35 B0   Spread          ACTIVE in 0.4f host candidate
 36 C1   Closed
 37 C#1  Drop 2
@@ -208,7 +208,7 @@ Important accepted semantics:
 - no temporal Melodic Context Engine/approach-note classification yet;
 - no instrument-specific range adaptation yet — Stage 7;
 - no Performance Humanization yet — Stage 7B;
-- 0.4f Spread accepted in Studio Pro; Clean/Color/Rich differentiation deferred. Quartal / Cluster / UST remain unimplemented;
+- 0.4f Spread accepted in Studio Pro; Clean/Color/Rich differentiation deferred. 0.4g Quartal code/host integration implemented; CI and Studio Pro pending. Cluster / UST remain unimplemented;
 - UST/Cluster/Quartal keyswitch notes are reserved and swallowed in Melody Harmonize;
 - host octave labels are convenience labels only; MIDI note numbers are the contract.
 
@@ -261,5 +261,5 @@ Primary literature reference: Ted Pease / Ken Pullig — *Modern Jazz Voicings: 
 ```text
 1. Define Quartal strategy contract and discriminating harmonic examples as the next Stage 5 item.
 2. Track Spread Clean/Color/Rich selection as deferred refinement; G7 → Cm7 with melody on b7 is a focused regression.
-3. 0.4f host acceptance is recorded in `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`, with the extreme-low-register host exercise explicitly waived.
+3. 0.4g independent Quartal strategy and `MIDI 34 / A#0` selector are implemented as a host candidate. Local host-neutral tests pass; Windows CI and Studio Pro pending. See `docs/TEST-0.4g.md` and `docs/0.4g-HOST-CHECKLIST.md`.
 ```
