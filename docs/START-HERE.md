@@ -8,13 +8,15 @@
 
 ```text
 1. GitHub code / Issues / PR / CI / docs/TEST-*.md
-2. docs/CONCEPT.md
+2. docs/CONCEPT.md + docs/CONCEPT-STAGE5-ADDENDUM.md
 3. профильные docs/*.md
 4. последний handoff-файл
 5. история чатов / Project Sources
 ```
 
 Если документы расходятся с кодом, Issue, PR или CI — актуальным считать GitHub. Никогда не считать host-specific поведение подтверждённым только по green CI: отдельно различать **implemented**, **CI-confirmed** и **Studio Pro confirmed**.
+
+`CONCEPT-STAGE5-ADDENDUM.md` временно supersedes конфликтующие preliminary sections основного `CONCEPT.md` (в первую очередь старую keyswitch map и roadmap до появления Stage 7B). При stable 0.5 addendum должен быть слит обратно в основной CONCEPT.
 
 Подробное правило переноса контекста: `docs/CHAT-HANDOFF-RULE.md`.
 
@@ -278,7 +280,7 @@ Base Expression automation
 2. docs/Smart-Voicing-Handoff-0.5.md
 3. Issue #9 + PR #30 + latest CI
 4. docs/TEST-0.4e.md / host checklist
-5. docs/CONCEPT.md
+5. docs/CONCEPT.md + docs/CONCEPT-STAGE5-ADDENDUM.md
 6. docs/MUSICAL-ENGINE-GUARDRAILS.md
 ```
 
