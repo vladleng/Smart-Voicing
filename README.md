@@ -6,7 +6,7 @@ Moon River Studio — context-aware four-voice MIDI arranging engine for DAW wor
 
 - Stable checkpoint: **0.4 — Stage 4 complete**
 - Development: **Stage 5 — Jazz Voicing Engine → 0.5**
-- Current slice: **0.4g — Quartal host candidate** (core and host integration pushed; Windows CI pending; Studio Pro pending)
+- Current slice: **0.4g — Quartal host candidate** (Windows Build #446 green; Studio Pro pending)
 - Working branch: `stage-5-jazz-voicing-engine`
 - Main tracking Issue: **#9**
 - Working PR: **#30** (draft/open for the whole Stage 5 line)
