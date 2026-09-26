@@ -82,7 +82,7 @@ These organize performer-owned melody across four Voices. They can intentionally
 0.4c3 deterministic Doubling       ACCEPTED
 0.4c4 Performance Keyswitch Layer  ACCEPTED
 0.4d  Drop 3                       ACCEPTED
-0.4e  Drop 2+4                     implemented + CI green; host acceptance pending
+0.4e  Drop 2+4                     ACCEPTED (Studio Pro, 2026-09-26)
 ```
 
 Current detailed state is maintained in `docs/START-HERE.md` and `docs/Smart-Voicing-Handoff-0.5.md`.
