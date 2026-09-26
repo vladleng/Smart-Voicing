@@ -6,7 +6,7 @@ Moon River Studio — context-aware four-voice MIDI arranging engine for DAW wor
 
 - Stable checkpoint: **0.4 — Stage 4 complete**
 - Development: **Stage 5 — Jazz Voicing Engine → 0.5**
-- Current slice: **0.4f — Spread core design/development** (0.4e accepted in Studio Pro)
+- Current slice: **0.4f — Spread host candidate** (core CI #435 green; full host CI pending)
 - Working branch: `stage-5-jazz-voicing-engine`
 - Main tracking Issue: **#9**
 - Working PR: **#30** (draft/open for the whole Stage 5 line)
@@ -23,7 +23,7 @@ For a new chat or developer session, read in this order:
 
 Useful focused docs:
 
-- `docs/TEST-0.4e.md` and `docs/0.4e-HOST-CHECKLIST.md` — accepted Drop 2+4 slice;
+- `docs/TEST-0.4e.md` — accepted Drop 2+4; `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md` — current Spread slice;
 - `docs/STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md` — recommended keyswitch workflow;
 - `docs/PERFORMANCE-ENGINE-ROADMAP.md` — future Stage 7B Humanization + Expression Distribution;
 - `docs/VOICE-LEADING-DIRECTION.md` — Stage 6 direction;

@@ -132,7 +132,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4e - Drop 2+4",
+    titleLabel.setText("Smart Voicing 0.4f - Spread",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -181,6 +181,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     voicingTypeBox.addItem("Drop 2", static_cast<int>(smartvoicing::harmony::VoicingType::drop2) + 1);
     voicingTypeBox.addItem("Drop 3", static_cast<int>(smartvoicing::harmony::VoicingType::drop3) + 1);
     voicingTypeBox.addItem("Drop 2+4", static_cast<int>(smartvoicing::harmony::VoicingType::drop24) + 1);
+    voicingTypeBox.addItem("Spread", static_cast<int>(smartvoicing::harmony::VoicingType::spread) + 1);
     voicingTypeBox.addItem("Unison", static_cast<int>(smartvoicing::harmony::VoicingType::unison) + 1);
     voicingTypeBox.addItem("Octaves", static_cast<int>(smartvoicing::harmony::VoicingType::octaves) + 1);
     voicingTypeBox.addItem("Doubling", static_cast<int>(smartvoicing::harmony::VoicingType::doubling) + 1);
@@ -190,7 +191,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::drop24),
+            static_cast<int>(smartvoicing::harmony::VoicingType::spread),
             voicingTypeBox.getSelectedId() - 1);
         processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
         refreshContextMonitor();
@@ -537,7 +538,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.4e: Drop 2+4 active | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
+    debugText << "Stage 5 / 0.4f: Spread active | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")

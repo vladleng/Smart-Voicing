@@ -24,7 +24,7 @@
 
 ```text
 Stable:          0.4 — Stage 4 complete
-Development:     0.4f — Spread (next Stage 5 slice)
+Development:     0.4f — Spread host candidate; full Windows CI pending
 Current Stage:   Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:  stage-5-jazz-voicing-engine
 Main Issue:      #9 — Этап 5 — Jazz Voicing Engine
@@ -114,6 +114,13 @@ V2..V4 re-sort by sounding pitch
 
 Пользователь подтвердил успешный тест Drop 2+4 в Studio Pro. Следующая работа: 0.4f Spread как самостоятельная bottom-up strategy.
 
+### 0.4f — Spread host candidate
+
+- Independent bottom-up strategy; V1 melody unchanged, V4 root or explicit slash-bass anchor, V3/V2 from Stage 4 candidate pool.
+- Guide 3/7 and characteristic chord tones take priority over optional colour; spacing is open and deterministic.
+- Core Windows Build #435 green; processor/state/UI and `B0 / MIDI 35` activation added after that build.
+- Full host CI and Studio Pro acceptance remain pending. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
+
 ## 5. Финальная performance keyswitch map
 
 Canonical contract — **MIDI note numbers**. Названия нот соответствуют octave naming Studio Pro, использованному в тестах.
@@ -122,7 +129,7 @@ Canonical contract — **MIDI note numbers**. Названия нот соотв
 32 / G#0  UST             RESERVED
 33 / A0   Cluster         RESERVED
 34 / A#0  Quartal         RESERVED
-35 / B0   Spread          RESERVED
+35 / B0   Spread          ACTIVE in 0.4f host candidate
 
 36 / C1   Closed
 37 / C#1  Drop 2
@@ -293,7 +300,7 @@ Base Expression automation
 ## 12. NEXT ACTION
 
 ```text
-1. Разработать 0.4f Spread как независимую bottom-up strategy поверх готового Stage 4 candidate context.
-2. Сохранить V1 melody и explicit chord/characteristic-tone authority; проверить root/bass anchor, 3/7, spacing, tension levels и slash bass.
-3. Сначала core regressions и CI, затем processor/state/UI/keyswitch MIDI 35 и полный CI; Studio Pro acceptance отдельно.
+1. Проверить полный Windows CI для 0.4f после host integration (core #435 green).
+2. Если green — скачать `Smart-Voicing-0.4f-Windows` и выполнить `docs/0.4f-HOST-CHECKLIST.md` в Studio Pro.
+3. Только после host acceptance обновить TEST/Issue/PR. Следующие Quartal/Cluster/UST пока не включать.
 ```

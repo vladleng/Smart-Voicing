@@ -1,6 +1,6 @@
 # Smart Voicing 0.4f — Spread
 
-Status: **CORE IMPLEMENTED LOCALLY — Windows CI pending; host integration pending**
+Status: **HOST CANDIDATE — core CI green; full host CI pending; Studio Pro test pending**
 
 Stable input: **0.4e Drop 2+4 — ACCEPTED / COMPLETED** (Studio Pro, 2026-09-26).
 
@@ -20,13 +20,13 @@ Spread is an independent bottom-up Stage 5 strategy. It is not an octave-expande
 - [x] independent `buildSpreadVoicing()` and dispatcher; no Closed transform or Function/Tension re-analysis.
 - [x] tests for root/slash anchor, 3/7, characteristic b5, Stage 4 pool, safe fallback and determinism.
 - [x] local host-neutral compilation and tests.
-- [ ] full Windows core CI green.
+- [x] Windows core CI **#435 / run 36234854971 green**.
 
-The existing `B0 / MIDI 35` remains **reserved/swallowed** at this checkpoint. Processor/state/UI integration and keyswitch activation follow only after green core CI.
+Core CI #435 ran before host activation. The previous `B0 / MIDI 35` reservation is activated only in the following host-integration commit; the older #435 artifact is not a Spread host candidate.
 
 ## Host checkpoint (after core CI)
 
-- [ ] processor/state/UI expose Spread without changing prior enum meanings;
-- [ ] `B0 / MIDI 35` activates Spread within the existing Sound Variations map;
+- [x] processor/state/UI integrated; prior enum meanings unchanged;
+- [x] `B0 / MIDI 35` activated and decoder regression updated;
 - [ ] full Windows plugin/ARA/ctest CI green with versioned host candidate;
-- [ ] Studio Pro acceptance: melody, root/slash bass, guide tones, Clean/Color/Rich, live switching, save/reopen, no stuck or leaked keyswitch notes.
+- [ ] Studio Pro acceptance per `docs/0.4f-HOST-CHECKLIST.md`.

@@ -4,7 +4,7 @@
 
 ```text
 Stable version:             0.4 — Stage 4 complete
-Current development:        0.4f — Spread next
+Current development:        0.4f — Spread host candidate, full CI pending
 Current Stage:              Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
@@ -66,7 +66,7 @@ Host-confirmed workflow includes Voicing/Tension/Harmony Mode controls through S
 
 **0.4e Drop 2+4 was accepted by the user after the Studio Pro test on 2026-09-26.**
 
-## 3. Current work — 0.4e Drop 2+4
+## 3. Accepted 0.4e and current work 0.4f
 
 Musical transform:
 
@@ -101,6 +101,8 @@ Implemented:
 
 Host result: user reported the 0.4e test passed in Studio Pro on 2026-09-26. See `docs/TEST-0.4e.md`.
 
+0.4f Spread core is an independent bottom-up strategy. V1 remains the performer melody; V4 is a root/slash-bass anchor; inner voices come from the Stage 4 candidate pool. Core Build #435 is green. Host integration activates `B0 / MIDI 35` without remapping other controls; full CI and Studio Pro acceptance are pending. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
+
 ## 4. Stable performance-control map
 
 Canonical MIDI note numbers:
@@ -109,7 +111,7 @@ Canonical MIDI note numbers:
 32 G#0  UST             RESERVED
 33 A0   Cluster         RESERVED
 34 A#0  Quartal         RESERVED
-35 B0   Spread          RESERVED
+35 B0   Spread          ACTIVE in 0.4f host candidate
 36 C1   Closed
 37 C#1  Drop 2
 38 D1   Drop 3
@@ -206,8 +208,8 @@ Important accepted semantics:
 - no temporal Melodic Context Engine/approach-note classification yet;
 - no instrument-specific range adaptation yet — Stage 7;
 - no Performance Humanization yet — Stage 7B;
-- Spread / Quartal / Cluster / UST not implemented yet;
-- UST/Cluster/Quartal/Spread keyswitch notes are reserved and swallowed in Melody Harmonize;
+- Spread core and host integration implemented; Studio Pro acceptance pending. Quartal / Cluster / UST remain unimplemented;
+- UST/Cluster/Quartal keyswitch notes are reserved and swallowed in Melody Harmonize;
 - host octave labels are convenience labels only; MIDI note numbers are the contract.
 
 ## 8. Future Performance Engine decision
@@ -257,7 +259,7 @@ Primary literature reference: Ted Pease / Ken Pullig — *Modern Jazz Voicings: 
 ## 10. NEXT ACTION
 
 ```text
-1. Begin 0.4f Spread as an independent bottom-up strategy, not a Closed transformation.
-2. Specify root/bass anchor, protected chord tones, guide tones, candidate scoring, melodic V1 and fallback rules.
-3. Implement and test core first; activate reserved MIDI 35 only after core CI is green.
+1. Confirm full Windows CI for the 0.4f host integration after core Build #435 green.
+2. If green, test `Smart-Voicing-0.4f-Windows` in Studio Pro using `docs/0.4f-HOST-CHECKLIST.md`.
+3. Record host acceptance separately; do not mark 0.4f accepted from CI alone.
 ```
