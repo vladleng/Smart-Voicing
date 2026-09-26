@@ -12,7 +12,7 @@ namespace smartvoicing::harmony
 // families can be added without colliding with the stable Tension block 43..45.
 //
 // Lower reserved modern-family slots:
-//   32 G#0 UST         (reserved)
+//   32 G#0 UST
 //   33 A0  Cluster     (reserved)
 //   34 A#0 Quartal
 //   35 B0  Spread
@@ -26,7 +26,7 @@ namespace smartvoicing::harmony
 //   42 F#1 Doubling
 // Existing Tension keyswitches remain unchanged: 43/44/45 = G1/G#1/A1.
 constexpr int kFirstVoicingKeyswitchNote = 32;
-constexpr int kUstReservedVoicingKeyswitchNote = 32;
+constexpr int kUstVoicingKeyswitchNote = 32;
 constexpr int kClusterReservedVoicingKeyswitchNote = 33;
 constexpr int kQuartalVoicingKeyswitchNote = 34;
 constexpr int kSpreadVoicingKeyswitchNote = 35;
