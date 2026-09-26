@@ -90,6 +90,11 @@ void testCompleteUpperTriad()
 }
 void testAuthorityAndFallback()
 {
+    const auto major=normalizeChord(chord(0,0,{{0,1},{4,3},{7,5},{11,7}}));
+    const auto nonChord=buildVoicing(66,VoicingType::ust,context(major,66));
+    expect(nonChord.voices[0].midiNote==66 && nonChord.voices[1].active
+               && nonChord.voices[2].active && nonChord.voices[3].active,
+           "non-chord melody remains V1 over a partial upper triad");
     const auto slash=normalizeChord(chord(0,1,{{0,1},{4,3},{7,5},{11,7}}));
     const auto s=buildVoicing(76,VoicingType::ust,context(slash,76));
     expect(s.voices[3].active && s.voices[3].midiNote%12==slash.bassPitchClass,
