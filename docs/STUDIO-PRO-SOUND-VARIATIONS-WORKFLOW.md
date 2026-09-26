@@ -18,8 +18,8 @@ MIDI note numbers остаются главным контрактом. Назв
 ниже основного блока — будущие / менее частые voicings
 MIDI 32 / G#0  → UST       RESERVED
 MIDI 33 / A0   → Cluster   RESERVED
-MIDI 34 / A#0  → Quartal   RESERVED
-MIDI 35 / B0   → Spread    RESERVED
+MIDI 34 / A#0  → Quartal   ACTIVE in 0.4g candidate
+MIDI 35 / B0   → Spread    ACTIVE
 
 основной Voicing Type блок
 MIDI 36 / C1   → Closed
@@ -91,8 +91,6 @@ Sound Variations **не создают отдельное состояние**. 
 
 Рекомендуется сразу создать в Sound Variations и будущие пункты:
 
-- Spread;
-- Quartal;
 - Cluster;
 - UST.
 
