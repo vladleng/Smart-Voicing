@@ -4,7 +4,7 @@
 
 ```text
 Stable version:             0.4 — Stage 4 complete
-Current development:        0.4e — Drop 2+4 host candidate
+Current development:        0.4f — Spread next
 Current Stage:              Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
@@ -64,7 +64,7 @@ Accepted Stage 5 slices:
 
 Host-confirmed workflow includes Voicing/Tension/Harmony Mode controls through Studio Pro Sound Variations.
 
-**0.4e Drop 2+4 is implemented and CI-confirmed, but Studio Pro acceptance is still pending in the current record.**
+**0.4e Drop 2+4 was accepted by the user after the Studio Pro test on 2026-09-26.**
 
 ## 3. Current work — 0.4e Drop 2+4
 
@@ -99,10 +99,7 @@ Implemented:
 - `Smart-Voicing-0.4e-Windows` package;
 - Build #421 green.
 
-Remaining:
-
-- Studio Pro acceptance using `docs/0.4e-HOST-CHECKLIST.md`;
-- mark 0.4e accepted in `docs/TEST-0.4e.md`, Issue #9 and PR #30.
+Host result: user reported the 0.4e test passed in Studio Pro on 2026-09-26. See `docs/TEST-0.4e.md`.
 
 ## 4. Stable performance-control map
 
@@ -260,10 +257,7 @@ Primary literature reference: Ted Pease / Ken Pullig — *Modern Jazz Voicings: 
 ## 10. NEXT ACTION
 
 ```text
-1. Run Studio Pro acceptance for Smart-Voicing-0.4e-Windows (Build #421).
-2. Verify D#1 / MIDI 39 selects Drop 2+4 and UI follows.
-3. Compare Closed vs Drop 2+4: same V1 and pitch classes, Closed V2/V4 octave-displaced.
-4. Check Clean/Color/Rich, V7→minor, slash bass, save/reopen, switching among all implemented voicings, no stuck/tiny notes.
-5. If accepted: close 0.4e in TEST/Issue/PR.
-6. Then begin the next Stage 5 strategy, expected direction: Spread as independent bottom-up strategy.
+1. Begin 0.4f Spread as an independent bottom-up strategy, not a Closed transformation.
+2. Specify root/bass anchor, protected chord tones, guide tones, candidate scoring, melodic V1 and fallback rules.
+3. Implement and test core first; activate reserved MIDI 35 only after core CI is green.
 ```
