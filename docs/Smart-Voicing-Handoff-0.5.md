@@ -10,9 +10,9 @@ Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
 Current PR:                 #30 (draft/open, tracks Stage 5)
 Reference host:             Studio Pro
-Implementation baseline:    69406d2881525652e8c70b5a8bbaf510ca9cbdd3
-Latest verified CI:         Windows Build #421 / run 35959470042 — success
-Host artifact:              Smart-Voicing-0.4e-Windows
+Implementation baseline:    ae53971b01e991dc2350e61cd4380582e5e1bb2c (0.4g host candidate)
+Latest verified CI:         Windows Build #436 / run 36235433989 — success (0.4f)
+0.4g CI/artifact:           pending
 ```
 
 GitHub remains source of factual truth. Documentation-only commits may be newer than the implementation baseline above.
@@ -44,7 +44,7 @@ GitHub remains source of factual truth. Documentation-only commits may be newer 
 
 ### CI confirmed
 
-Current 0.4e implementation: Windows Build #421 — green.
+Latest accepted 0.4f implementation: Windows Build #436 — green. 0.4g CI is pending.
 
 CI includes VST3 + ARA VST3 build, strategy regressions, keyswitch regressions, Harmony Core tests and package upload.
 
