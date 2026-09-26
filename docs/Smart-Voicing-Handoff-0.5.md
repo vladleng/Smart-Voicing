@@ -4,7 +4,7 @@
 
 ```text
 Stable version:             0.4 — Stage 4 complete
-Current development:        0.4g — Quartal host candidate; CI and Studio Pro pending
+Current development:        0.4g — Quartal host candidate; Build #446 green; Studio Pro pending
 Current Stage:              Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
@@ -12,7 +12,7 @@ Current PR:                 #30 (draft/open, tracks Stage 5)
 Reference host:             Studio Pro
 Implementation baseline:    ae53971b01e991dc2350e61cd4380582e5e1bb2c (0.4g host candidate)
 Latest verified CI:         Windows Build #436 / run 36235433989 — success (0.4f)
-0.4g CI/artifact:           pending
+0.4g CI/artifact:           Build #446 / run 36245147015 green; Smart-Voicing-0.4g-Windows
 ```
 
 GitHub remains source of factual truth. Documentation-only commits may be newer than the implementation baseline above.
@@ -44,7 +44,7 @@ GitHub remains source of factual truth. Documentation-only commits may be newer 
 
 ### CI confirmed
 
-Latest accepted 0.4f implementation: Windows Build #436 — green. 0.4g CI is pending.
+Latest accepted 0.4f implementation: Windows Build #436 — green. 0.4g Windows Build #446 passed all ctest checks and uploaded both VST3 artifacts.
 
 CI includes VST3 + ARA VST3 build, strategy regressions, keyswitch regressions, Harmony Core tests and package upload.
 
@@ -208,7 +208,7 @@ Important accepted semantics:
 - no temporal Melodic Context Engine/approach-note classification yet;
 - no instrument-specific range adaptation yet — Stage 7;
 - no Performance Humanization yet — Stage 7B;
-- 0.4f Spread accepted in Studio Pro; Clean/Color/Rich differentiation deferred. 0.4g Quartal code/host integration implemented; CI and Studio Pro pending. Cluster / UST remain unimplemented;
+- 0.4f Spread accepted in Studio Pro; Clean/Color/Rich differentiation deferred. 0.4g Quartal code/host integration implemented; Build #446 green; Studio Pro pending. Cluster / UST remain unimplemented;
 - UST/Cluster/Quartal keyswitch notes are reserved and swallowed in Melody Harmonize;
 - host octave labels are convenience labels only; MIDI note numbers are the contract.
 
@@ -261,5 +261,5 @@ Primary literature reference: Ted Pease / Ken Pullig — *Modern Jazz Voicings: 
 ```text
 1. Define Quartal strategy contract and discriminating harmonic examples as the next Stage 5 item.
 2. Track Spread Clean/Color/Rich selection as deferred refinement; G7 → Cm7 with melody on b7 is a focused regression.
-3. 0.4g independent Quartal strategy and `MIDI 34 / A#0` selector are implemented as a host candidate. Local host-neutral tests pass; Windows CI and Studio Pro pending. See `docs/TEST-0.4g.md` and `docs/0.4g-HOST-CHECKLIST.md`.
+3. 0.4g independent Quartal strategy and `MIDI 34 / A#0` selector are implemented as a host candidate. Local host-neutral tests and Windows Build #446 pass; Studio Pro pending. See `docs/TEST-0.4g.md` and `docs/0.4g-HOST-CHECKLIST.md`.
 ```
