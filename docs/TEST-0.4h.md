@@ -1,6 +1,6 @@
 # Smart Voicing 0.4h — Upper Structure Triad
 
-Status: **INDEPENDENT DEVELOPMENT BRANCH — local core tests pass; Windows CI and Studio Pro pending**.
+Status: **INDEPENDENT DEVELOPMENT BRANCH — local and Windows CI pass; Studio Pro pending**.
 
 Base: Stage 5 working branch with Quartal 0.4g host candidate. This UST branch does not change the 0.4g package under user test.
 
@@ -23,6 +23,6 @@ This is a Stage 5 UST layout for four abstract voices, not an instrument-specifi
 - `VoicingType::ust = 9` appended after Quartal without renumbering earlier project states.
 - Independent `buildUpperStructureTriadVoicing()`, host-neutral tests for full/partial triad, chord authority, slash bass, explicit #11, m7b5, Stage 4 candidate gate, low MIDI safety and determinism.
 - `MIDI 32 / G#0` activates the shared Voicing Type state; 33 remains reserved. UI and project-state bounds extended to 9.
-- Local UST and keyswitch tests: pending final regression run.
-- Windows CI: pending.
+- Local UST, keyswitch, Quartal, Spread, Drop 3, Drop 2+4 and dispatcher tests: passed.
+- Windows Build #458 (commit `880d401`): build, Harmony Core tests and artifact upload passed. [Run and package](https://github.com/vladleng/Smart-Voicing/actions/runs/36246791839), artifact `Smart-Voicing-0.4h-Windows`, SHA256 `3e81496fe812fe7e35eee6dab71e7740308f907019fd2ef70001c1189931999e`. ZIP integrity and both VST3 bundles verified.
 - Studio Pro: pending `docs/0.4h-HOST-CHECKLIST.md`.
