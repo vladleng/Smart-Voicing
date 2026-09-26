@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.4.5
+    VERSION 0.4.6
     DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
 
@@ -86,6 +86,8 @@ target_sources(SmartVoicing
         src/QuartalVoicing.h
         src/UpperStructureTriadVoicing.cpp
         src/UpperStructureTriadVoicing.h
+        src/ClusterVoicing.cpp
+        src/ClusterVoicing.h
         src/LiveReharmonizer.cpp
         src/LiveReharmonizer.h
         src/ARAContextProvider.cpp
@@ -203,6 +205,8 @@ add_executable(SmartVoicingVoicingStrategyTests
     src/QuartalVoicing.h
     src/UpperStructureTriadVoicing.cpp
     src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
     src/HarmonicContext.h
 )
 
@@ -229,6 +233,8 @@ add_executable(SmartVoicingDrop3StrategyTests
     src/QuartalVoicing.h
     src/UpperStructureTriadVoicing.cpp
     src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
     src/HarmonicContext.h
 )
 
@@ -255,6 +261,8 @@ add_executable(SmartVoicingDrop24StrategyTests
     src/QuartalVoicing.h
     src/UpperStructureTriadVoicing.cpp
     src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
     src/HarmonicContext.h
 )
 
@@ -281,6 +289,8 @@ add_executable(SmartVoicingSpreadStrategyTests
     src/QuartalVoicing.h
     src/UpperStructureTriadVoicing.cpp
     src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
     src/HarmonicContext.h
 )
 
@@ -307,6 +317,8 @@ add_executable(SmartVoicingQuartalStrategyTests
     src/QuartalVoicing.h
     src/UpperStructureTriadVoicing.cpp
     src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
     src/HarmonicContext.h
 )
 
@@ -333,11 +345,41 @@ add_executable(SmartVoicingUpperStructureTriadTests
     src/QuartalVoicing.h
     src/UpperStructureTriadVoicing.cpp
     src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
     src/HarmonicContext.h
 )
 
 target_include_directories(SmartVoicingUpperStructureTriadTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(SmartVoicingUpperStructureTriadTests PRIVATE cxx_std_20)
+
+add_executable(SmartVoicingClusterStrategyTests
+    tests/ClusterStrategyTests.cpp
+    src/ChordModel.cpp
+    src/ChordModel.h
+    src/KeyModel.cpp
+    src/KeyModel.h
+    src/HarmonicFunction.cpp
+    src/HarmonicFunction.h
+    src/TensionPolicy.cpp
+    src/TensionPolicy.h
+    src/CloseVoicingHarmonizer.cpp
+    src/CloseVoicingHarmonizer.h
+    src/VoicingStrategy.cpp
+    src/VoicingStrategy.h
+    src/SpreadVoicing.cpp
+    src/SpreadVoicing.h
+    src/QuartalVoicing.cpp
+    src/QuartalVoicing.h
+    src/UpperStructureTriadVoicing.cpp
+    src/UpperStructureTriadVoicing.h
+    src/ClusterVoicing.cpp
+    src/ClusterVoicing.h
+    src/HarmonicContext.h
+)
+
+target_include_directories(SmartVoicingClusterStrategyTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingClusterStrategyTests PRIVATE cxx_std_20)
 
 add_executable(SmartVoicingTensionKeyswitchTests
     tests/TensionKeyswitchTests.cpp
@@ -434,6 +476,7 @@ if(MSVC)
     target_compile_options(SmartVoicingSpreadStrategyTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingQuartalStrategyTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingUpperStructureTriadTests PRIVATE /utf-8)
+    target_compile_options(SmartVoicingClusterStrategyTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingTensionKeyswitchTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingVoicingKeyswitchTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingHarmonyModeKeyswitchTests PRIVATE /utf-8)
@@ -450,6 +493,7 @@ add_test(NAME SmartVoicingDrop24StrategyTests COMMAND SmartVoicingDrop24Strategy
 add_test(NAME SmartVoicingSpreadStrategyTests COMMAND SmartVoicingSpreadStrategyTests)
 add_test(NAME SmartVoicingQuartalStrategyTests COMMAND SmartVoicingQuartalStrategyTests)
 add_test(NAME SmartVoicingUpperStructureTriadTests COMMAND SmartVoicingUpperStructureTriadTests)
+add_test(NAME SmartVoicingClusterStrategyTests COMMAND SmartVoicingClusterStrategyTests)
 add_test(NAME SmartVoicingTensionKeyswitchTests COMMAND SmartVoicingTensionKeyswitchTests)
 add_test(NAME SmartVoicingVoicingKeyswitchTests COMMAND SmartVoicingVoicingKeyswitchTests)
 add_test(NAME SmartVoicingHarmonyModeKeyswitchTests COMMAND SmartVoicingHarmonyModeKeyswitchTests)

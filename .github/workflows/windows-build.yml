@@ -9,13 +9,14 @@ on:
       - stage-4-key-aware-engine
       - stage-5-jazz-voicing-engine
       - stage-5-ust-0.4h
+      - stage-5-cluster-0.4i
 
 jobs:
   build:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.4h"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.4i"
 
     steps:
       - name: Checkout
@@ -25,7 +26,7 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
-        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingVoicingStrategyTests SmartVoicingDrop3StrategyTests SmartVoicingDrop24StrategyTests SmartVoicingSpreadStrategyTests SmartVoicingQuartalStrategyTests SmartVoicingUpperStructureTriadTests SmartVoicingTensionKeyswitchTests SmartVoicingVoicingKeyswitchTests SmartVoicingHarmonyModeKeyswitchTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests SmartVoicingTensionPolicyTests --parallel 2
+        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingVoicingStrategyTests SmartVoicingDrop3StrategyTests SmartVoicingDrop24StrategyTests SmartVoicingSpreadStrategyTests SmartVoicingQuartalStrategyTests SmartVoicingUpperStructureTriadTests SmartVoicingClusterStrategyTests SmartVoicingTensionKeyswitchTests SmartVoicingVoicingKeyswitchTests SmartVoicingHarmonyModeKeyswitchTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests SmartVoicingTensionPolicyTests --parallel 2
 
       - name: Test Harmony Core
         run: ctest --test-dir build -C Release --output-on-failure
@@ -42,5 +43,5 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.4h-Windows
+          name: Smart-Voicing-0.4i-Windows
           path: "package"

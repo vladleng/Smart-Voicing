@@ -253,7 +253,7 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
 
     const auto requestedVoicingValue = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-        static_cast<int>(smartvoicing::harmony::VoicingType::ust),
+        static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
         requestedVoicingType.load(std::memory_order_relaxed));
     activeVoicingType = static_cast<smartvoicing::harmony::VoicingType>(requestedVoicingValue);
 
@@ -1617,7 +1617,7 @@ void SmartVoicingInstrumentProcessor::setVoicingType(smartvoicing::harmony::Voic
 {
     const auto value = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-        static_cast<int>(smartvoicing::harmony::VoicingType::ust),
+        static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
         static_cast<int>(type));
     requestedVoicingType.store(value, std::memory_order_release);
 }
@@ -1626,7 +1626,7 @@ smartvoicing::harmony::VoicingType SmartVoicingInstrumentProcessor::getVoicingTy
 {
     const auto value = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-        static_cast<int>(smartvoicing::harmony::VoicingType::ust),
+        static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
         requestedVoicingType.load(std::memory_order_acquire));
     return static_cast<smartvoicing::harmony::VoicingType>(value);
 }
@@ -1711,7 +1711,7 @@ void SmartVoicingInstrumentProcessor::setStateInformation(const void* data, int 
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::ust),
+            static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
             stream.readInt());
         setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
     }

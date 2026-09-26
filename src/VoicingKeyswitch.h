@@ -13,7 +13,7 @@ namespace smartvoicing::harmony
 //
 // Lower reserved modern-family slots:
 //   32 G#0 UST
-//   33 A0  Cluster     (reserved)
+//   33 A0  Cluster
 //   34 A#0 Quartal
 //   35 B0  Spread
 // Frequently used block starts at C1:
@@ -27,7 +27,7 @@ namespace smartvoicing::harmony
 // Existing Tension keyswitches remain unchanged: 43/44/45 = G1/G#1/A1.
 constexpr int kFirstVoicingKeyswitchNote = 32;
 constexpr int kUstVoicingKeyswitchNote = 32;
-constexpr int kClusterReservedVoicingKeyswitchNote = 33;
+constexpr int kClusterVoicingKeyswitchNote = 33;
 constexpr int kQuartalVoicingKeyswitchNote = 34;
 constexpr int kSpreadVoicingKeyswitchNote = 35;
 constexpr int kClosedVoicingKeyswitchNote = 36;
