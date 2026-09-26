@@ -23,7 +23,9 @@ enum class VoicingType : std::uint8_t
     // frozen for saved-project compatibility.
     drop3 = 5,
     // Appended in 0.4e. Existing 0..5 meanings remain frozen.
-    drop24 = 6
+    drop24 = 6,
+    // 0.4f core candidate. Host state/UI/MIDI 35 stay reserved until core CI.
+    spread = 7
 };
 
 // Stage 4 hands Stage 5 an already interpreted harmonic context. A strategy
