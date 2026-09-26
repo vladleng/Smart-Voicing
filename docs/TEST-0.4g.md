@@ -1,6 +1,6 @@
 # Smart Voicing 0.4g — Quartal
 
-Status: **HOST CANDIDATE — local host-neutral tests pass; Windows CI and Studio Pro pending**.
+Status: **HOST CANDIDATE — Windows Build #446 green; Studio Pro pending**.
 
 Stable input: **0.4f Spread — accepted in Studio Pro 2026-09-26**.
 
@@ -25,7 +25,7 @@ These are scoring preferences under the higher-priority Chord and Stage 4 Tensio
 - UI/project state clamp extended to 8; earlier projects retain their old enum meanings.
 - `SmartVoicingQuartalStrategyTests` covers fourth shape, V1, explicit/slash material, m7b5, Stage 4 vocabulary, triads, fallback and determinism.
 - Existing Spread, Drop 3, Drop 2+4, VoicingStrategy and VoicingKeyswitch host-neutral tests pass locally.
-- Windows CI: pending.
+- Windows Build **#446 / run 36245147015 green**: VST3 + ARA VST3 + all ctest checks; artifact `Smart-Voicing-0.4g-Windows` uploaded and inspected (SHA-256 `901778bde9d6f2286f31e4f5918e002a5bb6c472b7b0909a7838f21970f6789c`).
 - Studio Pro: pending `docs/0.4g-HOST-CHECKLIST.md`.
 
 The score makes no guarantee of smooth successive lines: that is Stage 6 Voice Leading. Instrument-specific comfort remains Stage 7.
