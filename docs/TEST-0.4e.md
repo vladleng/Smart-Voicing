@@ -1,6 +1,6 @@
 # Smart Voicing 0.4e — Drop 2+4
 
-Status: **IN DEVELOPMENT — host candidate integration**
+Status: **HOST TEST PENDING — implementation + full CI complete**
 
 Stage: **5 — Jazz Voicing Engine**
 
@@ -81,7 +81,8 @@ MIDI 39 / D#1 → Drop 2+4
 - [x] activate MIDI 39 / D#1 decoder and remove Drop 2+4 from reserved list;
 - [x] keyswitch regression updated;
 - [x] package renamed to `Smart Voicing 0.4e` / `Smart-Voicing-0.4e-Windows`;
-- [ ] latest full Windows host-candidate CI green;
+- [x] full Windows host-candidate CI **#421 / run 35959470042 green**;
+- [x] artifact `Smart-Voicing-0.4e-Windows` uploaded;
 - [ ] Studio Pro acceptance.
 
 ## Studio Pro acceptance
@@ -96,6 +97,8 @@ MIDI 39 / D#1 → Drop 2+4
 8. save/reopen preserves Drop 2+4.
 9. existing keyswitch blocks 32..47 keep the accepted map.
 10. repeated playback with the same input/state is deterministic.
+
+Host checklist: `docs/0.4e-HOST-CHECKLIST.md`.
 
 ## Acceptance boundary
 
