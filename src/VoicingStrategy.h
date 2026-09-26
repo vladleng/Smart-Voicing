@@ -25,7 +25,9 @@ enum class VoicingType : std::uint8_t
     // Appended in 0.4e. Existing 0..5 meanings remain frozen.
     drop24 = 6,
     // 0.4f core candidate. Host state/UI/MIDI 35 stay reserved until core CI.
-    spread = 7
+    spread = 7,
+    // 0.4g independent fourth-structure strategy. Values 0..7 are frozen.
+    quartal = 8
 };
 
 // Stage 4 hands Stage 5 an already interpreted harmonic context. A strategy

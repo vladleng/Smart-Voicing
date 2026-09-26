@@ -41,6 +41,7 @@ void expectReserved(int note, const std::string& label)
 
 void testImplementedMap()
 {
+    expectMapping(34, VoicingType::quartal, "MIDI 34 / A#0 Quartal");
     expectMapping(35, VoicingType::spread, "MIDI 35 / B0 Spread");
     expectMapping(36, VoicingType::closed, "MIDI 36 / C1 Closed");
     expectMapping(37, VoicingType::drop2, "MIDI 37 / C#1 Drop 2");
@@ -55,7 +56,6 @@ void testFutureSlotsAreReservedButNotDecoded()
 {
     expectReserved(32, "MIDI 32 / G#0 UST reserved");
     expectReserved(33, "MIDI 33 / A0 Cluster reserved");
-    expectReserved(34, "MIDI 34 / A#0 Quartal reserved");
 }
 
 void testBlockBoundariesAndTensionSeparation()

@@ -1,5 +1,6 @@
 #include "VoicingStrategy.h"
 #include "SpreadVoicing.h"
+#include "QuartalVoicing.h"
 
 #include <array>
 #include <utility>
@@ -228,6 +229,9 @@ VoiceOutput buildVoicing(int melodyNote,
     if (type == VoicingType::spread)
         return buildSpreadVoicing(melodyNote, context);
 
+    if (type == VoicingType::quartal)
+        return buildQuartalVoicing(melodyNote, context);
+
     // Closed is selected exactly once. Drop-family strategies transform this
     // material and therefore cannot silently choose a different tension set.
     const auto closed = buildClosedVoicing(melodyNote,
@@ -252,6 +256,8 @@ const char* voicingTypeName(VoicingType type) noexcept
 {
     switch (type)
     {
+        case VoicingType::quartal:
+            return "Quartal";
         case VoicingType::spread:
             return "Spread";
         case VoicingType::drop24:
