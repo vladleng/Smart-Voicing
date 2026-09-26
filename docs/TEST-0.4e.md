@@ -1,6 +1,6 @@
 # Smart Voicing 0.4e — Drop 2+4
 
-Status: **HOST TEST PENDING — implementation + full CI complete**
+Status: **ACCEPTED / COMPLETED — Studio Pro host test passed (2026-09-26)**
 
 Stage: **5 — Jazz Voicing Engine**
 
@@ -83,7 +83,7 @@ MIDI 39 / D#1 → Drop 2+4
 - [x] package renamed to `Smart Voicing 0.4e` / `Smart-Voicing-0.4e-Windows`;
 - [x] full Windows host-candidate CI **#421 / run 35959470042 green**;
 - [x] artifact `Smart-Voicing-0.4e-Windows` uploaded;
-- [ ] Studio Pro acceptance.
+- [x] Studio Pro acceptance — user confirmed the Drop 2+4 test passed on 2026-09-26.
 
 ## Studio Pro acceptance
 
@@ -99,6 +99,10 @@ MIDI 39 / D#1 → Drop 2+4
 10. repeated playback with the same input/state is deterministic.
 
 Host checklist: `docs/0.4e-HOST-CHECKLIST.md`.
+
+## Host result
+
+The user reported that the 0.4e Drop 2+4 test passed in Studio Pro on 2026-09-26. This acceptance is separate from the green Windows Build #421; no host log or per-item measurement was supplied. The next Stage 5 slice is Spread.
 
 ## Acceptance boundary
 
