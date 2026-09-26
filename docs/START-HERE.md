@@ -24,7 +24,7 @@
 
 ```text
 Stable:          0.4 — Stage 4 complete
-Development:     0.4f — Spread works in Studio Pro; colour refinement deferred; technical checklist incomplete
+Development:     0.4f — Spread ACCEPTED in Studio Pro; Quartal next
 Current Stage:   Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:  stage-5-jazz-voicing-engine
 Main Issue:      #9 — Этап 5 — Jazz Voicing Engine
@@ -119,7 +119,7 @@ V2..V4 re-sort by sounding pitch
 - Independent bottom-up strategy; V1 melody unchanged, V4 root or explicit slash-bass anchor, V3/V2 from Stage 4 candidate pool.
 - Guide 3/7 and characteristic chord tones take priority over optional colour; spacing is open and deterministic.
 - Core Windows Build #435 green; processor/state/UI and `B0 / MIDI 35` activation added after that build.
-- Full Windows Build #436 green with `Smart-Voicing-0.4f-Windows`. User confirmed the Spread mode works from a Studio Pro score on 2026-09-26; weak differentiation of Clean/Color/Rich is deferred. Other technical host checks were not individually reported. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
+- Full Windows Build #436 green with `Smart-Voicing-0.4f-Windows`. User confirmed the Spread mode and remaining technical host checks on 2026-09-26; weak differentiation of Clean/Color/Rich is deferred. Extreme-low MIDI host demonstration was waived because the trumpet range ends first; the underlying MIDI safety is covered by core tests. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
 
 ## 5. Финальная performance keyswitch map
 
@@ -302,5 +302,5 @@ Base Expression automation
 ```text
 1. Перейти к следующей strategy Stage 5: Quartal — сначала зафиксировать музыкальный контракт и тестовые вертикали.
 2. Сохранить отдельную задачу на различие Clean/Color/Rich в Spread, начиная с G7 → Cm7 и мелодии на b7; не переопределять Stage 4 vocabulary.
-3. До формального закрытия 0.4f проверить оставшиеся технические пункты `docs/0.4f-HOST-CHECKLIST.md`; не помечать их пройденными на основании партитуры.
+3. 0.4f принято в Studio Pro; сохранить причину исключения extreme-low host case и результаты остальных пунктов в `docs/0.4f-HOST-CHECKLIST.md`.
 ```
