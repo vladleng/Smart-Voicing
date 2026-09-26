@@ -1,6 +1,6 @@
 # Smart Voicing 0.4f — Spread
 
-Status: **HOST CANDIDATE — core CI green; full host CI pending; Studio Pro test pending**
+Status: **HOST CANDIDATE — full Windows CI green; Studio Pro test pending**
 
 Stable input: **0.4e Drop 2+4 — ACCEPTED / COMPLETED** (Studio Pro, 2026-09-26).
 
@@ -28,5 +28,6 @@ Core CI #435 ran before host activation. The previous `B0 / MIDI 35` reservation
 
 - [x] processor/state/UI integrated; prior enum meanings unchanged;
 - [x] `B0 / MIDI 35` activated and decoder regression updated;
-- [ ] full Windows plugin/ARA/ctest CI green with versioned host candidate;
+- [x] full Windows Build **#436 / run 36235433989 green**: VST3 + ARA VST3 + ctest;
+- [x] artifact `Smart-Voicing-0.4f-Windows` uploaded (SHA-256 `728ea09669694156fe534a78680ce4aacc8b4d2f049e790355d22ae61cc148b6`);
 - [ ] Studio Pro acceptance per `docs/0.4f-HOST-CHECKLIST.md`.

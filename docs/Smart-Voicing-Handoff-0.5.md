@@ -4,7 +4,7 @@
 
 ```text
 Stable version:             0.4 — Stage 4 complete
-Current development:        0.4f — Spread host candidate, full CI pending
+Current development:        0.4f — Spread host candidate, Build #436 green; Studio Pro pending
 Current Stage:              Stage 5 — Jazz Voicing Engine → 0.5
 Working branch:             stage-5-jazz-voicing-engine
 Main Issue:                 #9
@@ -101,7 +101,7 @@ Implemented:
 
 Host result: user reported the 0.4e test passed in Studio Pro on 2026-09-26. See `docs/TEST-0.4e.md`.
 
-0.4f Spread core is an independent bottom-up strategy. V1 remains the performer melody; V4 is a root/slash-bass anchor; inner voices come from the Stage 4 candidate pool. Core Build #435 is green. Host integration activates `B0 / MIDI 35` without remapping other controls; full CI and Studio Pro acceptance are pending. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
+0.4f Spread core is an independent bottom-up strategy. V1 remains the performer melody; V4 is a root/slash-bass anchor; inner voices come from the Stage 4 candidate pool. Core Build #435 and full host Build #436 are green. Host integration activates `B0 / MIDI 35` without remapping other controls; Studio Pro acceptance is pending. See `docs/TEST-0.4f.md` and `docs/0.4f-HOST-CHECKLIST.md`.
 
 ## 4. Stable performance-control map
 
@@ -259,7 +259,7 @@ Primary literature reference: Ted Pease / Ken Pullig — *Modern Jazz Voicings: 
 ## 10. NEXT ACTION
 
 ```text
-1. Confirm full Windows CI for the 0.4f host integration after core Build #435 green.
-2. If green, test `Smart-Voicing-0.4f-Windows` in Studio Pro using `docs/0.4f-HOST-CHECKLIST.md`.
-3. Record host acceptance separately; do not mark 0.4f accepted from CI alone.
+1. Test `Smart-Voicing-0.4f-Windows` from Build #436 in Studio Pro using `docs/0.4f-HOST-CHECKLIST.md`.
+2. Record any host bugs and repair if needed; otherwise mark 0.4f accepted in TEST/Issue/PR.
+3. Continue with the next Stage 5 strategy only after that acceptance.
 ```
