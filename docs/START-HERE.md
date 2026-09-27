@@ -20,6 +20,8 @@
 
 Подробное правило переноса контекста: `docs/CHAT-HANDOFF-RULE.md`.
 
+Базовые музыкальные правила всех гармонических типов в Clean: [`docs/STAGE5-CLEAN-HARMONIZATION-RULES.md`](STAGE5-CLEAN-HARMONIZATION-RULES.md); единая процедура проверки: [`docs/STAGE5-CLEAN-ACCEPTANCE.md`](STAGE5-CLEAN-ACCEPTANCE.md).
+
 ## 2. Текущий checkpoint
 
 ```text
