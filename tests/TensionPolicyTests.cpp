@@ -194,6 +194,14 @@ int main()
            && e7ToAmPolicy.tone(8).alteredCandidate
            && e7ToAmPolicy.tone(8).functionallyDirected,
            "E7 b13 is target-aware inside Color for confirmed minor target");
+    expect(e7ToAmPolicy.tone(3).role == TensionRole::contextual
+           && e7ToAmPolicy.tone(3).alteredCandidate
+           && ! e7ToAmPolicy.tone(3).functionallyDirected,
+           "E7 #9 remains contextual and is not derived from minor-target evidence alone");
+    expect(e7ToAmPolicy.tone(6).role == TensionRole::contextual
+           && e7ToAmPolicy.tone(6).alteredCandidate
+           && ! e7ToAmPolicy.tone(6).functionallyDirected,
+           "E7 #11/b5 pitch class remains contextual and is not target-directed into Am");
     expect(e7ToAmPolicy.tone(9).role == TensionRole::unavailable,
            "E7 natural 13 C# is not inferred Color for confirmed A minor target");
     expect(! e7ToAmPolicy.isHarmonyCandidate(1, TensionLevel::color),
@@ -204,6 +212,19 @@ int main()
            "Color may use functionally natural E7 b13 into Am");
     expect(e7ToAmPolicy.isHarmonyCandidate(8, TensionLevel::rich),
            "Rich keeps functionally natural E7 b13 available");
+
+    // Explicit altered fifth remains authoritative and semantically distinct
+    // from inferred b13/#11 tension roles.
+    const auto e7Flat5 = normalizeChord(makeDegreeChord(4,
+        { { 0, 1 }, { 4, 3 }, { 6, 5 }, { 10, 7 } }));
+    const auto e7Flat5Policy = buildTensionPolicy(
+        e7Flat5, aMinor, analyzeHarmonicFunction(e7Flat5, aMinor, aMin7));
+    expect(e7Flat5Policy.tone(6).role == TensionRole::chordTone,
+           "explicit E7b5 keeps b5 as an authoritative chord tone");
+    expect(e7Flat5Policy.tone(6).explicitFromChord,
+           "explicit E7b5 b5 is marked as coming from Chord Track");
+    expect(e7Flat5Policy.isHarmonyCandidate(6, TensionLevel::clean),
+           "explicit E7b5 b5 survives even at Clean");
 
     // 0.3f user regression: no next chord means no target guess. Adding the
     // explicit Dm target changes A7 from unresolved generic colour to a real
@@ -235,6 +256,10 @@ int main()
            "A7 b9 stays outside Color");
     expect(a7ToDmPolicy.isHarmonyCandidate(1, TensionLevel::rich),
            "A7 b9 becomes available to Rich with confirmed Dm target");
+    expect(! a7ToDmPolicy.tone(3).functionallyDirected,
+           "A7 #9 is not promoted merely because Dm is the minor target");
+    expect(! a7ToDmPolicy.tone(6).functionallyDirected,
+           "A7 #11/b5-class pitch is not promoted merely because Dm is the minor target");
 
     const auto cMaj7Sharp11 = normalizeChord(makeDegreeChord(0,
         { { 0, 1 }, { 4, 3 }, { 7, 5 }, { 11, 7 }, { 6, 11 } }));
@@ -290,6 +315,6 @@ int main()
                == "Dominant -> minor target",
            "functional profile diagnostic name");
 
-    std::cout << "SmartVoicingTensionPolicyTests 0.3f: OK\n";
+    std::cout << "SmartVoicingTensionPolicyTests 0.4a fix2: OK\n";
     return 0;
 }

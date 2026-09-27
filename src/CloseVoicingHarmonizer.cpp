@@ -1,4 +1,5 @@
 #include "CloseVoicingHarmonizer.h"
+#include "VoicingIdentity.h"
 
 #include <array>
 #include <climits>
@@ -269,9 +270,15 @@ int tensionRolePenalty(int midiNote,
             {
                 case TensionLevel::clean: return 18;
                 case TensionLevel::color: return -1;
-                // Rich must not automatically prefer the same natural colour
-                // over a functionally directed alteration.
-                case TensionLevel::rich:  return 0;
+                case TensionLevel::rich:
+                    // Stage 4 already decided whether a Preferred tone is
+                    // functionally directed. Closed must respect that evidence:
+                    // a confirmed directed colour may outweigh soft spacing and
+                    // density preferences, without teaching the strategy how to
+                    // re-detect V->minor or any other harmonic relationship.
+                    if (tone.functionallyDirected && context.tension.resolutionConfirmed)
+                        return -7;
+                    return 0;
             }
             break;
 
@@ -291,13 +298,15 @@ int tensionRolePenalty(int midiNote,
                     && tone.functionallyDirected
                     && context.tension.resolutionConfirmed)
                 {
-                    // Minor-target b9/b13 are especially strong functional
-                    // tensions. Other directed alterations still receive a
-                    // smaller reward, never a blanket "alter everything" rule.
+                    // In a confirmed V->minor profile b13 is the natural Color
+                    // tone, while b9 is the stronger Rich tension. If only one
+                    // colour slot survives guide-tone/spacing constraints, b9
+                    // should outrank b13; when both fit, the b13 + b9 pair may
+                    // still win as in the G7->Cm7 regression.
                     if (context.tension.functionalProfile
                             == FunctionalTensionProfile::dominantMinorTarget
                         && (relative == 1 || relative == 8))
-                        return -4;
+                        return -6;
 
                     return -1;
                 }
@@ -477,10 +486,18 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
     if (hasCharacteristic && ! selectedCharacteristic)
         score += 30;
 
-    // Root omission is normal for seventh/extended harmony. For a plain triad,
-    // however, retaining the root helps preserve identity.
-    if (! hasSeventh && ! selectedRoot(notes, chord))
-        score += 16;
+    // Root omission is normal for seventh/extended harmony when the remaining
+    // voices identify the chord. With an explicit slash bass, an omitted root
+    // can instead turn Cmaj7/E into an indistinguishable Em/E when E is also
+    // the melody. Prefer the root where it fits alongside the guide tones.
+    score += slashMajorSeventhRootPenalty(notes, chord);
+    if (! selectedRoot(notes, chord))
+    {
+        if (chord.slashBass)
+            score += 16;
+        else if (! hasSeventh)
+            score += 16;
+    }
 
     // An ordinary perfect fifth has no required-presence penalty. Characteristic
     // altered/sus tones are handled separately above.

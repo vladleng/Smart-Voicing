@@ -54,6 +54,17 @@ private:
 ReharmonizationPlan planLowerVoiceReharmonization(const VoiceOutput& current,
                                                   const VoiceOutput& desired) noexcept;
 
+// Build an atomic transition for a new played melody articulation.
+//
+// For harmonic strategies, retriggerMelody=true rearticulates repeated V1 while
+// common generated lower voices remain sounding. Melodic-section strategies such
+// as Unison may pass retriggerMatchingLowerVoices=true so repeated same-pitch
+// melody notes rearticulate the whole section rather than only V1.
+ReharmonizationPlan planVoicingTransition(const VoiceOutput& current,
+                                          const VoiceOutput& desired,
+                                          bool retriggerMelody,
+                                          bool retriggerMatchingLowerVoices = false) noexcept;
+
 // Timeline helpers for scheduling a known future Chord Track boundary inside
 // the current audio block. Values outside the block return -1 instead of being
 // clamped, so the next block owns that event. They do not add lookahead/latency.

@@ -107,8 +107,9 @@ FunctionalTensionProfile deriveFunctionalProfile(const NormalizedChord& chord,
 
 bool isDominantAlteredCandidate(int relative) noexcept
 {
-    // Common altered-dominant colours relative to the dominant root:
-    // b9, #9, #11/b5, b13/#5.
+    // Generic altered-dominant pitch-class pool. Musical role/spelling is
+    // assigned by the functional profile: semitone 6 is NOT automatically a
+    // target-directed #11/b5, and semitone 8 may mean inferred b13 or explicit #5.
     return relative == 1 || relative == 3 || relative == 6 || relative == 8;
 }
 
@@ -130,10 +131,11 @@ void classifyDominantTone(TensionTonePolicy& tone,
 
     if (profile == FunctionalTensionProfile::dominantMinorTarget)
     {
-        // 0.3f: Color itself must be target-aware. b13 is treated as an inside,
-        // functionally natural minor-dominant colour, not as something reserved
-        // only for Rich. Rich then adds stronger tension such as b9/#9/#11.
-        if (relative == 8) // b13 / #5 pitch class
+        // 0.4a fix2 / Modern Jazz Voicings alignment:
+        // a confirmed V7 -> minor target naturally supports b13 as the primary
+        // target-aware colour. In this inferred context the pitch class is a
+        // b13 tension, not an automatically inferred "#5 chord alteration".
+        if (relative == 8) // b13 pitch class
         {
             tone.role = TensionRole::preferred;
             tone.alteredCandidate = true;
@@ -141,7 +143,9 @@ void classifyDominantTone(TensionTonePolicy& tone,
             return;
         }
 
-        if (relative == 1) // b9: stronger minor-dominant tension, Rich only
+        // b9 is a stronger but still target-directed minor-dominant colour.
+        // It stays Rich-only in the current Clean/Color/Rich model.
+        if (relative == 1)
         {
             tone.role = TensionRole::contextual;
             tone.alteredCandidate = true;
@@ -149,11 +153,15 @@ void classifyDominantTone(TensionTonePolicy& tone,
             return;
         }
 
-        if (relative == 3 || relative == 6) // #9 / #11(b5)
+        // A minor target by itself does NOT justify #9 or #11/b5 as directed
+        // tensions. They remain contextual altered candidates. Explicit #9/b5
+        // chord symbols remain authoritative, and a future substitute-dominant
+        // profile may promote #11 through its own Lydian-b7 semantics.
+        if (relative == 3 || relative == 6)
         {
             tone.role = TensionRole::contextual;
             tone.alteredCandidate = true;
-            tone.functionallyDirected = resolutionConfirmed;
+            tone.functionallyDirected = false;
             return;
         }
 
