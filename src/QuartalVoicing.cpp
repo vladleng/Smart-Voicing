@@ -55,8 +55,7 @@ bool characteristic(const NormalizedChord& chord, int degree) noexcept
 
 bool protectedAlteration(const NormalizedChord& chord, int degree) noexcept
 {
-    return (degree == 1 && chord.hasAlteration(ChordAlteration::flatNinth))
-        || (degree == 3 && chord.hasAlteration(ChordAlteration::sharpNinth))
+    return (degree == 3 && chord.hasAlteration(ChordAlteration::sharpNinth))
         || (degree == 6 && chord.hasAlteration(ChordAlteration::sharpEleventh))
         || (degree == 8 && chord.hasAlteration(ChordAlteration::flatThirteenth));
 }
@@ -106,6 +105,7 @@ int score(const std::array<int, 4>& notes, const VoicingContext& context) noexce
     if (chordThird && chordSeventh && ! retainedThird && ! retainedSeventh) value += 40;
     if (chordCharacteristic && ! retainedCharacteristic) value += 60;
     value += slashMajorSeventhRootPenalty(notes, chord);
+    value += flatNinthOmissionPenalty(notes, chord);
     for (int degree = 0; degree < 12; ++degree)
     {
         if (! protectedAlteration(chord, degree)) continue;

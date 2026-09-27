@@ -119,6 +119,7 @@ int score(const std::array<int, 4>& notes, const VoicingContext& context) noexce
     if (chordHasRole(chord, characteristic) && ! containsRole(notes, chord, characteristic))
         value += 48;
     value += slashMajorSeventhRootPenalty(notes, chord);
+    value += flatNinthOmissionPenalty(notes, chord);
 
     for (int voice = 1; voice < 3; ++voice)
     {
