@@ -1,5 +1,7 @@
 # Smart Voicing — Handoff 0.5
 
+> Архивный handoff рабочего Stage 5 (состояние 0.4g). После стабильной 0.5 актуальные версии и следующий шаг описаны в [`START-HERE.md`](START-HERE.md), [`STAGE5-CLEAN-ACCEPTANCE.md`](STAGE5-CLEAN-ACCEPTANCE.md) и [`TEST-0.5.md`](TEST-0.5.md). Данные ниже оставлены как история разработки.
+
 ## 1. Current state
 
 ```text

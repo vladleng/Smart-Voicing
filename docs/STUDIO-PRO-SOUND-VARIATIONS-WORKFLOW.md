@@ -17,7 +17,7 @@ MIDI note numbers остаются главным контрактом. Назв
 ```text
 ниже основного блока — будущие / менее частые voicings
 MIDI 32 / G#0  → UST       ACTIVE in 0.4h candidate
-MIDI 33 / A0   → Cluster   RESERVED
+MIDI 33 / A0   → Cluster   ACTIVE in 0.4i candidate
 MIDI 34 / A#0  → Quartal   ACTIVE in 0.4g candidate
 MIDI 35 / B0   → Spread    ACTIVE
 
@@ -87,19 +87,9 @@ Sound Variations **не создают отдельное состояние**. 
 - Smart Voicing не зависит от Studio Pro-specific API для работы keyswitch layer;
 - Harmony Mode можно переключать из того же variation lane, не открывая окно плагина.
 
-## Reserved variations
+## Cluster variation
 
-Рекомендуется сразу создать в Sound Variations и будущие пункты:
-
-- Cluster.
-
-Пока соответствующий Voicing Type не реализован, его reserved keyswitch в `Melody Harmonize`:
-
-- swallowed;
-- не меняет Voicing Type;
-- не доходит до downstream instrument tracks.
-
-После реализации нового strategy существующая карта Sound Variations уже готова и не требует перенастройки. `D1 / MIDI 38` был активирован как Drop 3 в 0.4d, а `D#1 / MIDI 39` активируется как Drop 2+4 в 0.4e без изменения карты.
+`A0 / MIDI 33` selects Cluster in the 0.4i candidate. The existing Sound Variation can be used without changing its MIDI mapping. Selection shares the same plugin state as the UI and project preset; control Note On/Off does not reach the instrument tracks.
 
 ## Harmony Mode controls
 

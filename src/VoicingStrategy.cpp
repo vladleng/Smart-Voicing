@@ -2,6 +2,7 @@
 #include "SpreadVoicing.h"
 #include "QuartalVoicing.h"
 #include "UpperStructureTriadVoicing.h"
+#include "ClusterVoicing.h"
 
 #include <array>
 #include <utility>
@@ -236,6 +237,9 @@ VoiceOutput buildVoicing(int melodyNote,
     if (type == VoicingType::ust)
         return buildUpperStructureTriadVoicing(melodyNote, context);
 
+    if (type == VoicingType::cluster)
+        return buildClusterVoicing(melodyNote, context);
+
     // Closed is selected exactly once. Drop-family strategies transform this
     // material and therefore cannot silently choose a different tension set.
     const auto closed = buildClosedVoicing(melodyNote,
@@ -260,6 +264,8 @@ const char* voicingTypeName(VoicingType type) noexcept
 {
     switch (type)
     {
+        case VoicingType::cluster:
+            return "Cluster";
         case VoicingType::ust:
             return "UST";
         case VoicingType::quartal:

@@ -1,8 +1,8 @@
 # Smart Voicing — Stage 5 concept addendum
 
-Status: **current architecture addendum during Stage 5 / 0.4a → 0.5**
+Status: **Stage 5 decisions consolidated into `CONCEPT.md` at stable 0.5; retained for detailed rationale**
 
-This file records architectural decisions made after the main `docs/CONCEPT.md` was written. Until the stable 0.5 concept consolidation, this addendum **supersedes conflicting preliminary text** in `docs/CONCEPT.md`, especially the old preliminary keyswitch map and the roadmap section that predates Stage 7B Performance Engine.
+This file records architectural decisions made after the main `docs/CONCEPT.md` was written. The stable 0.5 consolidation aligned the main concept's keyswitch map, Stage 5/6 boundary and Stage 7B roadmap with this addendum; this file retains the detailed decisions and examples.
 
 ## 1. Current Stage boundary
 
@@ -29,7 +29,7 @@ Core ownership rule:
 
 > Сначала определить, к какому слою относится музыкальная проблема, и исправлять её только в этом слое.
 
-Stage 5 must not re-run Stage 4 harmonic interpretation. Stage 7 must not be used to repair incorrect Stage 5 voicing logic. Stage 7B must not alter harmony/voicing/voice-leading decisions.
+Stage 5 must not re-run Stage 4 harmonic interpretation. Its final acceptance checks each voicing's shape and chord fidelity in Clean on fully specified chords, including explicit extensions/alterations; Clean does not erase written notes or add inferred colour. Color/Rich refinement for fast harmonization of basic chords belongs to Stage 6, together with Voice Leading. Stage 7 must not be used to repair incorrect Stage 5 voicing logic. Stage 7B must not alter harmony/voicing/voice-leading decisions.
 
 ## 2. Stage 5 strategy families
 
@@ -84,7 +84,9 @@ These organize performer-owned melody across four Voices. They can intentionally
 0.4d  Drop 3                       ACCEPTED
 0.4e  Drop 2+4                     ACCEPTED (Studio Pro, 2026-09-26)
 0.4f  Spread                       ACCEPTED (Studio Pro, 2026-09-26)
-0.4g  Quartal                      independent fourth-structure candidate; CI/host pending
+0.4g  Quartal                      ACCEPTED in Studio Pro (2026-09-26)
+0.4h  UST                          Studio Pro operation and Clean review accepted
+0.4i  Cluster                      Studio Pro operation and Clean review accepted
 ```
 
 Current detailed state is maintained in `docs/START-HERE.md` and `docs/Smart-Voicing-Handoff-0.5.md`.
@@ -96,10 +98,10 @@ The preliminary keyswitch map in the original `CONCEPT.md` is historical and mus
 Canonical current map:
 
 ```text
-MIDI 32 / G#0  → UST       ACTIVE in 0.4h candidate
-MIDI 33 / A0   → Cluster   RESERVED
-MIDI 34 / A#0  → Quartal   ACTIVE in 0.4g host candidate
-MIDI 35 / B0   → Spread    ACTIVE / accepted
+MIDI 32 / G#0  → UST       ACCEPTED
+MIDI 33 / A0   → Cluster   ACCEPTED
+MIDI 34 / A#0  → Quartal   ACCEPTED
+MIDI 35 / B0   → Spread    ACCEPTED
 
 MIDI 36 / C1   → Closed
 MIDI 37 / C#1  → Drop 2
@@ -132,7 +134,9 @@ See `docs/STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md`.
 
 ## 5. Stage 6 direction — Voice Leading
 
-Stage 6 owns continuity between successive voicings:
+Stage 6 owns continuity between successive voicings and uses it to select musically justified Color/Rich additions to basic Chord Track symbols. Stage 4 still owns the allowed vocabulary; Stage 6 chooses from it and rewards directed resolution. The levels need not change every vertical.
+
+Stage 6 continuity:
 
 ```text
 previous Voice state

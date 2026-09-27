@@ -371,6 +371,29 @@ void testSlashBassOwnsV4()
     expectVoice(output, 3, 52, "C/E V4 explicit E bass");
 }
 
+void testCleanKeepsNamedThirteenthWhenMelodyIsSeventh()
+{
+    const auto c13 = normalizeChord(chord(0, 0,
+        {{0, 1}, {2, 9}, {4, 3}, {10, 7}, {9, 13}}));
+    const auto output = buildClosedVoicing(70, c13, context(HarmonicFunction::dominant));
+
+    expectVoice(output, 0, 70, "C13 melody Bb4 preserved");
+    expect(containsPitchClass(output, 9), "C13 Clean keeps explicit A/13 below Bb melody");
+    expect(containsPitchClass(output, 4), "C13 Clean keeps E/3 guide tone");
+}
+
+void testCleanSlashMaj7DoesNotCollapseIntoMinorTriad()
+{
+    const auto cmaj7OverE = normalizeChord(chord(0, 4,
+        {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto output = buildClosedVoicing(64, cmaj7OverE, context());
+
+    expectVoice(output, 0, 64, "Cmaj7/E melody E4 preserved");
+    expectVoice(output, 3, 52, "Cmaj7/E slash bass E3 preserved");
+    expect(containsPitchClass(output, 0), "Cmaj7/E keeps C root instead of Em/E");
+    expect(containsPitchClass(output, 11), "Cmaj7/E keeps B major seventh");
+}
+
 void testNoChordFallback()
 {
     NormalizedChord noChord;
@@ -415,6 +438,8 @@ int main()
     testMinorDominantRichPrefersFlat13OverFlatFive();
     testPlainTriadStaysConservativeEvenWithKey();
     testSlashBassOwnsV4();
+    testCleanKeepsNamedThirteenthWhenMelodyIsSeventh();
+    testCleanSlashMaj7DoesNotCollapseIntoMinorTriad();
     testNoChordFallback();
     testLegacyEntryPointUsesSameClosedEngine();
 

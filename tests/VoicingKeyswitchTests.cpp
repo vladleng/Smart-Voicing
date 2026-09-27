@@ -30,18 +30,10 @@ void expectMapping(int note, VoicingType expected, const std::string& label)
     expect(! isReservedVoicingTypeKeyswitch(note), label + " must not be marked reserved");
 }
 
-void expectReserved(int note, const std::string& label)
-{
-    VoicingType value = VoicingType::doubling;
-    expect(isVoicingTypeKeyswitch(note), label + " must stay inside control block");
-    expect(isReservedVoicingTypeKeyswitch(note), label + " must be marked reserved");
-    expect(! voicingTypeFromKeyswitch(note, value), label + " must not decode yet");
-    expect(value == VoicingType::doubling, label + " must not mutate current VoicingType state");
-}
-
 void testImplementedMap()
 {
     expectMapping(32, VoicingType::ust, "MIDI 32 / G#0 UST");
+    expectMapping(33, VoicingType::cluster, "MIDI 33 / A0 Cluster");
     expectMapping(34, VoicingType::quartal, "MIDI 34 / A#0 Quartal");
     expectMapping(35, VoicingType::spread, "MIDI 35 / B0 Spread");
     expectMapping(36, VoicingType::closed, "MIDI 36 / C1 Closed");
@@ -51,11 +43,6 @@ void testImplementedMap()
     expectMapping(40, VoicingType::unison, "MIDI 40 / E1 Unison");
     expectMapping(41, VoicingType::octaves, "MIDI 41 / F1 Octaves");
     expectMapping(42, VoicingType::doubling, "MIDI 42 / F#1 Doubling");
-}
-
-void testFutureSlotsAreReservedButNotDecoded()
-{
-    expectReserved(33, "MIDI 33 / A0 Cluster reserved");
 }
 
 void testBlockBoundariesAndTensionSeparation()
@@ -89,7 +76,6 @@ void testBlockBoundariesAndTensionSeparation()
 int main()
 {
     testImplementedMap();
-    testFutureSlotsAreReservedButNotDecoded();
     testBlockBoundariesAndTensionSeparation();
 
     if (failures != 0)

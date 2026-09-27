@@ -29,7 +29,9 @@ enum class VoicingType : std::uint8_t
     // 0.4g independent fourth-structure strategy. Values 0..7 are frozen.
     quartal = 8,
     // 0.4h upper-structure triad + support voice; older values stay frozen.
-    ust = 9
+    ust = 9,
+    // 0.4i density-based Cluster; values 0..9 remain stable.
+    cluster = 10
 };
 
 // Stage 4 hands Stage 5 an already interpreted harmonic context. A strategy
