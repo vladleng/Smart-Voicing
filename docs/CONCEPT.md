@@ -3,9 +3,9 @@
 **Project:** Smart Voicing  
 **Vendor:** Moon River Studio  
 **Status:** Active Development  
-**Stable checkpoint:** 0.4  
-**Current stage:** Stage 5 — Jazz Voicing Engine  
-**Current working line:** 0.4a… → 0.5  
+**Stable checkpoint:** 0.5
+**Current stage:** Stage 6 — Voice Leading
+**Current working line:** 0.5a… → 0.6
 **Reference host:** Studio Pro  
 **Repository:** `vladleng/Smart-Voicing`
 
@@ -688,29 +688,17 @@ Distribution Mode
 Voicing Type
 ```
 
-Предварительная Brass keyswitch map:
+Стабильная глобальная keyswitch map Stage 5 (MIDI note numbers, octave labels Studio Pro):
 
 ```text
-Modes
-C0   Direct Router
-C#0  Melody Harmonize
-D0   Chord Voicing
-D#0  Riff Follow
-
-Direct Distribution
-E0   Top Down
-F0   Bottom Up
-F#0  Fill 4
-G0   Smart / Auto [future]
-
-Voicing
-C1   Closed
-C#1  Drop 2
-D1   Open
-D#1  Spread
-E1   Guide Tones
-F1   Block / Soli
-F#1  Auto [future]
+32 / G#0  UST             33 / A0   Cluster
+34 / A#0  Quartal         35 / B0   Spread
+36 / C1   Closed          37 / C#1  Drop 2
+38 / D1   Drop 3          39 / D#1  Drop 2+4
+40 / E1   Unison          41 / F1   Octaves
+42 / F#1  Doubling
+43 / G1   Clean           44 / G#1  Color           45 / A1  Rich
+46 / A#1  Direct Router   47 / B1   Melody Harmonize
 ```
 
 Правила:
@@ -718,9 +706,11 @@ F#1  Auto [future]
 - keyswitch и UI меняют один internal state;
 - parallel state system не создавать;
 - keyswitch notes swallowed;
-- map локален для Instrument Profile;
-- точные note numbers/octave labels фиксируются на implementation stage;
-- keyswitch layer добавляется только после реализации самих Modes/Distribution/Voicing.
+- глобальная карта стабильна и не переназначается Instrument Profile;
+- будущие profile-local performance controls получают отдельную карту без конфликта с MIDI 32–47;
+- Sound Variations — только слой отображения host, а не независимое состояние.
+
+Музыкальные правила вертикалей в Clean: [`STAGE5-CLEAN-HARMONIZATION-RULES.md`](STAGE5-CLEAN-HARMONIZATION-RULES.md). Конкретная приёмка всех типов: [`STAGE5-CLEAN-ACCEPTANCE.md`](STAGE5-CLEAN-ACCEPTANCE.md).
 
 ---
 
@@ -844,14 +834,15 @@ Played Melody
 
 Stage 4 отвечает на вопрос: **какие pitch classes функционально оправданы в реально записанном harmonic turn?**
 
-### Stage 5 — Jazz Voicing Engine → 0.5
+### Stage 5 — Jazz Voicing Engine → 0.5 ✅
 
 - `VoicingStrategy` contract;
 - Closed as first/default type;
 - Drop 2 / Drop 3 / Drop 2+4 as Closed-family transformations;
 - Spread as independent bottom-up strategy;
-- architecture/test contract for Quartal / Cluster / UST;
-- Unison / Octave / simple doubling policies where useful.
+- independent Quartal / Cluster / UST;
+- Unison / Octaves / simple doubling;
+- Studio Pro review всех восьми гармонических типов в Clean с адресными исправлениями slash, explicit 13 и ♭9.
 
 ### Stage 6 — Voice Leading → 0.6
 
@@ -862,6 +853,7 @@ Stage 4 отвечает на вопрос: **какие pitch classes функ�
 - crossing/leap penalties;
 - strategy-specific objectives;
 - register-aware scoring hooks.
+- настройка Color/Rich как быстрого обогащения базовых аккордов с учётом движения и разрешения голосов (без изменения Stage 4 vocabulary).
 
 ### Stage 7 — Instrument Profiles → 0.7
 
@@ -870,6 +862,10 @@ Stage 4 отвечает на вопрос: **какие pitch classes функ�
 - register zones;
 - balance/timbre scoring;
 - octave displacement.
+
+### Stage 7B — Performance Engine
+
+Детерминированная delay-only Humanization и распределение Expression вокруг per-Voice baseline после индивидуального Gain. Это отдельный слой после Instrument Profiles; он не меняет гармонию или Voice Leading. Подробнее: [`PERFORMANCE-ENGINE-ROADMAP.md`](PERFORMANCE-ENGINE-ROADMAP.md).
 
 ### Stage 8 — Presets / Performance Configurations → 0.8
 

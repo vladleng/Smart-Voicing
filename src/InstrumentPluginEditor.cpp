@@ -132,7 +132,7 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.4f - Spread",
+    titleLabel.setText("Smart Voicing 0.5 - Jazz Voicings",
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
@@ -183,6 +183,8 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     voicingTypeBox.addItem("Drop 2+4", static_cast<int>(smartvoicing::harmony::VoicingType::drop24) + 1);
     voicingTypeBox.addItem("Spread", static_cast<int>(smartvoicing::harmony::VoicingType::spread) + 1);
     voicingTypeBox.addItem("Quartal", static_cast<int>(smartvoicing::harmony::VoicingType::quartal) + 1);
+    voicingTypeBox.addItem("UST", static_cast<int>(smartvoicing::harmony::VoicingType::ust) + 1);
+    voicingTypeBox.addItem("Cluster", static_cast<int>(smartvoicing::harmony::VoicingType::cluster) + 1);
     voicingTypeBox.addItem("Unison", static_cast<int>(smartvoicing::harmony::VoicingType::unison) + 1);
     voicingTypeBox.addItem("Octaves", static_cast<int>(smartvoicing::harmony::VoicingType::octaves) + 1);
     voicingTypeBox.addItem("Doubling", static_cast<int>(smartvoicing::harmony::VoicingType::doubling) + 1);
@@ -192,7 +194,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     {
         const auto value = juce::jlimit(
             static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::quartal),
+            static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
             voicingTypeBox.getSelectedId() - 1);
         processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
         refreshContextMonitor();
@@ -245,7 +247,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(diagnosticsButton);
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.4e | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText("MIDI Engine 0.5 | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -539,7 +541,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.4f: Spread active | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
+    debugText << "Stage 5 / 0.5: 8 harmonic types + 3 melodic textures | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")

@@ -117,6 +117,21 @@ void testAuthorityAndSafety()
                    && hd.voices[i].midiNote == again.voices[i].midiNote,
                "deterministic output");
 }
+void testExplicitDominantFlatNinthSurvivesClean()
+{
+    for (const auto annotation : {9, 255})
+    {
+        const auto g7b9 = normalizeChord(chord(1, 1,
+            {{0, 1}, {1, annotation}, {4, 3}, {7, 5}, {10, 7}}));
+        const auto result = buildVoicing(65, VoicingType::quartal, context(g7b9, 65));
+        expect(result.voices[0].midiNote == 65,
+               "G7b9 Quartal keeps F melody");
+        expect(has(result, g7b9, 1),
+               "G7b9 Quartal retains written Ab under F melody");
+        expect(has(result, g7b9, 4) && has(result, g7b9, 10),
+               "G7b9 Quartal retains B and F guide tones");
+    }
+}
 void testTargetVocabulary()
 {
     const auto dominant = normalizeChord(chord(1,1,{{0,1},{4,3},{7,5},{10,7}}));
@@ -139,7 +154,8 @@ void testTargetVocabulary()
 }
 int main()
 {
-    testFourthStructure(); testAuthorityAndSafety(); testTargetVocabulary();
+    testFourthStructure(); testAuthorityAndSafety();
+    testExplicitDominantFlatNinthSurvivesClean(); testTargetVocabulary();
     if (failures) return EXIT_FAILURE;
     std::cout << "Quartal strategy tests passed\n";
     return EXIT_SUCCESS;

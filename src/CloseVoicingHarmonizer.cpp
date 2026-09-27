@@ -1,4 +1,5 @@
 #include "CloseVoicingHarmonizer.h"
+#include "VoicingIdentity.h"
 
 #include <array>
 #include <climits>
@@ -485,10 +486,18 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
     if (hasCharacteristic && ! selectedCharacteristic)
         score += 30;
 
-    // Root omission is normal for seventh/extended harmony. For a plain triad,
-    // however, retaining the root helps preserve identity.
-    if (! hasSeventh && ! selectedRoot(notes, chord))
-        score += 16;
+    // Root omission is normal for seventh/extended harmony when the remaining
+    // voices identify the chord. With an explicit slash bass, an omitted root
+    // can instead turn Cmaj7/E into an indistinguishable Em/E when E is also
+    // the melody. Prefer the root where it fits alongside the guide tones.
+    score += slashMajorSeventhRootPenalty(notes, chord);
+    if (! selectedRoot(notes, chord))
+    {
+        if (chord.slashBass)
+            score += 16;
+        else if (! hasSeventh)
+            score += 16;
+    }
 
     // An ordinary perfect fifth has no required-presence penalty. Characteristic
     // altered/sus tones are handled separately above.

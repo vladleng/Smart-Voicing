@@ -38,13 +38,15 @@
 - `Smart Voicing 0.3e` — Functional Tension Profiles + characteristic-tone protection; target quality стал частью functional colour.
 - `Smart Voicing 0.3f` — **ACCEPTED**: target-aware Color; no-next-chord = unresolved без inferred target; confirmed `V→minor` допускает b13 как Color, natural 13 не inferred, более сильные b9/#9/#11 остаются Rich-oriented. Windows Build #302 — success; Studio Pro musical acceptance 2026-09-22.
 - `Smart Voicing 0.4` — **завершённый Этап 4: Key-aware Engine + Functional Tensions + Closed checkpoint**. Stable package, без новой musical logic относительно принятой 0.3f.
+- `Smart Voicing 0.4a`–`0.4i` — рабочие версии Этапа 5: общий интерфейс VoicingStrategy, Closed/Drop family, мелодические текстуры, Spread, Quartal, UST, Cluster и keyswitch map.
+- `Smart Voicing 0.5` — **завершённый Этап 5: Jazz Voicing Engine**. Все восемь гармонических типов проверены в Clean на едином материале; исправлены неоднозначные slash maj7, частичный UST/13 и `G7♭9` в Spread/Quartal. Voice Leading и автоматическая окраска Color/Rich — следующий Этап 6.
 
 Отдельная промежуточная `0.1f` не выпускается: после успешного практического теста 0.1e этап зафиксирован напрямую как 0.2. Дополнительные hardening-функции, не блокирующие harmonizer development, перенесены на более позднюю стабилизацию.
 
 ## Текущая структура пакета
 
 ```text
-Smart Voicing 0.4/
+Smart Voicing 0.5/
 ├── Smart Voicing.vst3/
 │   └── Contents/
 │       └── ...
@@ -67,7 +69,7 @@ Smart Voicing 0.4/
 Этап 2: 0.1a ... 0.1e → 0.2
 Этап 3: 0.2a ... 0.2e → 0.3
 Этап 4: 0.3a ... 0.3f → 0.4
-Этап 5: 0.4a ...      → 0.5
+Этап 5: 0.4a ... 0.4i → 0.5
 Этап 6: 0.5a ...      → 0.6
 Этап 7: 0.6a ...      → 0.7
 Этап 8: 0.7a ...      → 0.8
@@ -100,6 +102,7 @@ Smart Voicing 0.4/
 0.3e → 0.3.5
 0.3f → 0.3.6
 0.4  → 0.4.0
+0.5  → 0.5.0
 ```
 
 ## Отложенная стабилизация

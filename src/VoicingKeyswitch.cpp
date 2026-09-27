@@ -12,6 +12,12 @@ bool voicingTypeFromKeyswitch(int midiNote, VoicingType& type) noexcept
 {
     switch (midiNote)
     {
+        case kClusterVoicingKeyswitchNote:
+            type = VoicingType::cluster;
+            return true;
+        case kUstVoicingKeyswitchNote:
+            type = VoicingType::ust;
+            return true;
         case kQuartalVoicingKeyswitchNote:
             type = VoicingType::quartal;
             return true;
@@ -48,9 +54,7 @@ bool isReservedVoicingTypeKeyswitch(int midiNote) noexcept
 {
     switch (midiNote)
     {
-        case kUstReservedVoicingKeyswitchNote:
-        case kClusterReservedVoicingKeyswitchNote:
-            return true;
+
         default:
             return false;
     }

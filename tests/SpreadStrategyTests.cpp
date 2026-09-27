@@ -113,6 +113,23 @@ void testSlashBassAndCharacteristicTone()
     expect(hasRelative(hd, halfDim, 6), "m7b5 characteristic flat fifth survives");
 }
 
+void testExplicitDominantFlatNinthSurvivesClean()
+{
+    for (const auto annotation : {9, 255})
+    {
+        const auto g7b9 = normalizeChord(chord(1, 1,
+            {{0, 1}, {1, annotation}, {4, 3}, {7, 5}, {10, 7}}));
+        const auto result = buildVoicing(65, VoicingType::spread, context(g7b9, 65));
+        expect(result.voices[0].midiNote == 65 && result.voices[3].active
+                   && result.voices[3].midiNote % 12 == 7,
+               "G7b9 Spread keeps F melody and G bass");
+        expect(hasRelative(result, g7b9, 1),
+               "G7b9 Spread retains written Ab under F melody");
+        expect(hasRelative(result, g7b9, 4) && hasRelative(result, g7b9, 10),
+               "G7b9 Spread retains B and F guide tones");
+    }
+}
+
 void testStage4PoolAndFallbacks()
 {
     const auto dominant = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
@@ -156,6 +173,7 @@ int main()
 {
     testIndependentBottomUpSpread();
     testSlashBassAndCharacteristicTone();
+    testExplicitDominantFlatNinthSurvivesClean();
     testStage4PoolAndFallbacks();
     if (failures)
         return EXIT_FAILURE;
