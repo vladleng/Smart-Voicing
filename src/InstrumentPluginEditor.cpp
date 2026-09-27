@@ -12,6 +12,34 @@
 
 namespace
 {
+using VoicingType = smartvoicing::harmony::VoicingType;
+constexpr std::array<VoicingType, 11> kVoicingOrder {
+    VoicingType::closed, VoicingType::drop2, VoicingType::drop3,
+    VoicingType::drop24, VoicingType::spread, VoicingType::quartal,
+    VoicingType::ust, VoicingType::cluster, VoicingType::unison,
+    VoicingType::octaves, VoicingType::doubling
+};
+
+const juce::Colour background { 0xff17191c }, surface { 0xff24272a },
+    panel { 0xff292c2f }, border { 0xff404549 }, muted { 0xff95a0a4 },
+    accent { 0xff94c8d5 }, selected { 0xff35454b };
+
+void drawSection(juce::Graphics& g, juce::Rectangle<float> bounds)
+{
+    g.setColour(panel);
+    g.fillRoundedRectangle(bounds, 5.0f);
+    g.setColour(border);
+    g.drawRoundedRectangle(bounds, 5.0f, 1.0f);
+}
+
+void drawCaption(juce::Graphics& g, const juce::String& caption, int x, int y,
+                 int width = 250)
+{
+    g.setColour(muted);
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.drawText(caption, x, y, width, 18, juce::Justification::centredLeft);
+}
+
 juce::String availabilityText(bool available, int eventCount)
 {
     if (! available)
@@ -25,6 +53,7 @@ void configureContextLabel(juce::Label& label)
     label.setJustificationType(juce::Justification::centredLeft);
     label.setFont(juce::FontOptions(24.0f, juce::Font::bold));
     label.setMinimumHorizontalScale(0.75f);
+    label.setColour(juce::Label::textColourId, juce::Colour(0xffe5e9e9));
 }
 
 juce::String channelsText(std::uint32_t mask)
@@ -129,17 +158,57 @@ juce::String lastMidiEventText(const SmartVoicingInstrumentProcessor::MidiProbeS
 }
 }
 
+void SmartVoicingChoiceButton::paintButton(juce::Graphics& g, bool highlighted, bool down)
+{
+    auto bounds = getLocalBounds().toFloat();
+    const bool active = getToggleState();
+    if (active || highlighted || down)
+    {
+        g.setColour(active ? selected : panel.brighter(0.08f));
+        g.fillRoundedRectangle(bounds, 3.0f);
+    }
+
+    const auto alpha = isEnabled() ? 1.0f : 0.42f;
+    g.setColour((active ? accent : juce::Colour(0xff687377)).withMultipliedAlpha(alpha));
+    g.drawEllipse(12.5f, bounds.getCentreY() - 5.5f, 11.0f, 11.0f, 1.3f);
+    if (active)
+        g.fillEllipse(15.8f, bounds.getCentreY() - 2.2f, 4.4f, 4.4f);
+
+    g.setColour((active ? juce::Colour(0xfff1f4f4) : juce::Colour(0xffb9c2c5))
+                    .withMultipliedAlpha(alpha));
+    g.setFont(juce::FontOptions(14.0f, active ? juce::Font::bold : juce::Font::plain));
+    g.drawText(getButtonText(), 37, 0, detail.isEmpty() ? getWidth() - 110 : 110,
+               getHeight(), juce::Justification::centredLeft);
+    if (detail.isNotEmpty())
+    {
+        g.setColour(muted.withMultipliedAlpha(alpha));
+        g.setFont(juce::FontOptions(12.0f));
+        g.drawText(detail, 147, 0, getWidth() - 215, getHeight(),
+                   juce::Justification::centredLeft);
+    }
+    g.setColour((active ? accent : muted.darker(0.25f)).withMultipliedAlpha(alpha));
+    g.setFont(juce::FontOptions(11.0f));
+    g.drawText(midiLabel, getWidth() - 67, 0, 48, getHeight(),
+               juce::Justification::centredRight);
+}
+
 SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumentProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing 0.5 - Jazz Voicings",
-                       juce::dontSendNotification);
-    titleLabel.setJustificationType(juce::Justification::centred);
-    titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
+    titleLabel.setText("HARMA WAVES", juce::dontSendNotification);
+    titleLabel.setJustificationType(juce::Justification::centredLeft);
+    titleLabel.setFont(juce::FontOptions(19.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);
 
+    vendorLabel.setText("Moon River Studio", juce::dontSendNotification);
+    vendorLabel.setJustificationType(juce::Justification::centredRight);
+    vendorLabel.setFont(juce::FontOptions(11.0f));
+    vendorLabel.setColour(juce::Label::textColourId, muted);
+    addAndMakeVisible(vendorLabel);
+
     bridgeLabel.setJustificationType(juce::Justification::centredLeft);
-    bridgeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    bridgeLabel.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    bridgeLabel.setColour(juce::Label::textColourId, accent);
     addAndMakeVisible(bridgeLabel);
 
     configureContextLabel(chordLabel);
@@ -155,9 +224,10 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     positionLabel.setFont(juce::FontOptions(14.0f));
     addAndMakeVisible(positionLabel);
 
-    harmonyModeLabel.setText(juce::String::fromUTF8("Режим:"), juce::dontSendNotification);
+    harmonyModeLabel.setText(juce::String::fromUTF8("РЕЖИМ РАБОТЫ"), juce::dontSendNotification);
     harmonyModeLabel.setJustificationType(juce::Justification::centredLeft);
-    harmonyModeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    harmonyModeLabel.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    harmonyModeLabel.setColour(juce::Label::textColourId, muted);
     addAndMakeVisible(harmonyModeLabel);
 
     harmonyModeBox.addItem("Direct Router", 1);
@@ -172,59 +242,47 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(harmonyModeBox);
 
-    voicingTypeLabel.setText("Voicing Type:", juce::dontSendNotification);
-    voicingTypeLabel.setJustificationType(juce::Justification::centredLeft);
-    voicingTypeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    addAndMakeVisible(voicingTypeLabel);
-
-    voicingTypeBox.addItem("Closed", static_cast<int>(smartvoicing::harmony::VoicingType::closed) + 1);
-    voicingTypeBox.addItem("Drop 2", static_cast<int>(smartvoicing::harmony::VoicingType::drop2) + 1);
-    voicingTypeBox.addItem("Drop 3", static_cast<int>(smartvoicing::harmony::VoicingType::drop3) + 1);
-    voicingTypeBox.addItem("Drop 2+4", static_cast<int>(smartvoicing::harmony::VoicingType::drop24) + 1);
-    voicingTypeBox.addItem("Spread", static_cast<int>(smartvoicing::harmony::VoicingType::spread) + 1);
-    voicingTypeBox.addItem("Quartal", static_cast<int>(smartvoicing::harmony::VoicingType::quartal) + 1);
-    voicingTypeBox.addItem("UST", static_cast<int>(smartvoicing::harmony::VoicingType::ust) + 1);
-    voicingTypeBox.addItem("Cluster", static_cast<int>(smartvoicing::harmony::VoicingType::cluster) + 1);
-    voicingTypeBox.addItem("Unison", static_cast<int>(smartvoicing::harmony::VoicingType::unison) + 1);
-    voicingTypeBox.addItem("Octaves", static_cast<int>(smartvoicing::harmony::VoicingType::octaves) + 1);
-    voicingTypeBox.addItem("Doubling", static_cast<int>(smartvoicing::harmony::VoicingType::doubling) + 1);
-    voicingTypeBox.setSelectedId(static_cast<int>(processor.getVoicingType()) + 1,
-                                 juce::dontSendNotification);
-    voicingTypeBox.onChange = [this]
-    {
-        const auto value = juce::jlimit(
-            static_cast<int>(smartvoicing::harmony::VoicingType::closed),
-            static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
-            voicingTypeBox.getSelectedId() - 1);
-        processor.setVoicingType(static_cast<smartvoicing::harmony::VoicingType>(value));
-        refreshContextMonitor();
+    const std::array<juce::String, 11> voicingNames {
+        "Closed", "Drop 2", "Drop 3", "Drop 2+4", "Spread", "Quartal",
+        "UST", "Cluster", "Unison", "Octaves", "Doubling"
     };
-    addAndMakeVisible(voicingTypeBox);
-
-    tensionLevelLabel.setText("Tensions:", juce::dontSendNotification);
-    tensionLevelLabel.setJustificationType(juce::Justification::centredLeft);
-    tensionLevelLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    addAndMakeVisible(tensionLevelLabel);
-
-    tensionLevelBox.addItem("1 - Clean", static_cast<int>(smartvoicing::harmony::TensionLevel::clean));
-    tensionLevelBox.addItem("2 - Color", static_cast<int>(smartvoicing::harmony::TensionLevel::color));
-    tensionLevelBox.addItem("3 - Rich", static_cast<int>(smartvoicing::harmony::TensionLevel::rich));
-    tensionLevelBox.setSelectedId(static_cast<int>(processor.getTensionLevel()),
-                                  juce::dontSendNotification);
-    tensionLevelBox.onChange = [this]
-    {
-        const auto value = juce::jlimit(
-            static_cast<int>(smartvoicing::harmony::TensionLevel::clean),
-            static_cast<int>(smartvoicing::harmony::TensionLevel::rich),
-            tensionLevelBox.getSelectedId());
-        processor.setTensionLevel(static_cast<smartvoicing::harmony::TensionLevel>(value));
-        refreshContextMonitor();
+    const std::array<juce::String, 11> voicingKeys {
+        "C1", "C#1", "D1", "D#1", "B0", "A#0", "G#0", "A0", "E1", "F1", "F#1"
     };
-    addAndMakeVisible(tensionLevelBox);
+    for (std::size_t i = 0; i < voicingButtons.size(); ++i)
+    {
+        voicingButtons[i] = std::make_unique<SmartVoicingChoiceButton>(voicingNames[i], voicingKeys[i]);
+        voicingButtons[i]->onClick = [this, i]
+        {
+            processor.setVoicingType(kVoicingOrder[i]);
+            refreshContextMonitor();
+        };
+        addAndMakeVisible(*voicingButtons[i]);
+    }
 
-    distributionModeLabel.setText(juce::String::fromUTF8("Распределение:"), juce::dontSendNotification);
+    const std::array<juce::String, 3> tensionNames { "Clean", "Color", "Rich" };
+    const std::array<juce::String, 3> tensionKeys { "G1", "G#1", "A1" };
+    const std::array<juce::String, 3> tensionDetails {
+        juce::String::fromUTF8("структура"),
+        juce::String::fromUTF8("умеренный цвет"),
+        juce::String::fromUTF8("выраженное напряжение")
+    };
+    for (std::size_t i = 0; i < tensionButtons.size(); ++i)
+    {
+        tensionButtons[i] = std::make_unique<SmartVoicingChoiceButton>(
+            tensionNames[i], tensionKeys[i], tensionDetails[i]);
+        tensionButtons[i]->onClick = [this, i]
+        {
+            processor.setTensionLevel(static_cast<smartvoicing::harmony::TensionLevel>(i + 1));
+            refreshContextMonitor();
+        };
+        addAndMakeVisible(*tensionButtons[i]);
+    }
+
+    distributionModeLabel.setText(juce::String::fromUTF8("РАСПРЕДЕЛЕНИЕ"), juce::dontSendNotification);
     distributionModeLabel.setJustificationType(juce::Justification::centredLeft);
-    distributionModeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    distributionModeLabel.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    distributionModeLabel.setColour(juce::Label::textColourId, muted);
     addAndMakeVisible(distributionModeLabel);
 
     distributionModeBox.addItem(juce::String::fromUTF8("Сверху вниз"), 1);
@@ -240,12 +298,22 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     };
     addAndMakeVisible(distributionModeBox);
 
+    for (auto* box : { &harmonyModeBox, &distributionModeBox })
+    {
+        box->setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff34383b));
+        box->setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff50575b));
+        box->setColour(juce::ComboBox::textColourId, juce::Colour(0xffe4e8e8));
+        box->setColour(juce::ComboBox::arrowColourId, muted);
+    }
+
     diagnosticsButton.onClick = [this]
     {
         diagnosticsExpanded = ! diagnosticsExpanded;
         updateDiagnosticsVisibility();
     };
     addAndMakeVisible(diagnosticsButton);
+    diagnosticsButton.setColour(juce::TextButton::buttonColourId, panel);
+    diagnosticsButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffb4bdc0));
 
     midiProbeTitleLabel.setText("MIDI Engine 0.5 | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
@@ -281,8 +349,9 @@ SmartVoicingInstrumentEditor::~SmartVoicingInstrumentEditor()
 
 void SmartVoicingInstrumentEditor::updateDiagnosticsVisibility()
 {
-    diagnosticsButton.setButtonText(diagnosticsExpanded ? "Diagnostics [-]" : "Diagnostics [+]");
+    diagnosticsButton.setButtonText(diagnosticsExpanded ? "▾  DIAGNOSTICS" : "▸  DIAGNOSTICS");
 
+    positionLabel.setVisible(diagnosticsExpanded);
     midiProbeTitleLabel.setVisible(diagnosticsExpanded);
     midiProbeLabel.setVisible(diagnosticsExpanded);
     resetMidiStatsButton.setVisible(diagnosticsExpanded);
@@ -294,77 +363,79 @@ void SmartVoicingInstrumentEditor::updateDiagnosticsVisibility()
 
 void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
 {
-    g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+    g.fillAll(background);
+    g.setColour(surface);
+    g.fillRoundedRectangle(26.0f, 22.0f, 1148.0f,
+                           static_cast<float>(getHeight() - 45), 8.0f);
+    g.setColour(border);
+    g.drawRoundedRectangle(26.0f, 22.0f, 1148.0f,
+                           static_cast<float>(getHeight() - 45), 8.0f, 1.0f);
+    g.setColour(juce::Colour(0xff2d3033));
+    g.fillRect(27, 23, 1146, 67);
+    g.setColour(border);
+    g.drawHorizontalLine(90, 27.0f, 1173.0f);
+    g.setColour(accent);
+    g.fillRoundedRectangle(51.0f, 43.0f, 4.0f, 29.0f, 2.0f);
+    drawCaption(g, "0.5  /  MIDI ARRANGER", 315, 46);
 
-    auto area = getLocalBounds().reduced(20);
-    area.removeFromTop(88);
+    drawCaption(g, juce::String::fromUTF8("ТЕКУЩИЙ КОНТЕКСТ"), 53, 105);
+    drawSection(g, { 51.0f, 137.0f, 1098.0f, 104.0f });
+    g.setColour(border);
+    for (int x : { 303, 572, 841 })
+        g.drawVerticalLine(x, 155.0f, 223.0f);
+    const std::array<juce::String, 4> captions {
+        juce::String::fromUTF8("АККОРД"), juce::String::fromUTF8("ТОНАЛЬНОСТЬ"),
+        juce::String::fromUTF8("РАЗМЕР"), juce::String::fromUTF8("ТЕМП")
+    };
+    for (int i = 0; i < 4; ++i)
+        drawCaption(g, captions[static_cast<std::size_t>(i)],
+                    std::array<int, 4> { 74, 326, 595, 864 }[static_cast<std::size_t>(i)], 145);
 
-    auto contextArea = area.removeFromTop(228);
-    g.setColour(getLookAndFeel().findColour(juce::Label::outlineColourId).withAlpha(0.35f));
-    g.drawRoundedRectangle(contextArea.toFloat(), 8.0f, 1.0f);
+    drawCaption(g, juce::String::fromUTF8("ГАРМОНИЗАЦИЯ"), 53, 258);
+    drawSection(g, { 51.0f, 289.0f, 1098.0f, 384.0f });
+    g.setColour(border);
+    g.drawVerticalLine(588, 305.0f, 655.0f);
+    g.drawHorizontalLine(337, 73.0f, 564.0f);
+    g.drawHorizontalLine(337, 611.0f, 1127.0f);
+    g.drawHorizontalLine(523, 611.0f, 1127.0f);
+    drawCaption(g, juce::String::fromUTF8("ВОЙСИНГ"), 73, 306);
+    drawCaption(g, "TENSIONS", 611, 306);
+    drawCaption(g, "MIDI", 520, 306, 50);
+    drawCaption(g, "MIDI", 1090, 306, 48);
 
-    area.removeFromTop(12);
-    auto modeArea = area.removeFromTop(168);
-    g.drawRoundedRectangle(modeArea.toFloat(), 8.0f, 1.0f);
-
-    area.removeFromTop(12);
-    area.removeFromTop(32);
-
+    drawSection(g, { 51.0f, 686.0f, 1098.0f, 35.0f });
+    drawCaption(g, "V1–V4  →  CH 1–4", 1000, 693, 130);
     if (diagnosticsExpanded)
-    {
-        area.removeFromTop(12);
-        auto midiArea = area.removeFromTop(250);
-        g.drawRoundedRectangle(midiArea.toFloat(), 8.0f, 1.0f);
-    }
+        drawSection(g, { 51.0f, 735.0f, 1098.0f, 890.0f });
 }
 
 void SmartVoicingInstrumentEditor::resized()
 {
-    auto area = getLocalBounds().reduced(20);
+    titleLabel.setBounds(69, 40, 242, 34);
+    vendorLabel.setBounds(953, 35, 191, 22);
+    bridgeLabel.setBounds(973, 57, 171, 25);
+    chordLabel.setBounds(74, 174, 215, 48);
+    keyLabel.setBounds(326, 174, 235, 48);
+    timeSignatureLabel.setBounds(595, 174, 230, 48);
+    tempoLabel.setBounds(864, 174, 250, 48);
 
-    titleLabel.setBounds(area.removeFromTop(45));
-    bridgeLabel.setBounds(area.removeFromTop(32));
-    area.removeFromTop(11);
+    for (std::size_t i = 0; i < voicingButtons.size(); ++i)
+        voicingButtons[i]->setBounds(69, 341 + static_cast<int>(i) * 27, 499, 27);
+    for (std::size_t i = 0; i < tensionButtons.size(); ++i)
+        tensionButtons[i]->setBounds(607, 342 + static_cast<int>(i) * 50, 524, 44);
 
-    chordLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
-    keyLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
-    timeSignatureLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
-    tempoLabel.setBounds(area.removeFromTop(44).reduced(12, 0));
-
-    area.removeFromTop(10);
-    positionLabel.setBounds(area.removeFromTop(30));
-    area.removeFromTop(12);
-
-    auto harmonyRow = area.removeFromTop(42).reduced(12, 4);
-    harmonyModeLabel.setBounds(harmonyRow.removeFromLeft(130));
-    harmonyModeBox.setBounds(harmonyRow.removeFromLeft(280));
-
-    auto voicingRow = area.removeFromTop(42).reduced(12, 4);
-    voicingTypeLabel.setBounds(voicingRow.removeFromLeft(130));
-    voicingTypeBox.setBounds(voicingRow.removeFromLeft(280));
-
-    auto tensionRow = area.removeFromTop(42).reduced(12, 4);
-    tensionLevelLabel.setBounds(tensionRow.removeFromLeft(130));
-    tensionLevelBox.setBounds(tensionRow.removeFromLeft(280));
-
-    auto distributionRow = area.removeFromTop(42).reduced(12, 4);
-    distributionModeLabel.setBounds(distributionRow.removeFromLeft(130));
-    distributionModeBox.setBounds(distributionRow.removeFromLeft(280));
-
-    area.removeFromTop(12);
-    diagnosticsButton.setBounds(area.removeFromTop(32).reduced(12, 0));
-
+    harmonyModeLabel.setBounds(611, 531, 255, 24);
+    harmonyModeBox.setBounds(611, 562, 516, 38);
+    distributionModeLabel.setBounds(611, 610, 154, 28);
+    distributionModeBox.setBounds(766, 611, 361, 28);
+    diagnosticsButton.setBounds(63, 689, 220, 29);
     if (! diagnosticsExpanded)
         return;
-
-    area.removeFromTop(12);
-    midiProbeTitleLabel.setBounds(area.removeFromTop(30).reduced(12, 0));
-    midiProbeLabel.setBounds(area.removeFromTop(177).reduced(12, 0));
-    auto buttonRow = area.removeFromTop(32).reduced(12, 0);
-    resetMidiStatsButton.setBounds(buttonRow.removeFromLeft(180));
-
-    area.removeFromTop(12);
-    debugLabel.setBounds(area);
+    positionLabel.setBounds(73, 750, 1050, 28);
+    midiProbeTitleLabel.setBounds(73, 786, 1050, 30);
+    midiProbeLabel.setBounds(73, 820, 1050, 180);
+    resetMidiStatsButton.setBounds(73, 1005, 180, 32);
+    debugLabel.setBounds(73, 1050, 1050, 560);
 }
 
 void SmartVoicingInstrumentEditor::timerCallback()
@@ -444,22 +515,12 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
         ? juce::String::fromUTF8(normalizedSymbol.c_str())
         : hostChord;
 
-    chordLabel.setText(juce::String::fromUTF8("Аккорд: ") + chord,
-                       juce::dontSendNotification);
-    keyLabel.setText(juce::String::fromUTF8("Тональность: ") + key,
-                     juce::dontSendNotification);
-    timeSignatureLabel.setText(juce::String::fromUTF8("Размер: ") + timeSignature,
-                               juce::dontSendNotification);
-    tempoLabel.setText(juce::String::fromUTF8("Темп: ") + tempo,
-                       juce::dontSendNotification);
+    chordLabel.setText(chord, juce::dontSendNotification);
+    keyLabel.setText(key, juce::dontSendNotification);
+    timeSignatureLabel.setText(timeSignature, juce::dontSendNotification);
+    tempoLabel.setText(tempo, juce::dontSendNotification);
 
-    juce::String bridgeText;
-    bridgeText << "Smart Voicing ARA: " << (context.connected ? "CONNECTED" : "WAITING")
-               << " | Neutral provider: " << (neutralContext.providerConnected ? "READY" : "WAITING")
-               << " | Chord model: " << (normalizedChord.valid ? "READY" : "N/A")
-               << " | Key model: " << (normalizedKey.valid ? "READY" : "N/A")
-               << " | Harmony rev: " << juce::String(static_cast<juce::int64>(neutralContext.harmonicRevision))
-               << " | Transport rev: " << juce::String(static_cast<juce::int64>(neutralContext.transportRevision));
+    juce::String bridgeText = context.connected ? "●  ARA CONNECTED" : "○  ARA WAITING";
     bridgeLabel.setText(bridgeText, juce::dontSendNotification);
 
     juce::String positionText;
@@ -485,13 +546,13 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     if (harmonyModeBox.getSelectedId() != desiredHarmonyId)
         harmonyModeBox.setSelectedId(desiredHarmonyId, juce::dontSendNotification);
 
-    const auto desiredVoicingId = static_cast<int>(midiProbe.voicingType) + 1;
-    if (voicingTypeBox.getSelectedId() != desiredVoicingId)
-        voicingTypeBox.setSelectedId(desiredVoicingId, juce::dontSendNotification);
-
-    const auto desiredTensionId = static_cast<int>(midiProbe.tensionLevel);
-    if (tensionLevelBox.getSelectedId() != desiredTensionId)
-        tensionLevelBox.setSelectedId(desiredTensionId, juce::dontSendNotification);
+    for (std::size_t i = 0; i < voicingButtons.size(); ++i)
+        voicingButtons[i]->setToggleState(midiProbe.voicingType == kVoicingOrder[i],
+                                          juce::dontSendNotification);
+    for (std::size_t i = 0; i < tensionButtons.size(); ++i)
+        tensionButtons[i]->setToggleState(
+            static_cast<int>(midiProbe.tensionLevel) == static_cast<int>(i + 1),
+            juce::dontSendNotification);
 
     const auto desiredDistributionId = static_cast<int>(midiProbe.distributionMode) + 1;
     if (distributionModeBox.getSelectedId() != desiredDistributionId)
@@ -500,10 +561,10 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     const auto directRouter = midiProbe.harmonyMode == SmartVoicingInstrumentProcessor::HarmonyMode::directRouter;
     distributionModeBox.setEnabled(directRouter);
     distributionModeLabel.setEnabled(directRouter);
-    voicingTypeBox.setEnabled(! directRouter);
-    voicingTypeLabel.setEnabled(! directRouter);
-    tensionLevelBox.setEnabled(! directRouter);
-    tensionLevelLabel.setEnabled(! directRouter);
+    for (auto& button : voicingButtons)
+        button->setEnabled(! directRouter);
+    for (auto& button : tensionButtons)
+        button->setEnabled(! directRouter);
 
     juce::String midiText;
     midiText << "Mode: " << harmonyModeText(midiProbe.harmonyMode);
