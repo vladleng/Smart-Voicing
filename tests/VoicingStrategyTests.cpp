@@ -369,6 +369,58 @@ void testVoicingTypeName()
     expect(std::string(voicingTypeName(VoicingType::doubling)) == "Doubling",
            "Doubling voicing type name");
 }
+
+void testCleanSlashMajorSeventhKeepsItsRoot()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto overE = normalizeChord(chord(0, 4, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto overG = normalizeChord(chord(0, 1, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    // The score's two slash bars include E4/B4 over E and G4/B4/E5 over G.
+    for (const auto& [harmony, melody] : {
+             std::pair { &overE, 64 }, { &overE, 71 },
+             { &overG, 67 }, { &overG, 71 }, { &overG, 76 } })
+    {
+        const auto ctx = makeContext(*harmony, cMajor, melody, TensionLevel::clean);
+        for (const auto type : { VoicingType::closed, VoicingType::drop2,
+                                 VoicingType::drop3, VoicingType::drop24,
+                                 VoicingType::spread, VoicingType::quartal,
+                                 VoicingType::ust, VoicingType::cluster })
+        {
+            const auto output = buildVoicing(melody, type, ctx);
+            const auto label = std::string(voicingTypeName(type)) + " melody "
+                + std::to_string(melody);
+            expect(output.voices[0].active && output.voices[0].midiNote == melody,
+                   label + " keeps V1");
+            expect(output.voices[3].active
+                       && pitchClass(output.voices[3].midiNote) == harmony->bassPitchClass,
+                   label + " keeps slash bass");
+            bool hasRoot = false;
+            for (const auto& voice : output.voices)
+                hasRoot = hasRoot || (voice.active
+                    && pitchClass(voice.midiNote) == harmony->rootPitchClass);
+            expect(hasRoot, label + " preserves Cmaj7 identity");
+        }
+    }
+}
+
+void testCleanPartialUstRetainsNamedThirteenth()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto c13 = normalizeChord(chord(0, 0,
+        {{0, 1}, {2, 9}, {4, 3}, {10, 7}, {9, 13}}));
+    const auto output = buildVoicing(70, VoicingType::ust,
+                                     makeContext(c13, cMajor, 70, TensionLevel::clean));
+    bool hasThirteenth = false, hasThird = false;
+    for (const auto& voice : output.voices)
+    {
+        hasThirteenth = hasThirteenth || (voice.active && pitchClass(voice.midiNote) == 9);
+        hasThird = hasThird || (voice.active && pitchClass(voice.midiNote) == 4);
+    }
+    expect(output.voices[0].active && output.voices[0].midiNote == 70,
+           "C13 UST keeps Bb4 performer melody");
+    expect(hasThirteenth, "C13 partial UST keeps named A/13");
+    expect(hasThird, "C13 partial UST retains E/3 beside named A/13");
+}
 }
 
 int main()
@@ -389,6 +441,8 @@ int main()
     testDoublingDoesNotDependOnTensionLevelOrHarmony();
     testDoublingDoesNotWrapBelowMidiRange();
     testVoicingTypeName();
+    testCleanSlashMajorSeventhKeepsItsRoot();
+    testCleanPartialUstRetainsNamedThirteenth();
 
     if (failures != 0)
     {

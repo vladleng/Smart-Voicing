@@ -1,4 +1,5 @@
 #include "QuartalVoicing.h"
+#include "VoicingIdentity.h"
 
 #include <array>
 #include <climits>
@@ -104,6 +105,7 @@ int score(const std::array<int, 4>& notes, const VoicingContext& context) noexce
     if (chordSeventh && ! retainedSeventh) value += 24;
     if (chordThird && chordSeventh && ! retainedThird && ! retainedSeventh) value += 40;
     if (chordCharacteristic && ! retainedCharacteristic) value += 60;
+    value += slashMajorSeventhRootPenalty(notes, chord);
     for (int degree = 0; degree < 12; ++degree)
     {
         if (! protectedAlteration(chord, degree)) continue;

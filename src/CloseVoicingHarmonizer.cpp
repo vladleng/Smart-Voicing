@@ -1,4 +1,5 @@
 #include "CloseVoicingHarmonizer.h"
+#include "VoicingIdentity.h"
 
 #include <array>
 #include <climits>
@@ -489,6 +490,7 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
     // voices identify the chord. With an explicit slash bass, an omitted root
     // can instead turn Cmaj7/E into an indistinguishable Em/E when E is also
     // the melody. Prefer the root where it fits alongside the guide tones.
+    score += slashMajorSeventhRootPenalty(notes, chord);
     if (! selectedRoot(notes, chord))
     {
         if (chord.slashBass)

@@ -1,4 +1,5 @@
 #include "ClusterVoicing.h"
+#include "VoicingIdentity.h"
 
 #include <array>
 #include <climits>
@@ -78,6 +79,7 @@ int score(const std::array<int, 4>& notes, const VoicingContext& context) noexce
     if (hasThird && !keptThird) cost += 25;
     if (hasSeventh && !keptSeventh) cost += 25;
     if (hasThird && hasSeventh && !keptThird && !keptSeventh) cost += 45;
+    cost += slashMajorSeventhRootPenalty(notes, chord);
     for (int d = 0; d < 12; ++d)
     {
         if (!protectedTone(d, chord)) continue;

@@ -1,4 +1,5 @@
 #include "UpperStructureTriadVoicing.h"
+#include "VoicingIdentity.h"
 
 #include <array>
 #include <climits>
@@ -112,6 +113,28 @@ int score(const std::array<int,4>& notes, const std::array<int,3>& triad,
     if (chordThird && ! keptThird) value += 20;
     if (chordSeventh && ! keptSeventh) value += 20;
     if (chordThird && chordSeventh && ! keptThird && ! keptSeventh) value += 40;
+    value += slashMajorSeventhRootPenalty(notes, chord);
+
+    // When the melody prevents a complete upper triad, a repeated pitch class
+    // should not take the last available place from a named 13th in Clean.
+    if (represented < 3 && chord.hasExtension(ChordExtension::thirteenth))
+    {
+        for (int degree = 0; degree < 12; ++degree)
+        {
+            if (! chord.hasTone(degree)
+                || chord.degrees[static_cast<std::size_t>(degree)] != 13)
+                continue;
+            bool retained = false, repeated = false;
+            for (int i = 0; i < 4; ++i)
+            {
+                retained = retained || relative(notes[static_cast<std::size_t>(i)], chord) == degree;
+                for (int j = 0; j < i; ++j)
+                    repeated = repeated || pitchClass(notes[static_cast<std::size_t>(i)])
+                        == pitchClass(notes[static_cast<std::size_t>(j)]);
+            }
+            if (! retained && repeated) value += 48;
+        }
+    }
 
     const int supportDegree=relative(notes[3],chord);
     if (supportDegree != 0 && ! third(supportDegree,chord)
