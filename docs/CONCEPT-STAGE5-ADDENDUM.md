@@ -29,7 +29,7 @@ Core ownership rule:
 
 > Сначала определить, к какому слою относится музыкальная проблема, и исправлять её только в этом слое.
 
-Stage 5 must not re-run Stage 4 harmonic interpretation. Stage 7 must not be used to repair incorrect Stage 5 voicing logic. Stage 7B must not alter harmony/voicing/voice-leading decisions.
+Stage 5 must not re-run Stage 4 harmonic interpretation. Its final acceptance checks each voicing's shape and chord fidelity in Clean on fully specified chords, including explicit extensions/alterations; Clean does not erase written notes or add inferred colour. Color/Rich refinement for fast harmonization of basic chords belongs to Stage 6, together with Voice Leading. Stage 7 must not be used to repair incorrect Stage 5 voicing logic. Stage 7B must not alter harmony/voicing/voice-leading decisions.
 
 ## 2. Stage 5 strategy families
 
@@ -134,7 +134,9 @@ See `docs/STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md`.
 
 ## 5. Stage 6 direction — Voice Leading
 
-Stage 6 owns continuity between successive voicings:
+Stage 6 owns continuity between successive voicings and uses it to select musically justified Color/Rich additions to basic Chord Track symbols. Stage 4 still owns the allowed vocabulary; Stage 6 chooses from it and rewards directed resolution. The levels need not change every vertical.
+
+Stage 6 continuity:
 
 ```text
 previous Voice state

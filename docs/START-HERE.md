@@ -239,7 +239,7 @@ Played / Melody
 
 ### Stage 6 → 0.6 — Voice Leading
 
-Previous Voice state, common-tone retention, stepwise movement, stable Voice identity, crossing/leap penalties, strategy objectives, register-aware scoring hooks.
+Previous Voice state, common-tone retention, stepwise movement, stable Voice identity, crossing/leap penalties, strategy objectives, register-aware scoring hooks. Color/Rich используют допустимый Stage 4 материал для быстрой гармонизации базовых аккордов и учитывают естественное движение/разрешение голосов; Clean принимает явно записанные расширения и альтерации.
 
 ### Stage 7 → 0.7 — Instrument / Ensemble Profiles
 
@@ -300,7 +300,7 @@ Base Expression automation
 ## 12. NEXT ACTION
 
 ```text
-1. Установить пакет `Smart-Voicing-0.4g-Windows` из green Windows Build #446.
-2. Выполнить `docs/0.4g-HOST-CHECKLIST.md` в Studio Pro; до этого 0.4g остаётся candidate.
-3. Сохранить отдельную задачу на различие Clean/Color/Rich в Spread, начиная с G7 → Cm7 и мелодии на b7; не переопределять Stage 4 vocabulary.
+1. Проверить Cluster 0.4i в Studio Pro по `docs/0.4i-HOST-CHECKLIST.md` из Windows Build #460.
+2. Перед завершением Stage 5 провести общий Clean-тест всех войсингов по `docs/STAGE5-CLEAN-ACCEPTANCE.md` на явно заданных аккордах.
+3. В Stage 6 (#10) настраивать Color/Rich для быстрой гармонизации базовых аккордов вместе с Voice Leading, без переопределения Stage 4 vocabulary.
 ```
