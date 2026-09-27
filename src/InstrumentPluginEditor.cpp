@@ -22,7 +22,7 @@ constexpr std::array<VoicingType, 11> kVoicingOrder {
 
 const juce::Colour background { 0xff17191c }, surface { 0xff24272a },
     panel { 0xff292c2f }, border { 0xff404549 }, muted { 0xff95a0a4 },
-    accent { 0xff94c8d5 }, selected { 0xff35454b };
+    accent { 0xff94c8d5 };
 
 void drawSection(juce::Graphics& g, juce::Rectangle<float> bounds)
 {
@@ -164,12 +164,12 @@ void SmartVoicingChoiceButton::paintButton(juce::Graphics& g, bool highlighted, 
     const bool active = getToggleState();
     if (active || highlighted || down)
     {
-        g.setColour(active ? selected : panel.brighter(0.08f));
+        g.setColour(active ? activeRow : panel.brighter(0.08f));
         g.fillRoundedRectangle(bounds, 3.0f);
     }
 
     const auto alpha = isEnabled() ? 1.0f : 0.42f;
-    g.setColour((active ? accent : juce::Colour(0xff687377)).withMultipliedAlpha(alpha));
+    g.setColour((active ? activeIndicator : juce::Colour(0xff687377)).withMultipliedAlpha(alpha));
     g.drawEllipse(12.5f, bounds.getCentreY() - 5.5f, 11.0f, 11.0f, 1.3f);
     if (active)
         g.fillEllipse(15.8f, bounds.getCentreY() - 2.2f, 4.4f, 4.4f);
@@ -182,11 +182,11 @@ void SmartVoicingChoiceButton::paintButton(juce::Graphics& g, bool highlighted, 
     if (detail.isNotEmpty())
     {
         g.setColour(muted.withMultipliedAlpha(alpha));
-        g.setFont(juce::FontOptions(12.0f));
+        g.setFont(juce::FontOptions(14.0f));
         g.drawText(detail, 147, 0, getWidth() - 215, getHeight(),
                    juce::Justification::centredLeft);
     }
-    g.setColour((active ? accent : muted.darker(0.25f)).withMultipliedAlpha(alpha));
+    g.setColour((active ? activeIndicator : muted.darker(0.25f)).withMultipliedAlpha(alpha));
     g.setFont(juce::FontOptions(11.0f));
     g.drawText(midiLabel, getWidth() - 67, 0, 48, getHeight(),
                juce::Justification::centredRight);
@@ -202,7 +202,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
 
     vendorLabel.setText("Moon River Studio", juce::dontSendNotification);
     vendorLabel.setJustificationType(juce::Justification::centredRight);
-    vendorLabel.setFont(juce::FontOptions(11.0f));
+    vendorLabel.setFont(juce::FontOptions(14.0f));
     vendorLabel.setColour(juce::Label::textColourId, muted);
     addAndMakeVisible(vendorLabel);
 
@@ -271,6 +271,10 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     {
         tensionButtons[i] = std::make_unique<SmartVoicingChoiceButton>(
             tensionNames[i], tensionKeys[i], tensionDetails[i]);
+        if (i == 1)
+            tensionButtons[i]->setActivePalette(juce::Colour(0xffe2a161), juce::Colour(0xff4a392d));
+        else if (i == 2)
+            tensionButtons[i]->setActivePalette(juce::Colour(0xffe06d68), juce::Colour(0xff4b3032));
         tensionButtons[i]->onClick = [this, i]
         {
             processor.setTensionLevel(static_cast<smartvoicing::harmony::TensionLevel>(i + 1));
@@ -349,7 +353,7 @@ SmartVoicingInstrumentEditor::~SmartVoicingInstrumentEditor()
 
 void SmartVoicingInstrumentEditor::updateDiagnosticsVisibility()
 {
-    diagnosticsButton.setButtonText(diagnosticsExpanded ? "▾  DIAGNOSTICS" : "▸  DIAGNOSTICS");
+    diagnosticsButton.setButtonText("DIAGNOSTICS");
 
     positionLabel.setVisible(diagnosticsExpanded);
     midiProbeTitleLabel.setVisible(diagnosticsExpanded);
@@ -376,6 +380,7 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.drawHorizontalLine(90, 27.0f, 1173.0f);
     g.setColour(accent);
     g.fillRoundedRectangle(51.0f, 43.0f, 4.0f, 29.0f, 2.0f);
+    g.fillEllipse(971.0f, 65.0f, 6.0f, 6.0f);
     drawCaption(g, "0.5  /  MIDI ARRANGER", 315, 46);
 
     drawCaption(g, juce::String::fromUTF8("ТЕКУЩИЙ КОНТЕКСТ"), 53, 105);
@@ -404,7 +409,14 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     drawCaption(g, "MIDI", 1090, 306, 48);
 
     drawSection(g, { 51.0f, 686.0f, 1098.0f, 35.0f });
-    drawCaption(g, "V1–V4  →  CH 1–4", 1000, 693, 130);
+    drawCaption(g, "V1-V4  >  CH 1-4", 995, 693, 135);
+    juce::Path diagnosticsArrow;
+    if (diagnosticsExpanded)
+        diagnosticsArrow.addTriangle(76.0f, 700.0f, 86.0f, 700.0f, 81.0f, 706.0f);
+    else
+        diagnosticsArrow.addTriangle(78.0f, 697.0f, 78.0f, 707.0f, 85.0f, 702.0f);
+    g.setColour(muted);
+    g.fillPath(diagnosticsArrow);
     if (diagnosticsExpanded)
         drawSection(g, { 51.0f, 735.0f, 1098.0f, 890.0f });
 }
@@ -412,8 +424,8 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
 void SmartVoicingInstrumentEditor::resized()
 {
     titleLabel.setBounds(69, 40, 242, 34);
-    vendorLabel.setBounds(953, 35, 191, 22);
-    bridgeLabel.setBounds(973, 57, 171, 25);
+    vendorLabel.setBounds(923, 32, 221, 27);
+    bridgeLabel.setBounds(983, 57, 161, 25);
     chordLabel.setBounds(74, 174, 215, 48);
     keyLabel.setBounds(326, 174, 235, 48);
     timeSignatureLabel.setBounds(595, 174, 230, 48);
@@ -428,7 +440,7 @@ void SmartVoicingInstrumentEditor::resized()
     harmonyModeBox.setBounds(611, 562, 516, 38);
     distributionModeLabel.setBounds(611, 610, 154, 28);
     distributionModeBox.setBounds(766, 611, 361, 28);
-    diagnosticsButton.setBounds(63, 689, 220, 29);
+    diagnosticsButton.setBounds(91, 689, 192, 29);
     if (! diagnosticsExpanded)
         return;
     positionLabel.setBounds(73, 750, 1050, 28);
@@ -520,7 +532,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
     timeSignatureLabel.setText(timeSignature, juce::dontSendNotification);
     tempoLabel.setText(tempo, juce::dontSendNotification);
 
-    juce::String bridgeText = context.connected ? "●  ARA CONNECTED" : "○  ARA WAITING";
+    juce::String bridgeText = context.connected ? "ARA CONNECTED" : "ARA WAITING";
     bridgeLabel.setText(bridgeText, juce::dontSendNotification);
 
     juce::String positionText;

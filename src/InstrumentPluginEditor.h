@@ -14,9 +14,16 @@ public:
         : juce::TextButton(name), midiLabel(midi), detail(description) {}
 
     void paintButton(juce::Graphics&, bool highlighted, bool down) override;
+    void setActivePalette(juce::Colour indicator, juce::Colour row)
+    {
+        activeIndicator = indicator;
+        activeRow = row;
+    }
 
 private:
     juce::String midiLabel, detail;
+    juce::Colour activeIndicator { 0xff94c8d5 };
+    juce::Colour activeRow { 0xff35454b };
 };
 
 class SmartVoicingInstrumentEditor final : public juce::AudioProcessorEditor,
