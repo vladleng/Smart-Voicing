@@ -883,6 +883,19 @@ Workflow for committing/generated voices into editable DAW MIDI.
 
 Optimization, Panic, hardening, final UI, full regression.
 
+### Stage 12 — Drum Patterns (post-1.0) → [Issue #40](https://github.com/vladleng/Smart-Voicing/issues/40)
+
+Самостоятельный режим для барабанных MIDI-паттернов рядом с Direct Router и Melody Harmonize. Он использует транспорт/темп DAW и MIDI output, но не пропускает барабаны через гармонический VoicingStrategy или VoiceOutput[4].
+
+- Настраиваемые Pattern Slots на клавишах: groove, variation, fill, ending. Белые клавиши для groove, чёрные для fill — стартовая раскладка, а не жёсткое MIDI правило.
+- Kit Profile задаёт MIDI note mapping целевого инструмента; Style/Pattern Set задаёт музыкальный набор. Назначения, профиль, стиль и настройки запуска сохраняются с проектом.
+- Импорт MIDI в слот, drag-and-drop из поддерживаемых DAW/файла, перенос MIDI из слота обратно на дорожку или экспорт в файл; конкретные drag операции проверяются по возможностям host (#4).
+- Quantized switching по доле/такту, fill → groove, корректный stop/seek/Note Off и детерминированное воспроизведение.
+- Запись на выбранную MIDI дорожку через routing и record arm DAW, с Capture/fallback из Stage 10 (#13) при ограничениях host. Плагин не предполагает прямого доступа к произвольной дорожке DAW.
+- Карта drum slots действует в Drum Patterns; глобальные кейсвичи 32–47 не должны случайно запускать паттерны и существующее состояние проектов остаётся совместимым.
+
+Версию для реализации определить при старте Stage 12. Stage 11 остаётся checkpoint 1.0, нумерация предыдущих этапов не меняется.
+
 ### Future arranger layers
 
 - Melodic Context Engine: approach/passing notes and Independent Lead;
