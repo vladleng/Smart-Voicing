@@ -555,6 +555,116 @@ void testBoundedClosedAndDropContinuity()
             }
 }
 
+void testClosedHistoryRespectsUpperSpacingAndStructuralBass()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7OverE = normalizeChord(chord(0, 4,
+        {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+
+    // The score comparison exposed B3-C3 (11 semitones) in a four-way Closed.
+    // This fixture deliberately offers a low previous V2 so motion ranking
+    // would be tempted to open the upper gap.
+    VoiceLeadingState previous;
+    VoiceOutput previousSounding;
+    const std::array<int, kVoiceCount> starting { 55, 48, 43, 40 };
+    for (int i = 0; i < kVoiceCount; ++i)
+        previousSounding.voices[static_cast<std::size_t>(i)] = {
+            true, starting[static_cast<std::size_t>(i)]
+        };
+    previous.commit(previousSounding);
+    auto current = makeContext(cmaj7OverE, cMajor, 59, TensionLevel::clean);
+    const auto staticVoicing = buildVoicing(59, VoicingType::closed, current);
+    current.voiceLeading = &previous;
+    const auto optimized = buildVoicing(59, VoicingType::closed, current);
+    const auto staticGap = staticVoicing.voices[0].midiNote
+                         - staticVoicing.voices[1].midiNote;
+    const auto allowedGap = staticGap > 7 ? staticGap : 7;
+    expect(optimized.voices[0].midiNote - optimized.voices[1].midiNote <= allowedGap,
+           "history cannot open Closed upper-support gap to an exposed seventh");
+    expect(optimized.voices[3].midiNote % 12 == cmaj7OverE.bassPitchClass,
+           "Cmaj7/E explicit E bass stays lowest");
+    expect(optimized.voices[0].midiNote == 59, "Cmaj7/E keeps performer B3");
+}
+
+void testClosedHistoryDoesNotReplaceStructuralBassWithFlatNinth()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    for (const auto annotation : { 9, 255 })
+    {
+        // G7(b9) is an explicit chromatic extension even when the ARA source
+        // supplies generic-used instead of the explicit ninth degree marker.
+        const auto g7b9 = normalizeChord(chord(1, 1,
+            {{0, 1}, {1, annotation}, {4, 3}, {7, 5}, {10, 7}}));
+        auto current = makeContext(g7b9, cMajor, 56, TensionLevel::clean);
+        const auto staticVoicing = buildVoicing(56, VoicingType::closed, current);
+
+        VoiceLeadingState previous;
+        VoiceOutput previousSounding;
+        const std::array<int, kVoiceCount> prior { 60, 55, 50, 43 };
+        for (int i = 0; i < kVoiceCount; ++i)
+            previousSounding.voices[static_cast<std::size_t>(i)] = {
+                true, prior[static_cast<std::size_t>(i)]
+            };
+        previous.commit(previousSounding);
+        current.voiceLeading = &previous;
+        const auto result = buildVoicing(56, VoicingType::closed, current);
+        const int flatNinthPitchClass = (g7b9.rootPitchClass + 1) % 12;
+        if (staticVoicing.voices[3].active
+            && staticVoicing.voices[3].midiNote % 12 != flatNinthPitchClass)
+            expect(result.voices[3].midiNote % 12 != flatNinthPitchClass,
+                   "Flat ninth must not displace structural Closed bass");
+        expect(result.voices[0].midiNote == 56, "G7b9 keeps Ab3 melody");
+        bool foundThird = false, foundSeventh = false;
+        for (const auto& slot : result.voices)
+        {
+            if (! slot.active)
+                continue;
+            foundThird = foundThird || slot.midiNote % 12 == 11;
+            foundSeventh = foundSeventh || slot.midiNote % 12 == 5;
+        }
+        expect(foundThird && foundSeventh, "G7b9 must keep B and F guide tones");
+    }
+}
+
+void testClosedCleanRetainsNaturalThirteenthAndSlashBassRange()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto c7add13 = normalizeChord(chord(0, 0,
+        {{0, 1}, {4, 3}, {7, 5}, {10, 7}, {9, 13}}));
+    VoiceLeadingState previous;
+    VoiceOutput prior;
+    const std::array<int, kVoiceCount> last { 58, 55, 52, 48 };
+    for (int i = 0; i < kVoiceCount; ++i)
+        prior.voices[static_cast<std::size_t>(i)] = {
+            true, last[static_cast<std::size_t>(i)]
+        };
+    previous.commit(prior);
+    auto current = makeContext(c7add13, cMajor, 58, TensionLevel::clean);
+    const auto baseline = buildVoicing(58, VoicingType::closed, current);
+    current.voiceLeading = &previous;
+    const auto ranked = buildVoicing(58, VoicingType::closed, current);
+    bool written13Baseline = false, written13Ranked = false;
+    for (const auto& voice : baseline.voices)
+        written13Baseline = written13Baseline
+            || (voice.active && voice.midiNote % 12 == 9);
+    for (const auto& voice : ranked.voices)
+        written13Ranked = written13Ranked
+            || (voice.active && voice.midiNote % 12 == 9);
+    expect(! written13Baseline || written13Ranked,
+           "natural written thirteenth remains available under bass protection");
+
+    const auto slash = normalizeChord(chord(0, 1,
+        {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    auto slashContext = makeContext(slash, cMajor, 64, TensionLevel::clean);
+    slashContext.voiceLeading = &previous;
+    const auto rankedSlash = buildVoicing(64, VoicingType::closed, slashContext);
+    expect(rankedSlash.voices[3].active
+           && rankedSlash.voices[3].midiNote % 12 == slash.bassPitchClass,
+           "Cmaj7/G bass identity survives melody at E4");
+    // E4 MIDI64 - G2 MIDI43 = 21, within the 24-semitone search depth.
+    expect(64 - 43 == 21, "E4 to G2 is 21 semitones, not >24");
+}
+
 }
 
 int main()
@@ -580,6 +690,9 @@ int main()
     testVoiceLeadingAcrossEightHarmonicStrategies();
     testVoiceLeadingCanActuallyChangeClosedCandidate();
     testBoundedClosedAndDropContinuity();
+    testClosedHistoryRespectsUpperSpacingAndStructuralBass();
+    testClosedHistoryDoesNotReplaceStructuralBassWithFlatNinth();
+    testClosedCleanRetainsNaturalThirteenthAndSlashBassRange();
 
     if (failures != 0)
     {

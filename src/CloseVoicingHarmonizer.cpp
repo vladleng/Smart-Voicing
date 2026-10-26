@@ -541,6 +541,74 @@ bool preservesStaticHarmonicIdentity(const std::array<int, kVoiceCount>& notes,
     return true;
 }
 
+// Bass anchoring is part of Closed style: a chromatically altered extension
+// should not replace a usable structural V4 merely to make the previous-to-
+// current movement shorter. Natural 9/11/13 are NOT globally banned here.
+// Explicit degree markers are sometimes unavailable from ARA, so recognized
+// dominant b9/#9 pitch classes also honor generic-used interval annotations.
+bool isChromaticallyAlteredExtension(int midiNote,
+                                     const NormalizedChord& chord) noexcept
+{
+    if (midiNote < 0 || midiNote > 127)
+        return false;
+
+    const auto relative = relativeToChordRoot(midiNote, chord);
+    if (! chord.hasTone(relative))
+        return false;
+
+    if (relative == 1)
+        return chord.hasAlteration(ChordAlteration::flatNinth)
+            || chord.quality == ChordQuality::dominant;
+    if (relative == 3)
+        return chord.hasAlteration(ChordAlteration::sharpNinth)
+            || chord.quality == ChordQuality::dominant;
+    if (relative == 6)
+        return chord.hasAlteration(ChordAlteration::sharpEleventh);
+    if (relative == 8)
+        return chord.hasAlteration(ChordAlteration::flatThirteenth);
+    return false;
+}
+
+bool preservesClosedSupportingVoice(const std::array<int, kVoiceCount>& candidate,
+                                    const std::array<int, kVoiceCount>& reference,
+                                    const NormalizedChord& chord,
+                                    const ClosedVoicingContext& context) noexcept
+{
+    // The first Closed candidate was already accepted by the vertical engine.
+    // Do not turn a compact upper third/fourth into an exposed seventh merely
+    // because the resulting V2 is closer to its previous note.
+    const int referenceUpperGap = reference[0] - reference[1];
+    const int allowedUpperGap = referenceUpperGap > 7 ? referenceUpperGap : 7;
+    if (candidate[0] - candidate[1] > allowedUpperGap)
+        return false;
+
+    // Compare sounding bass for Drop variants, not their pre-drop Closed source.
+    VoiceOutput staticSounding, candidateSounding;
+    for (int voice = 0; voice < kVoiceCount; ++voice)
+    {
+        staticSounding.voices[static_cast<std::size_t>(voice)] = {
+            true, reference[static_cast<std::size_t>(voice)]
+        };
+        candidateSounding.voices[static_cast<std::size_t>(voice)] = {
+            true, candidate[static_cast<std::size_t>(voice)]
+        };
+    }
+    if (context.voiceLeadingTransform != nullptr)
+    {
+        staticSounding = context.voiceLeadingTransform(staticSounding, chord);
+        candidateSounding = context.voiceLeadingTransform(candidateSounding, chord);
+    }
+
+    const int oldBass = staticSounding.voices[3].midiNote;
+    const int newBass = candidateSounding.voices[3].midiNote;
+    if (! chord.slashBass
+        && ! isChromaticallyAlteredExtension(oldBass, chord)
+        && isChromaticallyAlteredExtension(newBass, chord))
+        return false;
+
+    return true;
+}
+
 int nearestChordToneBelow(int upperExclusive,
                           const NormalizedChord& chord) noexcept
 {
@@ -666,7 +734,9 @@ VoiceOutput buildClosedVoicing(int melodyNote,
                     }
 
                     if (verticalScore > bestVerticalScore + kMaximumVerticalScoreLoss
-                        || ! preservesStaticHarmonicIdentity(candidate, staticBest, chord))
+                        || ! preservesStaticHarmonicIdentity(candidate, staticBest, chord)
+                        || ! preservesClosedSupportingVoice(candidate, staticBest,
+                                                           chord, resolvedContext))
                         continue;
 
                     VoiceOutput sounding;
@@ -696,8 +766,6 @@ VoiceOutput buildClosedVoicing(int melodyNote,
         return fallbackTopDown(melodyNote, chord);
     if (hasHistory)
         search(true);
-
-
 
     for (int voice = 0; voice < kVoiceCount; ++voice)
     {

@@ -27,15 +27,26 @@ measurement; MIDI-per-channel exports are preferred for quantitative proof.
 
 ## Important constraint
 
-The G2 -> G3 leap under Cmaj7/G at a high E4 melody can be unavoidable in
-Closed: G2 lies over 24 semitones below E4, outside the search depth. Do not
-claim to fix physically excluded candidates by increasing movement weight.
+Correction to the previous wording: E4=MIDI64 and G2=MIDI43, so the G2
+alternative lies **21 semitones** below the melody, *inside* the existing
+24-semitone search depth. It can nevertheless lose because a G2 bass greatly
+widens the Closed vertical (strong total-span penalty) and the history search
+permits only 14 points of static-score loss. Retaining G2 is not automatically
+the more musical Closed voicing; do not call this a fixed defect without
+testing viable competing verticals.
 
 ## Acceptance
 
 - [x] Unit tests distinguish small motion, a single leap and multiple leaps.
 - [x] Host-neutral progression regression for Closed + three Drop variants.
-- [ ] Windows VST3/ARA build and full CTest success.
+- [x] Guard against exposed V1–V2 seventh in Closed if a compact reference
+      exists; direct Cmaj7/E regression.
+- [x] Guard against moving a chromatically altered extension (including
+      generic-annotated dominant b9) into sounding V4 when the reference
+      carries a structural bass; retain unaltered written thirteenths.
+- [x] Reconcile correct 21-semitone E4–G2 interval in Cmaj7/G analysis.
+- [x] Initial #503 Windows VST3/ARA build and full CTest success.
+- [ ] CI verification of the revised harmonic guardrails (next build).
 - [ ] Confirm Instrument top caption, MIDI Engine heading, diagnostics and
       ARA editor all display **0.5b** from generated build version.
 - [ ] Confirm VST3 host metadata reports numerical version **0.5.2**
@@ -47,3 +58,21 @@ claim to fix physically excluded candidates by increasing movement weight.
 
 After this slice, extend strategy-specific continuity to Spread, Quartal,
 UST and Cluster, then handle Color/Rich directed resolutions in 0.5c.
+
+## Musical audit from 0.5b screenshots (pre-guardrail)
+
+- Bar 4 C7#11: improved inner movement, with characteristic #11 and 3/7 retained.
+- Bar 6 Cmaj7/E: B3-C3 (11-semitone exposed upper gap), and worse
+  neighboring exit. New guard forbids upper gap > max(7, reference gap).
+- Bar 8 G7b9: rootless V4 Ab2 duplicated the Ab3 melody, replacing the
+  structural bass. New guard keeps the lower alteration out unless the
+  vertical baseline itself already calls for it. Explicit written A/13 remains
+  legal in V4; chromatically altered b9 is a different role.
+- Bar 28 Db7b13: changes are largely neutral across surrounding motion.
+- Cmaj7/G (last bar): independent task; see corrected range note above.
+
+The present architecture knows previous sounding Voice slots but cannot see
+the *future played melody note*. Hence the upper-gap protection addresses
+a known undesirable musical state without falsely claiming a future-aware
+two-sided optimization. A true next-melody lookahead, if available from
+the host, belongs to a separately specified enhancement, not this patch.
