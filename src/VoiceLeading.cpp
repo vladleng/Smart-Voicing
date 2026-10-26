@@ -131,3 +131,4 @@ VoiceLeadingScore evaluateVoiceLeading(const VoiceOutput& candidate,
 
     return score;
 }
+} // namespace smartvoicing::harmony
