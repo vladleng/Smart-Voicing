@@ -700,6 +700,7 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     activeMelodyInputNote = melodyNote;
     activeMelodyVelocity = routedVelocity;
     activeMelodyVoicing = voicing;
+    voiceLeadingState.commit(voicing);
     heldDistinctNoteCount = 1;
     stableOwnership = getActiveVoiceCount() > 0;
     heldNoteCountForUi.store(1, std::memory_order_relaxed);
@@ -748,6 +749,7 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
     }
 
     activeMelodyVoicing = desired;
+    voiceLeadingState.commit(desired);
     stableOwnership = getActiveVoiceCount() > 0;
     stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
     reharmonizationCountForUi.fetch_add(1, std::memory_order_relaxed);
@@ -1433,6 +1435,7 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
     activeMelodyInputNote = -1;
     activeMelodyVelocity = 0;
     activeMelodyVoicing.clear();
+    voiceLeadingState.reset();
     melodyGate.reset();
     sustainDown = false;
     stableOwnership = false;
