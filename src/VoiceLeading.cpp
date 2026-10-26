@@ -131,4 +131,36 @@ VoiceLeadingScore evaluateVoiceLeading(const VoiceOutput& candidate,
 
     return score;
 }
+int voiceLeadingAdjustment(const VoiceOutput& candidate,
+                           const VoiceLeadingState* state) noexcept
+{
+    if (state == nullptr || ! state->hasPrevious())
+        return 0;
+
+    const auto motion = evaluateVoiceLeading(candidate, *state);
+    if (! motion.valid)
+        return 10; // never offer an invalid candidate any continuity reward
+
+    // Bounded by ten vertical-score points: continuity breaks near-ties,
+    // but never becomes a replacement for Stage 4/5 harmonic correctness.
+    const auto adjusted = (motion.cost + 3) / 6;
+    return adjusted < 10 ? adjusted : 10;
+}
+
+int voiceLeadingAdjustment(const std::array<int, kVoiceCount>& notes,
+                           const VoiceLeadingState* state) noexcept
+{
+    if (state == nullptr || ! state->hasPrevious())
+        return 0;
+
+    VoiceOutput candidate;
+    for (int index = 0; index < kVoiceCount; ++index)
+    {
+        const auto note = notes[static_cast<std::size_t>(index)];
+        if (note >= 0 && note <= 127)
+            candidate.voices[static_cast<std::size_t>(index)] = { true, note };
+    }
+    return voiceLeadingAdjustment(candidate, state);
+}
+
 } // namespace smartvoicing::harmony
