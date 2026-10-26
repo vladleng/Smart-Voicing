@@ -18,6 +18,7 @@ ClosedVoicingContext closedContextFrom(const VoicingContext& context) noexcept
     result.harmonic = context.harmonic;
     result.tension = context.tension;
     result.tensionLevel = context.tensionLevel;
+    result.voiceLeading = context.voiceLeading;
     return result;
 }
 
@@ -242,9 +243,16 @@ VoiceOutput buildVoicing(int melodyNote,
 
     // Closed is selected exactly once. Drop-family strategies transform this
     // material and therefore cannot silently choose a different tension set.
-    const auto closed = buildClosedVoicing(melodyNote,
-                                           context.chord,
-                                           closedContextFrom(context));
+    auto closedContext = closedContextFrom(context);
+    // Drop-family ranks the actual post-transform V2..V4 continuity, while
+    // the accepted Stage 5 vertical still selects legal Closed chord tones.
+    if (type == VoicingType::drop2)
+        closedContext.voiceLeadingTransform = transformClosedToDrop2;
+    else if (type == VoicingType::drop3)
+        closedContext.voiceLeadingTransform = transformClosedToDrop3;
+    else if (type == VoicingType::drop24)
+        closedContext.voiceLeadingTransform = transformClosedToDrop24;
+    const auto closed = buildClosedVoicing(melodyNote, context.chord, closedContext);
 
     switch (type)
     {
