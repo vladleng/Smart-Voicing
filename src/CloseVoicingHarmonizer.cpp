@@ -607,10 +607,28 @@ VoiceOutput buildClosedVoicing(int melodyNote,
                 }
 
                 const std::array<int, kVoiceCount> candidate { melodyNote, v2, v3, v4 };
-                const auto score = scoreClosedCandidate(candidate, chord, resolvedContext);
-                if (score < bestScore)
+                const auto verticalScore = scoreClosedCandidate(candidate, chord, resolvedContext);
+                if (verticalScore == kInvalidScore)
+                    continue;
+
+                int continuityScore = 0;
+                if (resolvedContext.voiceLeading != nullptr
+                    && resolvedContext.voiceLeading->hasPrevious())
                 {
-                    bestScore = score;
+                    VoiceOutput sounding;
+                    for (int index = 0; index < kVoiceCount; ++index)
+                        sounding.voices[static_cast<std::size_t>(index)] = {
+                            true, candidate[static_cast<std::size_t>(index)]
+                        };
+
+                    if (resolvedContext.voiceLeadingTransform != nullptr)
+                        sounding = resolvedContext.voiceLeadingTransform(sounding, chord);
+                    continuityScore = voiceLeadingAdjustment(sounding, resolvedContext.voiceLeading);
+                }
+                const auto combinedScore = verticalScore + continuityScore;
+                if (combinedScore < bestScore)
+                {
+                    bestScore = combinedScore;
                     bestNotes = candidate;
                 }
             }
