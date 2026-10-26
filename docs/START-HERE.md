@@ -5,9 +5,9 @@
 ## Checkpoint
 
 ```text
-Stable:          0.5 — Stage 5 Jazz Voicing Engine complete
-Current:         Stage 6 / #10 — 0.5a in development, draft PR #41
-Next stable:     Voice Leading + Color/Rich refinement → 0.6
+Accepted:        0.5a — Stage 6 initial audible Voice Leading (PR #41 merged)
+Next:            Stage 6 / #10 — 0.5b independent Voice lines / strategy-aware continuity
+Later:           0.5c functional Color/Rich → 0.5d regressions → 0.6 stable
 Reference host:  Studio Pro
 Stage 5 issue:   #9
 Stage 5 PR chain: #38 → #37 → #30 → main
@@ -41,12 +41,14 @@ MIDI note numbers являются контрактом; названия окт
 
 UI, saved project state и keyswitch меняют один state. Контрольные MIDI-ноты не проходят в записываемые партии. Sound Variations — отображение host, а не отдельная логика. Подробнее: [`STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md`](STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md).
 
-## 0.5a work in progress — 2026-10-26
+## 0.5a accepted — 2026-10-26
 
-The Harma Waves UI was explicitly accepted and PR #39 merged into `main` on 2026-10-26. Stage 6 foundation is being developed in [PR #41](https://github.com/vladleng/Smart-Voicing/pull/41): fixed-size previous Voice state, deterministic motion scoring, live history hook, and dedicated Voice Leading CTest. The branch is not a stable release; candidate re-ranking and audible voice-leading remain incomplete. See [Issue #10](https://github.com/vladleng/Smart-Voicing/issues/10) and `TEST-0.5a.md` in the PR branch.
+The Harma Waves UI PR #39 and the first audible Voice Leading PR #41 have both been accepted and merged into `main`. 0.5a introduced fixed-size previous Voice state, movement scoring, realtime history, and **bounded continuity-aware candidate selection** across the eight harmonic strategies (Closed, Drop 2/3/2+4, Spread, Quartal, UST, Cluster). The melodic section textures Unison/Octaves/Doubling remain fixed. User reported smoother transitions and explicitly approved 0.5a; [Windows Build #498](https://github.com/vladleng/Smart-Voicing/actions/runs/40284729445) passed compilation, CTest, package and artifact upload. Merge: `fc998f2fc609d0c67a8bc86040ffe67aced4a68f`.
+
+This was listening acceptance of the core improvement, not proof that every sustain/seek/legato/keyswitch edge case passed independently. See [Issue #10](https://github.com/vladleng/Smart-Voicing/issues/10) and [TEST-0.5a.md](TEST-0.5a.md). Plugin IDs, JUCE package identities and old project save-state remain unchanged; artifact package is named Smart Voicing 0.5a.
 
 ## Следующая работа
 
-Stage 6 / #10: previous Voice state, common tones, stepwise motion, сохранение личности каждого Voice, crossing/leap penalties и strategy-specific continuity. Color/Rich выбирают из Stage 4 candidate pool и учитывают реальный target. Низкие регистры конкретных инструментов — Stage 7. Интервальные и тембровые нюансы Drop/Quartal/Cluster, перечисленные в Clean review, можно уточнять на соответствующем этапе без переоткрытия принятой вертикальной основы.
+Stage 6 / #10, next **0.5b**: усилить independent Voice identity/voice crossing/leap penalties и strategy-specific continuity для каждой формы, сохранить guide tones и оценивать переходы через Chord Track; включить регрессии sustain/legato/keyswitch и тесты major/minor II–V–I, Bbmaj7→A7, хроматической прогрессии. Затем **0.5c**: Color/Rich и functional tendency-tone resolutions; **0.5d**: расширенные host/MIDI/RT-regressions; **0.6**: итоговая приёмка Stage 6. Низкие регистры конкретных инструментов — Stage 7. Интервальные и тембровые нюансы Drop/Quartal/Cluster, перечисленные в Clean review, можно уточнять на соответствующем этапе без переоткрытия принятой вертикальной основы.
 
 Guardrails: MIDI 0–127, неизменная V1, не более четырёх слышимых голосов, bounded realtime search, без mutex/file I/O/dynamic allocation в audio callback. Одинаковый полный вход и состояние дают одинаковый результат. Музыкальные изменения сопровождать конкретной регрессией, затем CI и Studio Pro host check. Детали — [`MUSICAL-ENGINE-GUARDRAILS.md`](MUSICAL-ENGINE-GUARDRAILS.md) и [`CHAT-HANDOFF-RULE.md`](CHAT-HANDOFF-RULE.md).
