@@ -1,5 +1,6 @@
 #pragma once
 #include "HarmonicContext.h"
+#include <array>
 
 namespace smartvoicing::harmony
 {
@@ -30,4 +31,12 @@ struct VoiceLeadingScore
 // Does not rewrite V1 or any notes. Fixed-size, allocation-free, deterministic.
 VoiceLeadingScore evaluateVoiceLeading(const VoiceOutput& candidate,
                                       const VoiceLeadingState& state) noexcept;
+
+// Small bounded additive tie-break (0..10) for already legal Stage 5 verticals.
+// A zero score means same V2..V4; no history preserves exact 0.5 behavior.
+// 0.5a deliberately makes the musical vertical score dominant over smoothness.
+int voiceLeadingAdjustment(const VoiceOutput& candidate,
+                           const VoiceLeadingState* state) noexcept;
+int voiceLeadingAdjustment(const std::array<int, kVoiceCount>& notes,
+                           const VoiceLeadingState* state) noexcept;
 }
