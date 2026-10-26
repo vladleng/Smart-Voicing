@@ -91,6 +91,8 @@ target_sources(SmartVoicing
         src/ClusterVoicing.h
         src/LiveReharmonizer.cpp
         src/LiveReharmonizer.h
+        src/VoiceLeading.cpp
+        src/VoiceLeading.h
         src/ARAContextProvider.cpp
         src/ARAContextProvider.h
         src/InstrumentPluginProcessor.cpp
@@ -468,7 +470,43 @@ add_executable(SmartVoicingTensionPolicyTests
 target_include_directories(SmartVoicingTensionPolicyTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_features(SmartVoicingTensionPolicyTests PRIVATE cxx_std_20)
 
+add_executable(SmartVoicingVoiceLeadingTests
+    tests/VoiceLeadingTests.cpp
+    src/VoiceLeading.cpp
+    src/VoiceLeading.h
+    src/HarmonicContext.h
+)
+
+target_include_directories(SmartVoicingVoiceLeadingTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_features(SmartVoicingVoiceLeadingTests PRIVATE cxx_std_20)
+
+# Every host-neutral strategy executable that links candidate search must
+# include the pure Stage 6 continuity implementation. The first build linked it
+# only in the plugin; this keeps all older Stage 5 CTest targets linkable.
+foreach(test_target
+    SmartVoicingHarmonizerTests
+    SmartVoicingVoicingStrategyTests
+    SmartVoicingDrop3StrategyTests
+    SmartVoicingDrop24StrategyTests
+    SmartVoicingSpreadStrategyTests
+    SmartVoicingQuartalStrategyTests
+    SmartVoicingUpperStructureTriadTests
+    SmartVoicingClusterStrategyTests
+    SmartVoicingTensionKeyswitchTests
+    SmartVoicingVoicingKeyswitchTests
+    SmartVoicingHarmonyModeKeyswitchTests
+    SmartVoicingLiveReharmonizerTests
+    SmartVoicingKeyAwareTests
+    SmartVoicingTensionPolicyTests
+)
+    target_sources(${test_target} PRIVATE
+        src/VoiceLeading.cpp
+        src/VoiceLeading.h
+    )
+endforeach()
+
 if(MSVC)
+    target_compile_options(SmartVoicingVoiceLeadingTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingCoreTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingHarmonizerTests PRIVATE /utf-8)
     target_compile_options(SmartVoicingVoicingStrategyTests PRIVATE /utf-8)
@@ -501,3 +539,4 @@ add_test(NAME SmartVoicingHarmonyModeKeyswitchTests COMMAND SmartVoicingHarmonyM
 add_test(NAME SmartVoicingLiveReharmonizerTests COMMAND SmartVoicingLiveReharmonizerTests)
 add_test(NAME SmartVoicingKeyAwareTests COMMAND SmartVoicingKeyAwareTests)
 add_test(NAME SmartVoicingTensionPolicyTests COMMAND SmartVoicingTensionPolicyTests)
+add_test(NAME SmartVoicingVoiceLeadingTests COMMAND SmartVoicingVoiceLeadingTests)

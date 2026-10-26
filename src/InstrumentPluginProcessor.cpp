@@ -255,7 +255,10 @@ void SmartVoicingInstrumentProcessor::processBlock(juce::AudioBuffer<float>& buf
         static_cast<int>(smartvoicing::harmony::VoicingType::closed),
         static_cast<int>(smartvoicing::harmony::VoicingType::cluster),
         requestedVoicingType.load(std::memory_order_relaxed));
-    activeVoicingType = static_cast<smartvoicing::harmony::VoicingType>(requestedVoicingValue);
+    const auto newVoicingType = static_cast<smartvoicing::harmony::VoicingType>(requestedVoicingValue);
+    if (newVoicingType != activeVoicingType)
+        voiceLeadingState.reset(); // no continuity penalty across unlike textures
+    activeVoicingType = newVoicingType;
 
     const auto requestedTensionValue = juce::jlimit(
         static_cast<int>(smartvoicing::harmony::TensionLevel::clean),
@@ -548,6 +551,8 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
                     if (smartvoicing::harmony::voicingTypeFromKeyswitch(note, voicingType))
                     {
                         const auto changed = voicingType != activeVoicingType;
+                        if (changed)
+                            voiceLeadingState.reset();
                         activeVoicingType = voicingType;
                         requestedVoicingType.store(static_cast<int>(voicingType), std::memory_order_release);
                         pendingVoicingRefresh = pendingVoicingRefresh || changed;
@@ -645,6 +650,7 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
     auto voicingContext = buildVoicingContext(harmonicContextProvider, context, chord, ppq, melodyNote);
     voicingContext.tensionLevel = activeTensionLevel;
+    voicingContext.voiceLeading = &voiceLeadingState;
     const auto voicing = smartvoicing::harmony::buildVoicing(
         melodyNote, activeVoicingType, voicingContext);
     const auto routedVelocity = juce::jlimit(1, 127, velocity);
@@ -700,6 +706,7 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     activeMelodyInputNote = melodyNote;
     activeMelodyVelocity = routedVelocity;
     activeMelodyVoicing = voicing;
+    voiceLeadingState.commit(voicing);
     heldDistinctNoteCount = 1;
     stableOwnership = getActiveVoiceCount() > 0;
     heldNoteCountForUi.store(1, std::memory_order_relaxed);
@@ -720,6 +727,7 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
     auto voicingContext = buildVoicingContext(
         harmonicContextProvider, context, chord, ppq, activeMelodyInputNote);
     voicingContext.tensionLevel = activeTensionLevel;
+    voicingContext.voiceLeading = &voiceLeadingState;
     const auto desired = smartvoicing::harmony::buildVoicing(
         activeMelodyInputNote, activeVoicingType, voicingContext);
     const auto plan = smartvoicing::harmony::planLowerVoiceReharmonization(activeMelodyVoicing, desired);
@@ -748,6 +756,7 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
     }
 
     activeMelodyVoicing = desired;
+    voiceLeadingState.commit(desired);
     stableOwnership = getActiveVoiceCount() > 0;
     stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
     reharmonizationCountForUi.fetch_add(1, std::memory_order_relaxed);
@@ -1433,6 +1442,7 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
     activeMelodyInputNote = -1;
     activeMelodyVelocity = 0;
     activeMelodyVoicing.clear();
+    voiceLeadingState.reset();
     melodyGate.reset();
     sustainDown = false;
     stableOwnership = false;

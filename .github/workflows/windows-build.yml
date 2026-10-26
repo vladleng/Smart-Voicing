@@ -1,5 +1,10 @@
 name: Windows Build
 
+# Keep only the newest push build for each development branch.
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -11,13 +16,14 @@ on:
       - stage-5-ust-0.4h
       - stage-5-cluster-0.4i
       - stage-5-ui-harma-waves
+      - stage-6-voice-leading-0.5a
 
 jobs:
   build:
     runs-on: windows-latest
 
     env:
-      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.5"
+      SMART_VOICING_PACKAGE_NAME: "Smart Voicing 0.5a"
 
     steps:
       - name: Checkout
@@ -27,7 +33,7 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
-        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingVoicingStrategyTests SmartVoicingDrop3StrategyTests SmartVoicingDrop24StrategyTests SmartVoicingSpreadStrategyTests SmartVoicingQuartalStrategyTests SmartVoicingUpperStructureTriadTests SmartVoicingClusterStrategyTests SmartVoicingTensionKeyswitchTests SmartVoicingVoicingKeyswitchTests SmartVoicingHarmonyModeKeyswitchTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests SmartVoicingTensionPolicyTests --parallel 2
+        run: cmake --build build --config Release --target SmartVoicing_VST3 SmartVoicingARA_VST3 SmartVoicingCoreTests SmartVoicingHarmonizerTests SmartVoicingVoicingStrategyTests SmartVoicingDrop3StrategyTests SmartVoicingDrop24StrategyTests SmartVoicingSpreadStrategyTests SmartVoicingQuartalStrategyTests SmartVoicingUpperStructureTriadTests SmartVoicingClusterStrategyTests SmartVoicingTensionKeyswitchTests SmartVoicingVoicingKeyswitchTests SmartVoicingHarmonyModeKeyswitchTests SmartVoicingLiveReharmonizerTests SmartVoicingKeyAwareTests SmartVoicingTensionPolicyTests SmartVoicingVoiceLeadingTests --parallel 2
 
       - name: Test Harmony Core
         run: ctest --test-dir build -C Release --output-on-failure
@@ -44,5 +50,6 @@ jobs:
       - name: Upload VST3 package
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Voicing-0.5-Windows
+          name: Smart-Voicing-0.5a-Windows
           path: "package"
+          retention-days: 7

@@ -219,7 +219,8 @@ VoiceOutput buildSpreadVoicing(int melodyNote, const VoicingContext& context) no
             if (! candidate(v2, context))
                 continue;
             const std::array<int, 4> notes { melodyNote, v2, v3, bass };
-            const auto current = score(notes, context);
+            const auto current = score(notes, context)
+                               + voiceLeadingAdjustment(notes, context.voiceLeading);
             if (current < best) // first ascending candidate wins deterministic ties
             {
                 best = current;
