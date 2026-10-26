@@ -222,7 +222,8 @@ VoiceOutput buildUpperStructureTriadVoicing(int melodyNote,
                         else if (!context.chord.hasTone(relative(v4,context.chord)))
                             continue;
                         const std::array<int,4> notes { melodyNote,v2,v3,v4 };
-                        const int cost=score(notes,triad,context);
+                        const int cost=score(notes,triad,context)
+                            +voiceLeadingAdjustment(notes,context.voiceLeading);
                         if (cost<best)
                         {
                             best=cost;
