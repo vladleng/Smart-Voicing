@@ -421,6 +421,91 @@ void testCleanPartialUstRetainsNamedThirteenth()
     expect(hasThirteenth, "C13 partial UST keeps named A/13");
     expect(hasThird, "C13 partial UST retains E/3 beside named A/13");
 }
+
+void testVoiceLeadingAcrossEightHarmonicStrategies()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto dm7 = normalizeChord(chord(2, 2, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+
+    const std::array<VoicingType, 8> types {
+        VoicingType::closed, VoicingType::drop2, VoicingType::drop3,
+        VoicingType::drop24, VoicingType::spread, VoicingType::quartal,
+        VoicingType::ust, VoicingType::cluster
+    };
+
+    for (const auto type : types)
+    {
+        auto initialContext = makeContext(cmaj7, cMajor, 76, TensionLevel::clean);
+        const auto initial = buildVoicing(76, type, initialContext);
+        VoiceLeadingState state;
+        state.commit(initial);
+
+        // Same vertical must not be re-generated differently solely because
+        // we remember the exactly sounding version.
+        initialContext.voiceLeading = &state;
+        const auto repeated = buildVoicing(76, type, initialContext);
+        expectSameVoicing(initial, repeated,
+                          std::string(voicingTypeName(type)) + " unchanged harmony");
+
+        const std::array<NormalizedChord, 3> progression { dm7, g7, cmaj7 };
+        const std::array<int, 3> melodyNotes { 74, 71, 72 };
+        for (std::size_t chordIndex = 0; chordIndex < progression.size(); ++chordIndex)
+        {
+            auto next = makeContext(progression[chordIndex], cMajor,
+                                    melodyNotes[chordIndex], TensionLevel::clean);
+            next.voiceLeading = &state;
+            const auto result = buildVoicing(melodyNotes[chordIndex], type, next);
+            expect(result.voices[0].active
+                       && result.voices[0].midiNote == melodyNotes[chordIndex],
+                   std::string(voicingTypeName(type)) + " performer melody stays immutable");
+            for (int voice = 1; voice < kVoiceCount; ++voice)
+            {
+                const auto& upper = result.voices[static_cast<std::size_t>(voice - 1)];
+                const auto& lower = result.voices[static_cast<std::size_t>(voice)];
+                if (upper.active && lower.active)
+                    expect(upper.midiNote >= lower.midiNote,
+                           std::string(voicingTypeName(type)) + " preserves sounding order");
+            }
+            state.commit(result);
+        }
+    }
+}
+
+void testVoiceLeadingCanActuallyChangeClosedCandidate()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto dm7 = normalizeChord(chord(2, 2, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+    bool changedOutput = false;
+
+    // Search representative melody registers. This is a test fixture search,
+    // never executed on the realtime audio thread.
+    for (int previousMelody = 64; previousMelody <= 79 && !changedOutput; ++previousMelody)
+    {
+        const auto oldContext = makeContext(cmaj7, cMajor, previousMelody,
+                                             TensionLevel::clean);
+        VoiceLeadingState previous;
+        previous.commit(buildVoicing(previousMelody, VoicingType::closed, oldContext));
+        if (!previous.hasPrevious())
+            continue;
+
+        for (int melody = 65; melody <= 78 && !changedOutput; ++melody)
+        {
+            auto next = makeContext(dm7, cMajor, melody, TensionLevel::clean);
+            const auto withoutHistory = buildVoicing(melody, VoicingType::closed, next);
+            next.voiceLeading = &previous;
+            const auto withHistory = buildVoicing(melody, VoicingType::closed, next);
+            for (int voice = 1; voice < kVoiceCount; ++voice)
+                changedOutput = changedOutput
+                    || withoutHistory.voices[static_cast<std::size_t>(voice)].midiNote
+                    != withHistory.voices[static_cast<std::size_t>(voice)].midiNote;
+        }
+    }
+    expect(changedOutput, "history must change an actual Closed voicing in a Cmaj7 -> Dm7 turn");
+}
+
 }
 
 int main()
@@ -443,6 +528,8 @@ int main()
     testVoicingTypeName();
     testCleanSlashMajorSeventhKeepsItsRoot();
     testCleanPartialUstRetainsNamedThirteenth();
+    testVoiceLeadingAcrossEightHarmonicStrategies();
+    testVoiceLeadingCanActuallyChangeClosedCandidate();
 
     if (failures != 0)
     {
