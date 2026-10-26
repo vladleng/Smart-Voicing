@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "ARAContextProvider.h"
 #include "LiveReharmonizer.h"
+#include "VoiceLeading.h"
 #include "TensionPolicy.h"
 #include "VoicingStrategy.h"
 
@@ -206,6 +207,7 @@ private:
     smartvoicing::harmony::VoicingType activeVoicingType = smartvoicing::harmony::VoicingType::closed;
     smartvoicing::harmony::TensionLevel activeTensionLevel = smartvoicing::harmony::TensionLevel::clean;
     smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
+    smartvoicing::harmony::VoiceLeadingState voiceLeadingState;
     smartvoicing::harmony::MelodyGateState melodyGate;
 
     double currentSampleRate = 44100.0;
