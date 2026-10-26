@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChordModel.h"
+#include "VoiceLeading.h"
 #include "HarmonicContext.h"
 #include "HarmonicFunction.h"
 #include "KeyModel.h"
@@ -18,6 +19,9 @@ struct ClosedVoicingContext
     HarmonicAnalysis harmonic;
     TensionPolicy tension;
     TensionLevel tensionLevel = TensionLevel::clean;
+    const VoiceLeadingState* voiceLeading = nullptr;
+    // The Drop family ranks candidates by the sound of their transformed output.
+    VoiceOutput (*voiceLeadingTransform)(const VoiceOutput&, const NormalizedChord&) noexcept = nullptr;
 };
 
 // Smart Voicing Closed Voicing engine:
