@@ -44,6 +44,7 @@ struct VoicingContext
     HarmonicAnalysis harmonic;
     TensionPolicy tension;
     TensionLevel tensionLevel = TensionLevel::clean;
+    const VoiceLeadingState* voiceLeading = nullptr; // transient, never persisted
 };
 
 // Pure Drop 2 family transform used by the dispatcher and regression tests.
