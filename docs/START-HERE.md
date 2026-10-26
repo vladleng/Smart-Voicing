@@ -6,7 +6,8 @@
 
 ```text
 Stable:          0.5 — Stage 5 Jazz Voicing Engine complete
-Next:            Stage 6 / #10 — Voice Leading + Color/Rich refinement → 0.6
+Current:         Stage 6 / #10 — 0.5a in development, draft PR #41
+Next stable:     Voice Leading + Color/Rich refinement → 0.6
 Reference host:  Studio Pro
 Stage 5 issue:   #9
 Stage 5 PR chain: #38 → #37 → #30 → main
@@ -39,6 +40,10 @@ MIDI note numbers являются контрактом; названия окт
 | 46–47 | A#1–B1 | Direct Router, Melody Harmonize |
 
 UI, saved project state и keyswitch меняют один state. Контрольные MIDI-ноты не проходят в записываемые партии. Sound Variations — отображение host, а не отдельная логика. Подробнее: [`STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md`](STUDIO-PRO-SOUND-VARIATIONS-WORKFLOW.md).
+
+## 0.5a work in progress — 2026-10-26
+
+The Harma Waves UI was explicitly accepted and PR #39 merged into `main` on 2026-10-26. Stage 6 foundation is being developed in [PR #41](https://github.com/vladleng/Smart-Voicing/pull/41): fixed-size previous Voice state, deterministic motion scoring, live history hook, and dedicated Voice Leading CTest. The branch is not a stable release; candidate re-ranking and audible voice-leading remain incomplete. See [Issue #10](https://github.com/vladleng/Smart-Voicing/issues/10) and `TEST-0.5a.md` in the PR branch.
 
 ## Следующая работа
 
