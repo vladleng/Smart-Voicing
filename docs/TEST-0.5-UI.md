@@ -14,3 +14,9 @@ The compact 1200 × 760 editor follows the approved dark mockup. All eleven Voic
 - [ ] Expand and collapse Diagnostics; check the MIDI monitor and reset button remain usable.
 
 The UI uses the existing processor state and keyswitch path. No harmony, routing or saved-state format changes are part of this work.
+
+## UI acceptance (2026-10-26)
+
+The user explicitly accepted the Harma Waves interface. PR #39 was merged into `main` as commit `f00449b8238737fb9c9f7234fe2c1fda148ac3a0` after the successful Windows Build #476 (run 36307567041).
+
+Acceptance applies to the displayed UI design and authorizes Stage 6 development. The per-item Studio Pro technical checklist above was not independently reported item-by-item; do not mark those checks as individually verified on this basis alone.
