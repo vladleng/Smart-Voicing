@@ -1,9 +1,18 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(SmartVoicing
-    VERSION 0.5.0
+    VERSION 0.5.2
     DESCRIPTION "Smart Voicing - ARA-aware MIDI harmonizer and voice allocator"
     LANGUAGES C CXX)
+
+# Single display version for Instrument and ARA editors. Bump alongside project()
+# VERSION (major.minor.letter -> major.minor.sequence) for each public build.
+set(SMART_VOICING_DISPLAY_VERSION "0.5b")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/PluginBuildVersion.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/PluginBuildVersion.h"
+    @ONLY
+)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -137,6 +146,7 @@ target_sources(SmartVoicingARA
 )
 
 foreach(target SmartVoicing SmartVoicingARA)
+    target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_compile_definitions(${target}
         PUBLIC
             JUCE_WEB_BROWSER=0

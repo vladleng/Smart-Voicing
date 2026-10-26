@@ -36,6 +36,10 @@ claim to fix physically excluded candidates by increasing movement weight.
 - [x] Unit tests distinguish small motion, a single leap and multiple leaps.
 - [x] Host-neutral progression regression for Closed + three Drop variants.
 - [ ] Windows VST3/ARA build and full CTest success.
+- [ ] Confirm Instrument top caption, MIDI Engine heading, diagnostics and
+      ARA editor all display **0.5b** from generated build version.
+- [ ] Confirm VST3 host metadata reports numerical version **0.5.2**
+      while VST3 identity/product names and old project compatibility remain stable.
 - [ ] Compare 0.5/0.5a/0.5b with same 32 bars, MIDI per voice.
 - [ ] Preserve structure for all eight harmonic modes, especially independent
       Spread/Quartal/UST/Cluster (still on 0.5a rank in this first slice).
