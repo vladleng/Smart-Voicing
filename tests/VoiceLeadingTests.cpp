@@ -79,6 +79,33 @@ void testIdentityAndCrossings()
     expect(incomplete.cost > good.cost, "unnecessary dropped line costs movement");
 }
 
+void testBoundedRealtimeRanking()
+{
+    VoiceLeadingState state;
+    auto first = vertical(74, 69, 65, 60);
+    state.commit(first);
+    expect(voiceLeadingAdjustment(first, &state) == 0,
+           "retained V2/V3/V4 receive no continuity penalty");
+    const auto nearby = vertical(76, 70, 65, 60);
+    const auto leap = vertical(76, 62, 53, 48);
+    const auto stepPenalty = voiceLeadingAdjustment(nearby, &state);
+    const auto leapPenalty = voiceLeadingAdjustment(leap, &state);
+    expect(stepPenalty > 0 && stepPenalty < leapPenalty,
+           "bounded tie-break favors stepwise motion to large leaps");
+    expect(leapPenalty == 10, "continuity tie-break is capped at ten");
+    expect(voiceLeadingAdjustment(leap, nullptr) == 0,
+           "legacy strategy with no previous voice has no penalty");
+
+    VoiceLeadingState empty;
+    expect(voiceLeadingAdjustment(leap, &empty) == 0,
+           "empty history retains exact Stage 5 candidate rank");
+
+    // The array path is used inside the strategy search loops.
+    const std::array<int, kVoiceCount> notes { 76, 70, 65, 60 };
+    expect(voiceLeadingAdjustment(notes, &state) == stepPenalty,
+           "array and VoiceOutput scoring agree");
+}
+
 void testNoHistoryAndInputSafety()
 {
     VoiceLeadingState state;
@@ -102,6 +129,7 @@ int main()
     testSmoothnessPreferences();
     testIdentityAndCrossings();
     testNoHistoryAndInputSafety();
+    testBoundedRealtimeRanking();
     if (failures != 0)
     {
         std::cerr << failures << " Voice Leading test(s) failed\n";
