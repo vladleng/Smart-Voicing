@@ -26,3 +26,7 @@ Deferred from 0.5a: strategy-specific motion weights, directed Rich resolutions,
 Melody Harmonize on separate output MIDI channels Ch1..Ch4. Use Clean first and play a short sequence over `Dm7 | G7 | Cmaj7` and over `Dm7 | Db7(b13) | Cm7 | B7#11 | Bbmaj7 | A7`. Compare movement of V2..V4 with legacy 0.5, noting retained common tones and fewer unnecessary leaps. Verify V1 never shifts, characteristic chord tones survive, and Drop families preserve their geometry and slash bass. Repeat chord boundaries with a melody held under sustain. Test three melodic textures separately; do not expect Voice Leading to rewrite those predetermined unison/octave/doubling layouts.
 
 **Status:** audible selection logic is implemented in the draft branch; Windows CI and Studio Pro host acceptance remain independent gates before 0.5a can merge.
+
+## Final acceptance — 2026-10-26
+
+User explicitly accepted 0.5a after listening, reporting that voice movement seems smoother (`Принимаю, вроде стало плавнее`). Final Windows Build #498 (run 40284729445) passed Configure, Build, all CTest, Package and Upload Artifact; available `Smart-Voicing-0.5a-Windows` artifact. This is acceptance of the initial audible candidate-selection improvement, **not** an assertion that every suggested manual edge-case host test was individually performed. Further strategy-specific and sustain/legato/chord-boundary musical refinements remain tracked under Stage 6 / #10 for 0.5b+.
