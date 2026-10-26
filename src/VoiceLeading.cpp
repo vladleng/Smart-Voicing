@@ -163,4 +163,17 @@ int voiceLeadingAdjustment(const std::array<int, kVoiceCount>& notes,
     return voiceLeadingAdjustment(candidate, state);
 }
 
+int voiceLeadingMotionRank(const VoiceOutput& candidate,
+                           const VoiceLeadingState* state,
+                           bool dropFamily) noexcept
+{
+    if (state == nullptr || ! state->hasPrevious())
+        return 0;
+    const auto motion = evaluateVoiceLeading(candidate, *state);
+    if (! motion.valid)
+        return 1000000;
+    const int divisor = dropFamily ? 7 : 5;
+    return (motion.cost + divisor / 2) / divisor;
+}
+
 } // namespace smartvoicing::harmony

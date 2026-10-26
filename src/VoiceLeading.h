@@ -39,4 +39,10 @@ int voiceLeadingAdjustment(const VoiceOutput& candidate,
                            const VoiceLeadingState* state) noexcept;
 int voiceLeadingAdjustment(const std::array<int, kVoiceCount>& notes,
                            const VoiceLeadingState* state) noexcept;
+
+// 0.5b: unsaturated motion rank, used only inside a harmonic safety window.
+// Differentiates distinct leaps; Drop uses softer octave-displacement weight.
+int voiceLeadingMotionRank(const VoiceOutput& candidate,
+                           const VoiceLeadingState* state,
+                           bool dropFamily) noexcept;
 }

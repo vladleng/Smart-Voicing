@@ -506,6 +506,55 @@ void testVoiceLeadingCanActuallyChangeClosedCandidate()
     expect(changedOutput, "history must change an actual Closed voicing in a Cmaj7 -> Dm7 turn");
 }
 
+void testBoundedClosedAndDropContinuity()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0, {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto dm7 = normalizeChord(chord(2, 2, {{0, 1}, {3, 3}, {7, 5}, {10, 7}}));
+    const auto g7 = normalizeChord(chord(1, 1, {{0, 1}, {4, 3}, {7, 5}, {10, 7}}));
+    const auto cmaj7OverG = normalizeChord(chord(0, 1,
+        {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const std::array<VoicingType, 4> family {
+        VoicingType::closed, VoicingType::drop2,
+        VoicingType::drop3, VoicingType::drop24
+    };
+    for (const auto type : family)
+        for (const auto& nextChord : { dm7, g7, cmaj7, cmaj7OverG })
+            for (int preceding = 67; preceding <= 76; preceding += 3)
+            {
+                VoiceLeadingState previous;
+                previous.commit(buildVoicing(preceding, type,
+                    makeContext(cmaj7, cMajor, preceding, TensionLevel::clean)));
+                if (! previous.hasPrevious())
+                    continue;
+                for (int melody = 67; melody <= 76; melody += 3)
+                {
+                    auto current = makeContext(nextChord, cMajor,
+                                               melody, TensionLevel::clean);
+                    const auto baseline = buildVoicing(melody, type, current);
+                    current.voiceLeading = &previous;
+                    const auto ranked = buildVoicing(melody, type, current);
+                    expect(ranked.voices[0].active && ranked.voices[0].midiNote == melody,
+                           "0.5b never shifts performer V1");
+                    if (! baseline.voices[3].active || ! ranked.voices[3].active)
+                        continue;
+
+                    const auto baseMotion = evaluateVoiceLeading(baseline, previous);
+                    const auto rankedMotion = evaluateVoiceLeading(ranked, previous);
+                    expect(baseMotion.valid && rankedMotion.valid
+                               && rankedMotion.cost <= baseMotion.cost,
+                           std::string(voicingTypeName(type))
+                           + " continuity may not increase total movement against static reference");
+                    if (nextChord.slashBass)
+                        expect(ranked.voices[3].midiNote % 12 == nextChord.bassPitchClass,
+                               "slash bass remains authoritative");
+                    if (type == VoicingType::closed)
+                        expect(ranked.voices[0].midiNote - ranked.voices[3].midiNote <= 24,
+                               "Closed remains within the 24 semitone search depth");
+                }
+            }
+}
+
 }
 
 int main()
@@ -530,6 +579,7 @@ int main()
     testCleanPartialUstRetainsNamedThirteenth();
     testVoiceLeadingAcrossEightHarmonicStrategies();
     testVoiceLeadingCanActuallyChangeClosedCandidate();
+    testBoundedClosedAndDropContinuity();
 
     if (failures != 0)
     {

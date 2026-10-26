@@ -106,6 +106,29 @@ void testBoundedRealtimeRanking()
            "array and VoiceOutput scoring agree");
 }
 
+void testUnsaturatedMovementRanking()
+{
+    VoiceLeadingState state;
+    state.commit(vertical(76, 71, 67, 64));
+    const auto gentle = vertical(77, 71, 67, 64);
+    const auto oneLeap = vertical(77, 71, 67, 52);
+    const auto threeLeaps = vertical(77, 59, 55, 40);
+
+    const auto first = voiceLeadingMotionRank(gentle, &state, false);
+    const auto second = voiceLeadingMotionRank(oneLeap, &state, false);
+    const auto third = voiceLeadingMotionRank(threeLeaps, &state, false);
+    expect(first == 0 && first < second && second < third,
+           "unsaturated 0.5b rank distinguishes different large leaps");
+    expect(voiceLeadingAdjustment(oneLeap, &state) == 10
+        && voiceLeadingAdjustment(threeLeaps, &state) == 10,
+           "0.5a cap could not distinguish these different leaps");
+    expect(voiceLeadingMotionRank(oneLeap, &state, true) <
+               voiceLeadingMotionRank(oneLeap, &state, false),
+           "Drop sounding octave layout uses its own weight");
+    expect(voiceLeadingMotionRank(threeLeaps, nullptr, false) == 0,
+           "no previous harmony preserves static behavior");
+}
+
 void testNoHistoryAndInputSafety()
 {
     VoiceLeadingState state;
@@ -130,6 +153,7 @@ int main()
     testIdentityAndCrossings();
     testNoHistoryAndInputSafety();
     testBoundedRealtimeRanking();
+    testUnsaturatedMovementRanking();
     if (failures != 0)
     {
         std::cerr << failures << " Voice Leading test(s) failed\n";
