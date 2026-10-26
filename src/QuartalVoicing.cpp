@@ -186,7 +186,8 @@ VoiceOutput buildQuartalVoicing(int melodyNote, const VoicingContext& context) n
             {
                 if (! candidate(v2, context)) continue;
                 const std::array<int, 4> notes { melodyNote, v2, v3, v4 };
-                const int cost = score(notes, context);
+                const int cost = score(notes, context)
+                               + voiceLeadingAdjustment(notes, context.voiceLeading);
                 if (cost < best)
                 {
                     best = cost;
