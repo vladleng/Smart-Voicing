@@ -9,11 +9,11 @@ class VoiceLeadingState
 public:
     void reset() noexcept;
     void commit(const VoiceOutput& sounding) noexcept;
-    bool hasPrevious() const noexcept { return valid; }
+    bool hasPrevious() const noexcept { return available; }
     const VoiceOutput& previous() const noexcept { return last; }
 private:
     VoiceOutput last {};
-    bool valid = false;
+    bool available = false;
 };
 
 struct VoiceLeadingScore
