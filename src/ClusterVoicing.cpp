@@ -159,7 +159,8 @@ VoiceOutput buildClusterVoicing(int melodyNote, const VoicingContext& context) n
                 else if (!context.chord.hasTone(degree(v4, context.chord)))
                     continue;
                 const std::array<int, 4> notes {melodyNote, v2, v3, v4};
-                const int cost = score(notes, context);
+                const int cost = score(notes, context)
+                               + voiceLeadingAdjustment(notes, context.voiceLeading);
                 if (cost < best) { best = cost; chosen = notes; }
             }
         }
