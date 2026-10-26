@@ -1,5 +1,10 @@
 name: Windows Build
 
+# Keep only the newest push build for each development branch.
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -47,3 +52,4 @@ jobs:
         with:
           name: Smart-Voicing-0.5a-Windows
           path: "package"
+          retention-days: 7
