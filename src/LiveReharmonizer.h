@@ -65,6 +65,32 @@ ReharmonizationPlan planVoicingTransition(const VoiceOutput& current,
                                           bool retriggerMelody,
                                           bool retriggerMatchingLowerVoices = false) noexcept;
 
+// The ARA context position (ppq) progresses every block, but the musical
+// state does not. Avoid re-running a history-sensitive voicing search until
+// chord/key/host revision, voicing mode or tension level genuinely changes.
+// Host-neutral, realtime fixed-size, no MIDI events emitted by this guard.
+class MelodyHarmonyRefreshGuard
+{
+public:
+    void reset() noexcept;
+    bool needsRefresh(const HarmonicContext& context,
+                      int voicingMode, int tensionLevel) const noexcept;
+    void commit(const HarmonicContext& context,
+                int voicingMode, int tensionLevel) noexcept;
+private:
+    bool initialized = false;
+    HarmonicContext last {};
+    int appliedVoicingMode = -1;
+    int appliedTensionLevel = -1;
+};
+
+// A melodic note placed at exactly the same sample as a Chord Track change
+// must use that precise chord boundary rather than a slightly earlier PPQ
+// reconstructed from floating-point seconds. Prevents same-sample old->new
+// generated-voice micro-notes.
+double chooseChordPpqAtMelodySample(double computedPpq, int samplePosition,
+                                   double boundaryPpq, int boundarySample) noexcept;
+
 // Timeline helpers for scheduling a known future Chord Track boundary inside
 // the current audio block. Values outside the block return -1 instead of being
 // clamped, so the next block owns that event. They do not add lookahead/latency.

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "PluginBuildVersion.h"
 #include "ARAContextDebugState.h"
 #include "HarmonicContextDebugText.h"
 #include "SharedHarmonicContext.h"
@@ -17,7 +18,9 @@ juce::String availabilityText(bool available, int eventCount)
 SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingAudioProcessor& p)
     : AudioProcessorEditor(&p), processor(p)
 {
-    titleLabel.setText("Smart Voicing ARA 0.2", juce::dontSendNotification);
+    titleLabel.setText(juce::String("Smart Voicing ARA ")
+                       + smartvoicing::build::kBuildLabel,
+                       juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel);

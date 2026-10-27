@@ -1,5 +1,6 @@
 #include "UpperStructureTriadVoicing.h"
 #include "VoicingIdentity.h"
+#include "VoicingContinuitySelector.h"
 
 #include <array>
 #include <climits>
@@ -187,8 +188,8 @@ VoiceOutput buildUpperStructureTriadVoicing(int melodyNote,
     std::array<bool,12> legalPitches {};
     for (int pc=0; pc<12; ++pc)
         legalPitches[static_cast<std::size_t>(pc)]=allowed(pc,context);
-    int best=INT_MAX;
-    std::array<int,4> chosen {};
+    StrategyContinuitySelector selector(context.chord, context.voiceLeading,
+                                      ContinuityStyle::ust);
     const int floor=melodyNote>33 ? melodyNote-33 : 0;
     for (int root=0; root<12; ++root)
         for (int minor=0; minor<2; ++minor)
@@ -222,18 +223,13 @@ VoiceOutput buildUpperStructureTriadVoicing(int melodyNote,
                         else if (!context.chord.hasTone(relative(v4,context.chord)))
                             continue;
                         const std::array<int,4> notes { melodyNote,v2,v3,v4 };
-                        const int cost=score(notes,triad,context)
-                            +voiceLeadingAdjustment(notes,context.voiceLeading);
-                        if (cost<best)
-                        {
-                            best=cost;
-                            chosen=notes;
-                        }
+                        selector.consider(notes, score(notes,triad,context));
                     }
                 }
             }
         }
-    if (best==INT_MAX) return result;
+    if (! selector.hasCandidate()) return result;
+    const auto chosen = selector.selected();
     for (std::size_t i=1; i<chosen.size(); ++i)
         result.voices[i]={true,chosen[i]};
     return result;

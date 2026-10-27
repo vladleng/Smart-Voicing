@@ -8,6 +8,18 @@
 - После завершения этапа версия повышается до следующего числового значения.
 - `PRODUCT_NAME`, VST3 UID, manufacturer code и bundle id не меняются ради номера версии.
 - Версия отображается в имени пакета, CI artifact, debug UI, Issue/PR и документации.
+- **Начиная с 0.5b** номер интерфейса задаётся один раз в CMake через
+  `SMART_VOICING_DISPLAY_VERSION`. Из него генерируется
+  `PluginBuildVersion.h`, который используют **оба** редактора — Instrument
+  (Harma Waves) и Smart Voicing ARA. Обновлять хардкод в нескольких окнах
+  больше не требуется.
+- При повышении версии одновременно изменять `project(... VERSION ...)`,
+  `SMART_VOICING_DISPLAY_VERSION`, имя CI-пакета и артефакта.
+  Имя VST3, `BUNDLE_ID`, `PLUGIN_CODE` и manufacturer code при этом остаются
+  неизменными, чтобы не нарушать открытие старых проектов.
+- До приёмки новой версии проверять **видимый номер** в основном окне,
+  заголовке MIDI Engine, диагностике и окне ARA — все четыре должны совпадать
+  с именем сборки.
 
 ## История версий
 
@@ -103,8 +115,31 @@ Smart Voicing 0.5/
 0.3f → 0.3.6
 0.4  → 0.4.0
 0.5  → 0.5.0
+0.5a → 0.5.1 (историческая маркировка пакета; CMake ещё оставался 0.5.0)
+0.5b → 0.5.2 (первое синхронизированное версионирование обоих окон)
+0.5c → 0.5.3
+0.5d → 0.5.4
+0.6  → 0.6.0
 ```
 
 ## Отложенная стабилизация
 
 Функции, которые не блокируют развитие музыкального ядра, не должны задерживать переход между этапами. Например, отдельная UI-кнопка `Panic / All Notes Off` и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0.
+
+## Identification of test binaries from 0.5b onward
+
+For CI-produced Windows bundles, the two editor windows show the build's
+GitHub Actions run number along with the semantic display version
+(e.g. `0.5b #507`). Version 0.5.2 alone is insufficient for identifying
+which test patch is loaded. The number comes from the build runner's
+`GITHUB_RUN_NUMBER` environment variable; locally configured builds
+display `0.5b` without a CI number. The build label is display-only and
+does not change bundle identifiers or VST3 metadata.
+
+## Development patch builds (from 0.5b fix1)
+
+Small corrective builds retain the same VST3 plugin identifiers and
+numeric semantic patch version (0.5.2) but change display and package
+labels, e.g. `0.5b fix1 #<GitHub Actions run number>`. Both Instrument
+and ARA windows read that label from the single CMake setting. GitHub
+artifact and inner package folder also use `0.5b fix1`.

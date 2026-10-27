@@ -1,4 +1,5 @@
 #include "InstrumentPluginEditor.h"
+#include "PluginBuildVersion.h"
 #include "ChordModel.h"
 #include "KeyModel.h"
 #include "HarmonicFunction.h"
@@ -319,7 +320,9 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     diagnosticsButton.setColour(juce::TextButton::buttonColourId, panel);
     diagnosticsButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffb4bdc0));
 
-    midiProbeTitleLabel.setText("MIDI Engine 0.5 | V1->Ch1 ... V4->Ch4",
+    midiProbeTitleLabel.setText(juce::String("MIDI Engine ")
+                                    + smartvoicing::build::kBuildLabel
+                                    + " | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
     midiProbeTitleLabel.setFont(juce::FontOptions(15.0f, juce::Font::bold));
@@ -381,7 +384,8 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.setColour(accent);
     g.fillRoundedRectangle(51.0f, 43.0f, 4.0f, 29.0f, 2.0f);
     g.fillEllipse(971.0f, 65.0f, 6.0f, 6.0f);
-    drawCaption(g, "0.5  /  MIDI ARRANGER", 315, 46);
+    drawCaption(g, juce::String(smartvoicing::build::kBuildLabel)
+                   + "  /  MIDI ARRANGER", 315, 46);
 
     drawCaption(g, juce::String::fromUTF8("ТЕКУЩИЙ КОНТЕКСТ"), 53, 105);
     drawSection(g, { 51.0f, 137.0f, 1098.0f, 104.0f });
@@ -614,7 +618,8 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 5 / 0.5: 8 harmonic types + 3 melodic textures | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
+    debugText << "Stage 6 / " << smartvoicing::build::kBuildLabel
+              << ": 8 harmonic types + 3 melodic textures | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")
               << " | key " << (neutralContext.key.available ? "AVAILABLE" : "N/A")

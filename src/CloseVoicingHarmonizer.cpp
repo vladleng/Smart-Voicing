@@ -3,6 +3,7 @@
 
 #include <array>
 #include <climits>
+#include <initializer_list>
 
 namespace smartvoicing::harmony
 {
@@ -419,6 +420,38 @@ int minorNinthPenalty(const std::array<int, kVoiceCount>& notes,
     return penalty;
 }
 
+int lowRegisterClosedPenalty(const std::array<int, kVoiceCount>& notes,
+                             const NormalizedChord& chord) noexcept
+{
+    // Only Closed (not Cluster/Quartal) discourages a minor second deep in the
+    // low register. V3/V4 are checked as sounding adjacent parts; upper
+    // semitones and the standard C3-B2 major-seventh shell remain legal.
+    // This is a *soft* penalty: explicit b9, guide tones and slash bass
+    // may still force a crowded arrangement in a truly constrained register.
+    const int lowUpper = notes[2];
+    const int bass = notes[3];
+    const int gap = lowUpper - bass;
+    int cost = 0;
+    if (lowUpper < 48 && bass < 48)
+    {
+        if (gap == 1)
+            cost += 42;
+        else if (gap == 2)
+            cost += 18;
+    }
+
+    // Rootless G7b9 can use structural fifth/third bass when the alternative
+    // is a chromatically altered ninth below C3. Keep b9 in an upper voice;
+    // do not forbid it in V4 if no legal alternative exists. Slash bass is
+    // always authoritative and cannot be moved by this preference.
+    if (! chord.slashBass && bass < 48 && chord.hasTone(1)
+        && chord.quality == ChordQuality::dominant
+        && relativeToChordRoot(bass, chord) == 1)
+        cost += 30;
+
+    return cost;
+}
+
 int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
                          const NormalizedChord& chord,
                          const ClosedVoicingContext& context) noexcept
@@ -457,6 +490,11 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
         score += (totalSpan - 12) * 7;
 
     score += duplicatePitchClassPenalty(notes);
+    score += lowRegisterClosedPenalty(notes, chord);
+    // Align Closed with the Stage 5 Spread/Quartal explicit-b9 contract.
+    // Otherwise a bass-register penalty could silently erase the written b9.
+    // The omission is still a soft fallback if no legal four-voice solution fits.
+    score += flatNinthOmissionPenalty(notes, chord);
     score += minorNinthPenalty(notes, chord, context);
     score += inferredColourDensityPenalty(notes, chord, context);
 
@@ -504,6 +542,108 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
     score -= colourToneReward(notes, chord);
 
     return score;
+}
+
+// 0.5b: history must not erase guide/characteristic or explicitly written
+// colour tones that the reference (best Stage 5 vertical) already represents.
+bool preservesStaticHarmonicIdentity(const std::array<int, kVoiceCount>& notes,
+                                    const std::array<int, kVoiceCount>& reference,
+                                    const NormalizedChord& chord) noexcept
+{
+    for (const auto role : { isThirdRole, isSeventhRole, isCharacteristicChordTone })
+        if (selectedRole(reference, chord, role)
+            && ! selectedRole(notes, chord, role))
+            return false;
+
+    for (int relative = 0; relative < kPitchClassCount; ++relative)
+    {
+        if (! isExplicitColourTone(relative, chord))
+            continue;
+        bool originalHas = false, candidateHas = false;
+        for (int voice = 0; voice < kVoiceCount; ++voice)
+        {
+            originalHas = originalHas || relativeToChordRoot(
+                reference[static_cast<std::size_t>(voice)], chord) == relative;
+            candidateHas = candidateHas || relativeToChordRoot(
+                notes[static_cast<std::size_t>(voice)], chord) == relative;
+        }
+        if (originalHas && ! candidateHas)
+            return false;
+    }
+
+    if (chord.slashBass && chord.quality == ChordQuality::major
+        && chordHasSeventhRole(chord) && selectedRoot(reference, chord)
+        && ! selectedRoot(notes, chord))
+        return false;
+    return true;
+}
+
+// Bass anchoring is part of Closed style: a chromatically altered extension
+// should not replace a usable structural V4 merely to make the previous-to-
+// current movement shorter. Natural 9/11/13 are NOT globally banned here.
+// Explicit degree markers are sometimes unavailable from ARA, so recognized
+// dominant b9/#9 pitch classes also honor generic-used interval annotations.
+bool isChromaticallyAlteredExtension(int midiNote,
+                                     const NormalizedChord& chord) noexcept
+{
+    if (midiNote < 0 || midiNote > 127)
+        return false;
+
+    const auto relative = relativeToChordRoot(midiNote, chord);
+    if (! chord.hasTone(relative))
+        return false;
+
+    if (relative == 1)
+        return chord.hasAlteration(ChordAlteration::flatNinth)
+            || chord.quality == ChordQuality::dominant;
+    if (relative == 3)
+        return chord.hasAlteration(ChordAlteration::sharpNinth)
+            || chord.quality == ChordQuality::dominant;
+    if (relative == 6)
+        return chord.hasAlteration(ChordAlteration::sharpEleventh);
+    if (relative == 8)
+        return chord.hasAlteration(ChordAlteration::flatThirteenth);
+    return false;
+}
+
+bool preservesClosedSupportingVoice(const std::array<int, kVoiceCount>& candidate,
+                                    const std::array<int, kVoiceCount>& reference,
+                                    const NormalizedChord& chord,
+                                    const ClosedVoicingContext& context) noexcept
+{
+    // The first Closed candidate was already accepted by the vertical engine.
+    // Do not turn a compact upper third/fourth into an exposed seventh merely
+    // because the resulting V2 is closer to its previous note.
+    const int referenceUpperGap = reference[0] - reference[1];
+    const int allowedUpperGap = referenceUpperGap > 7 ? referenceUpperGap : 7;
+    if (candidate[0] - candidate[1] > allowedUpperGap)
+        return false;
+
+    // Compare sounding bass for Drop variants, not their pre-drop Closed source.
+    VoiceOutput staticSounding, candidateSounding;
+    for (int voice = 0; voice < kVoiceCount; ++voice)
+    {
+        staticSounding.voices[static_cast<std::size_t>(voice)] = {
+            true, reference[static_cast<std::size_t>(voice)]
+        };
+        candidateSounding.voices[static_cast<std::size_t>(voice)] = {
+            true, candidate[static_cast<std::size_t>(voice)]
+        };
+    }
+    if (context.voiceLeadingTransform != nullptr)
+    {
+        staticSounding = context.voiceLeadingTransform(staticSounding, chord);
+        candidateSounding = context.voiceLeadingTransform(candidateSounding, chord);
+    }
+
+    const int oldBass = staticSounding.voices[3].midiNote;
+    const int newBass = candidateSounding.voices[3].midiNote;
+    if (! chord.slashBass
+        && ! isChromaticallyAlteredExtension(oldBass, chord)
+        && isChromaticallyAlteredExtension(newBass, chord))
+        return false;
+
+    return true;
 }
 
 int nearestChordToneBelow(int upperExclusive,
@@ -581,62 +721,88 @@ VoiceOutput buildClosedVoicing(int melodyNote,
         ? melodyNote - kClosedSearchDepthSemitones
         : 0;
 
-    int bestScore = kInvalidScore;
-    std::array<int, kVoiceCount> bestNotes { melodyNote, -1, -1, -1 };
+    // Fixed-size, deterministic two-pass search: a vertical baseline followed
+    // by continuity refinement inside a small structural score window.
+    constexpr int kMaximumVerticalScoreLoss = 14;
+    int bestVerticalScore = kInvalidScore;
+    int bestTransitionScore = kInvalidScore;
+    std::array<int, kVoiceCount> staticBest { melodyNote, -1, -1, -1 };
+    std::array<int, kVoiceCount> bestNotes = staticBest;
+    const bool hasHistory = resolvedContext.voiceLeading != nullptr
+                         && resolvedContext.voiceLeading->hasPrevious();
 
-    for (int v2 = melodyNote - 1; v2 >= lowerLimit; --v2)
+    const auto search = [&](bool rankContinuity) noexcept
     {
-        if (! isGeneratedHarmonyCandidate(v2, chord, resolvedContext))
-            continue;
-
-        for (int v3 = v2 - 1; v3 >= lowerLimit; --v3)
+        for (int v2 = melodyNote - 1; v2 >= lowerLimit; --v2)
         {
-            if (! isGeneratedHarmonyCandidate(v3, chord, resolvedContext))
+            if (! isGeneratedHarmonyCandidate(v2, chord, resolvedContext))
                 continue;
-
-            for (int v4 = v3 - 1; v4 >= lowerLimit; --v4)
+            for (int v3 = v2 - 1; v3 >= lowerLimit; --v3)
             {
-                if (chord.slashBass)
+                if (! isGeneratedHarmonyCandidate(v3, chord, resolvedContext))
+                    continue;
+                for (int v4 = v3 - 1; v4 >= lowerLimit; --v4)
                 {
-                    if (midiPitchClass(v4) != chord.bassPitchClass)
+                    if (chord.slashBass)
+                    {
+                        if (midiPitchClass(v4) != chord.bassPitchClass)
+                            continue;
+                    }
+                    else if (! isGeneratedHarmonyCandidate(v4, chord, resolvedContext))
                         continue;
-                }
-                else if (! isGeneratedHarmonyCandidate(v4, chord, resolvedContext))
-                {
-                    continue;
-                }
 
-                const std::array<int, kVoiceCount> candidate { melodyNote, v2, v3, v4 };
-                const auto verticalScore = scoreClosedCandidate(candidate, chord, resolvedContext);
-                if (verticalScore == kInvalidScore)
-                    continue;
+                    const std::array<int, kVoiceCount> candidate {
+                        melodyNote, v2, v3, v4
+                    };
+                    const auto verticalScore = scoreClosedCandidate(
+                        candidate, chord, resolvedContext);
+                    if (verticalScore == kInvalidScore)
+                        continue;
 
-                int continuityScore = 0;
-                if (resolvedContext.voiceLeading != nullptr
-                    && resolvedContext.voiceLeading->hasPrevious())
-                {
+                    if (! rankContinuity)
+                    {
+                        if (verticalScore < bestVerticalScore)
+                        {
+                            bestVerticalScore = verticalScore;
+                            staticBest = candidate;
+                            bestNotes = candidate;
+                        }
+                        continue;
+                    }
+
+                    if (verticalScore > bestVerticalScore + kMaximumVerticalScoreLoss
+                        || ! preservesStaticHarmonicIdentity(candidate, staticBest, chord)
+                        || ! preservesClosedSupportingVoice(candidate, staticBest,
+                                                           chord, resolvedContext))
+                        continue;
+
                     VoiceOutput sounding;
                     for (int index = 0; index < kVoiceCount; ++index)
                         sounding.voices[static_cast<std::size_t>(index)] = {
                             true, candidate[static_cast<std::size_t>(index)]
                         };
-
                     if (resolvedContext.voiceLeadingTransform != nullptr)
                         sounding = resolvedContext.voiceLeadingTransform(sounding, chord);
-                    continuityScore = voiceLeadingAdjustment(sounding, resolvedContext.voiceLeading);
-                }
-                const auto combinedScore = verticalScore + continuityScore;
-                if (combinedScore < bestScore)
-                {
-                    bestScore = combinedScore;
-                    bestNotes = candidate;
+
+                    const auto transitionScore = 2 * (verticalScore - bestVerticalScore)
+                        + voiceLeadingMotionRank(
+                            sounding, resolvedContext.voiceLeading,
+                            resolvedContext.voiceLeadingTransform != nullptr);
+                    if (transitionScore < bestTransitionScore)
+                    {
+                        bestTransitionScore = transitionScore;
+                        bestNotes = candidate;
+                    }
                 }
             }
         }
-    }
+    };
 
-    if (bestScore == kInvalidScore)
+    search(false);
+    if (bestVerticalScore == kInvalidScore)
         return fallbackTopDown(melodyNote, chord);
+    if (hasHistory)
+        search(true);
 
     for (int voice = 0; voice < kVoiceCount; ++voice)
     {
