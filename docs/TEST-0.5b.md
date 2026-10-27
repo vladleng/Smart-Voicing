@@ -100,3 +100,8 @@ Closed-specific rule.
       and preference away from low G2–Ab2 adjacency with/without history.
 - [x] Regression verifies slash bass Cmaj7/G remains authoritative.
 - [ ] Windows CI and musical Studio Pro score review of this follow-up.
+
+The explicit dominant b9 has a pre-existing Stage 5 omission penalty
+(`flatNinthOmissionPenalty`) shared in `VoicingIdentity.h`. Closed now
+applies it as well, specifically so the lower-register penalty cannot
+"solve" the low G–Ab semitone by dropping Ab from a written G7b9.

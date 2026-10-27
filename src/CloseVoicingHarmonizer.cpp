@@ -491,6 +491,10 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
 
     score += duplicatePitchClassPenalty(notes);
     score += lowRegisterClosedPenalty(notes, chord);
+    // Align Closed with the Stage 5 Spread/Quartal explicit-b9 contract.
+    // Otherwise a bass-register penalty could silently erase the written b9.
+    // The omission is still a soft fallback if no legal four-voice solution fits.
+    score += flatNinthOmissionPenalty(notes, chord);
     score += minorNinthPenalty(notes, chord, context);
     score += inferredColourDensityPenalty(notes, chord, context);
 
