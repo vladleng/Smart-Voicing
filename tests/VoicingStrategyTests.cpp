@@ -665,6 +665,74 @@ void testClosedCleanRetainsNaturalThirteenthAndSlashBassRange()
     expect(64 - 43 == 21, "E4 to G2 is 21 semitones, not >24");
 }
 
+void testLowRegisterClosedAvoidsRootFlatNineSemitone()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto g7b9 = normalizeChord(chord(1, 1,
+        {{0, 1}, {1, 9}, {4, 3}, {7, 5}, {10, 7}}));
+
+    // Same harmonic bar as the user's 32-bar Clean score.
+    // F3 melody makes G2 and Ab2 an unnecessarily muddy minor second;
+    // a rootless G7b9 (3/b7/b9 plus fifth) is an acceptable alternative.
+    const auto referenceContext = makeContext(g7b9, cMajor, 53,
+                                              TensionLevel::clean);
+    const auto noHistory = buildVoicing(53, VoicingType::closed, referenceContext);
+
+    VoiceLeadingState previous;
+    const auto earlier = buildVoicing(56, VoicingType::closed,
+        makeContext(g7b9, cMajor, 56, TensionLevel::clean));
+    previous.commit(earlier);
+    auto currentContext = referenceContext;
+    currentContext.voiceLeading = &previous;
+    const auto optimized = buildVoicing(53, VoicingType::closed, currentContext);
+
+    for (const auto& vertical : { noHistory, optimized })
+    {
+        expect(vertical.voices[0].active && vertical.voices[0].midiNote == 53,
+               "low-register test keeps F3 performer melody");
+        bool third = false, seventh = false, flatNinth = false;
+        for (const auto& slot : vertical.voices)
+        {
+            if (! slot.active) continue;
+            third = third || slot.midiNote % 12 == 11; // B
+            seventh = seventh || slot.midiNote % 12 == 5; // F
+            flatNinth = flatNinth || slot.midiNote % 12 == 8; // Ab
+        }
+        expect(third && seventh && flatNinth,
+               "G7b9 rootless alternative preserves 3, b7 and explicit b9");
+        const auto& upperLow = vertical.voices[2];
+        const auto& lowerLow = vertical.voices[3];
+        expect(upperLow.active && lowerLow.active,
+               "Closed must not drop a voice to escape low interval");
+        if (upperLow.active && lowerLow.active)
+            expect(upperLow.midiNote >= 48 || lowerLow.midiNote >= 48
+                       || upperLow.midiNote - lowerLow.midiNote > 1,
+                   "G7b9 should prefer an alternative to G2-Ab2 low semitone");
+    }
+}
+
+void testBassRegisterPenaltyDoesNotForbidSlashOrUpperCloseSemitones()
+{
+    const auto cMajor = normalizeKey(key(0, false));
+    const auto cmaj7 = normalizeChord(chord(0, 0,
+        {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    const auto cmaj7G = normalizeChord(chord(0, 1,
+        {{0, 1}, {4, 3}, {7, 5}, {11, 7}}));
+    for (const auto melody : { 60, 64, 67 })
+    {
+        auto ctx = makeContext(cmaj7, cMajor, melody, TensionLevel::clean);
+        auto closed = buildVoicing(melody, VoicingType::closed, ctx);
+        expect(closed.voices[0].midiNote == melody,
+               "Cmaj7 melody remains unchanged under low-register penalty");
+
+        ctx = makeContext(cmaj7G, cMajor, melody, TensionLevel::clean);
+        closed = buildVoicing(melody, VoicingType::closed, ctx);
+        expect(closed.voices[3].active
+                   && closed.voices[3].midiNote % 12 == 7,
+               "Cmaj7/G explicit G in V4 overrides low-register preference");
+    }
+}
+
 }
 
 int main()
@@ -693,6 +761,8 @@ int main()
     testClosedHistoryRespectsUpperSpacingAndStructuralBass();
     testClosedHistoryDoesNotReplaceStructuralBassWithFlatNinth();
     testClosedCleanRetainsNaturalThirteenthAndSlashBassRange();
+    testLowRegisterClosedAvoidsRootFlatNineSemitone();
+    testBassRegisterPenaltyDoesNotForbidSlashOrUpperCloseSemitones();
 
     if (failures != 0)
     {

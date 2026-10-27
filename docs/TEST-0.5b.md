@@ -76,3 +76,27 @@ the *future played melody note*. Hence the upper-gap protection addresses
 a known undesirable musical state without falsely claiming a future-aware
 two-sided optimization. A true next-melody lookahead, if available from
 the host, belongs to a separately specified enhancement, not this patch.
+
+
+## 0.5b follow-up — low register Closed / G7b9
+
+The second vertical at G7b9 has F3 as the performer melody; retaining G2
+and Ab2 immediately above each other produces a minor second in the low bass.
+This is legal chord material but often muddy in a small ensemble, and cannot
+be fixed merely by increasing previous-voice motion cost. With just three
+generated notes, the static root+3+b9+b7 arrangement is inherently cramped
+under F3.
+
+Closed now applies a **soft** lower-register second penalty when both V3/V4
+are below C3 (MIDI48), plus a low altered b9 bass penalty for non-slash
+dominants. A rootless alternative with a fifth/third supporting bass may keep
+the explicitly authored b9, the third and the seventh without the deep
+semitone. No hard veto: explicit slash bass and unavoidable written
+alterations take precedence. C3-B2 upper shell and mid-register seconds are
+not generically outlawed. Spread/Quartal/UST/Cluster are not changed by the
+Closed-specific rule.
+
+- [x] Unit regression for G7b9 with F3 melody: verify b9, 3/b7, four voices
+      and preference away from low G2–Ab2 adjacency with/without history.
+- [x] Regression verifies slash bass Cmaj7/G remains authoritative.
+- [ ] Windows CI and musical Studio Pro score review of this follow-up.

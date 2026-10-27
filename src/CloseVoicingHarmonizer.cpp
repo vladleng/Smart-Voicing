@@ -420,6 +420,38 @@ int minorNinthPenalty(const std::array<int, kVoiceCount>& notes,
     return penalty;
 }
 
+int lowRegisterClosedPenalty(const std::array<int, kVoiceCount>& notes,
+                             const NormalizedChord& chord) noexcept
+{
+    // Only Closed (not Cluster/Quartal) discourages a minor second deep in the
+    // low register. V3/V4 are checked as sounding adjacent parts; upper
+    // semitones and the standard C3-B2 major-seventh shell remain legal.
+    // This is a *soft* penalty: explicit b9, guide tones and slash bass
+    // may still force a crowded arrangement in a truly constrained register.
+    const int lowUpper = notes[2];
+    const int bass = notes[3];
+    const int gap = lowUpper - bass;
+    int cost = 0;
+    if (lowUpper < 48 && bass < 48)
+    {
+        if (gap == 1)
+            cost += 42;
+        else if (gap == 2)
+            cost += 18;
+    }
+
+    // Rootless G7b9 can use structural fifth/third bass when the alternative
+    // is a chromatically altered ninth below C3. Keep b9 in an upper voice;
+    // do not forbid it in V4 if no legal alternative exists. Slash bass is
+    // always authoritative and cannot be moved by this preference.
+    if (! chord.slashBass && bass < 48 && chord.hasTone(1)
+        && chord.quality == ChordQuality::dominant
+        && relativeToChordRoot(bass, chord) == 1)
+        cost += 30;
+
+    return cost;
+}
+
 int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
                          const NormalizedChord& chord,
                          const ClosedVoicingContext& context) noexcept
@@ -458,6 +490,7 @@ int scoreClosedCandidate(const std::array<int, kVoiceCount>& notes,
         score += (totalSpan - 12) * 7;
 
     score += duplicatePitchClassPenalty(notes);
+    score += lowRegisterClosedPenalty(notes, chord);
     score += minorNinthPenalty(notes, chord, context);
     score += inferredColourDensityPenalty(notes, chord, context);
 
