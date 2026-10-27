@@ -19,7 +19,7 @@ SmartVoicingAudioProcessorEditor::SmartVoicingAudioProcessorEditor(SmartVoicingA
     : AudioProcessorEditor(&p), processor(p)
 {
     titleLabel.setText(juce::String("Smart Voicing ARA ")
-                       + smartvoicing::build::kDisplayVersion,
+                       + smartvoicing::build::kBuildLabel,
                        juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setFont(juce::FontOptions(22.0f, juce::Font::bold));

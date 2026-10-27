@@ -105,3 +105,25 @@ The explicit dominant b9 has a pre-existing Stage 5 omission penalty
 (`flatNinthOmissionPenalty`) shared in `VoicingIdentity.h`. Closed now
 applies it as well, specifically so the lower-register penalty cannot
 "solve" the low G–Ab semitone by dropping Ab from a written G7b9.
+
+## Studio Pro chord source verification — 2026-10-27
+
+User provided the **actual Chord Track four-note spelling of G7b9** in Studio
+Pro: G3, G#3 (enharmonic Ab3), B3, F4. **D is absent**.
+The previous G7b9 unit fixture contained an assumed perfect fifth; it did
+not match the user's source. A revised test covers both the exact four-note
+source and the optional five-note source, with/without previous voice state.
+It asserts that the four-note input must not invent D, must retain b9/B/F,
+and should prefer avoiding the low Ab2-G2 semitone.
+
+With melody F3 and an exact four-tone palette, Closed cannot simultaneously
+use four different chord pitch classes, fit in a compact octave, and avoid
+placing G and Ab together. The engine must weigh a rootless guide-tone
+doubling against expanding the voicing; the test protects explicit material
+without demanding an artificial fifth.
+
+**Build provenance:** Both Instrument and ARA editor now display
+`0.5b #<GitHub Actions run number>` on CI artifacts, because just `0.5b`
+cannot distinguish builds #504 and #506 when replacing VST3 in Studio Pro.
+VST3 semantic version remains 0.5.2; IDs remain unchanged. Local CMake
+builds without GitHub Actions still display `0.5b`.

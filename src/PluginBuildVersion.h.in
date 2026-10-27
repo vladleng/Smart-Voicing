@@ -5,4 +5,5 @@
 namespace smartvoicing::build
 {
 inline constexpr const char* kDisplayVersion = "@SMART_VOICING_DISPLAY_VERSION@";
+inline constexpr const char* kBuildLabel = "@SMART_VOICING_BUILD_LABEL@";
 }

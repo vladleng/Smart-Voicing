@@ -321,7 +321,7 @@ SmartVoicingInstrumentEditor::SmartVoicingInstrumentEditor(SmartVoicingInstrumen
     diagnosticsButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffb4bdc0));
 
     midiProbeTitleLabel.setText(juce::String("MIDI Engine ")
-                                    + smartvoicing::build::kDisplayVersion
+                                    + smartvoicing::build::kBuildLabel
                                     + " | V1->Ch1 ... V4->Ch4",
                                 juce::dontSendNotification);
     midiProbeTitleLabel.setJustificationType(juce::Justification::centredLeft);
@@ -384,7 +384,7 @@ void SmartVoicingInstrumentEditor::paint(juce::Graphics& g)
     g.setColour(accent);
     g.fillRoundedRectangle(51.0f, 43.0f, 4.0f, 29.0f, 2.0f);
     g.fillEllipse(971.0f, 65.0f, 6.0f, 6.0f);
-    drawCaption(g, juce::String(smartvoicing::build::kDisplayVersion)
+    drawCaption(g, juce::String(smartvoicing::build::kBuildLabel)
                    + "  /  MIDI ARRANGER", 315, 46);
 
     drawCaption(g, juce::String::fromUTF8("ТЕКУЩИЙ КОНТЕКСТ"), 53, 105);
@@ -618,7 +618,7 @@ void SmartVoicingInstrumentEditor::refreshContextMonitor()
 
     juce::String debugText;
     debugText << juce::String::fromUTF8("Техническая диагностика\n");
-    debugText << "Stage 6 / " << smartvoicing::build::kDisplayVersion
+    debugText << "Stage 6 / " << smartvoicing::build::kBuildLabel
               << ": 8 harmonic types + 3 melodic textures | Voicing MIDI 32..42 | Tension 43..45 | Harmony Mode 46..47\n";
     debugText << "Neutral context: position " << (neutralContext.positionAvailable ? "YES" : "NO")
               << " | chord " << (neutralContext.chord.available ? (neutralContext.chord.defined ? "DEFINED" : "NO CHORD") : "N/A")

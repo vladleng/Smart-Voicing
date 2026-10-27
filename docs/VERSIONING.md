@@ -125,3 +125,13 @@ Smart Voicing 0.5/
 ## Отложенная стабилизация
 
 Функции, которые не блокируют развитие музыкального ядра, не должны задерживать переход между этапами. Например, отдельная UI-кнопка `Panic / All Notes Off` и финальная эксплуатационная полировка относятся к позднему этапу стабилизации перед 1.0.
+
+## Identification of test binaries from 0.5b onward
+
+For CI-produced Windows bundles, the two editor windows show the build's
+GitHub Actions run number along with the semantic display version
+(e.g. `0.5b #507`). Version 0.5.2 alone is insufficient for identifying
+which test patch is loaded. The number comes from the build runner's
+`GITHUB_RUN_NUMBER` environment variable; locally configured builds
+display `0.5b` without a CI number. The build label is display-only and
+does not change bundle identifiers or VST3 metadata.

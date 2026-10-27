@@ -668,46 +668,63 @@ void testClosedCleanRetainsNaturalThirteenthAndSlashBassRange()
 void testLowRegisterClosedAvoidsRootFlatNineSemitone()
 {
     const auto cMajor = normalizeKey(key(0, false));
-    const auto g7b9 = normalizeChord(chord(1, 1,
+
+    // Exact user-supplied Studio Pro Chord Track voicing: G3, Ab3, B3, F4.
+    // This input has NO fifth D. The earlier fixture included D and was not
+    // representative of the user's actual 32-bar Closed/Clean source.
+    // Also keep a full G-B-D-F-Ab fixture for the generic five-tone spelling.
+    const auto g7b9FourNotes = normalizeChord(chord(1, 1,
+        {{0, 1}, {1, 9}, {4, 3}, {10, 7}}));
+    const auto g7b9WithFifth = normalizeChord(chord(1, 1,
         {{0, 1}, {1, 9}, {4, 3}, {7, 5}, {10, 7}}));
 
-    // Same harmonic bar as the user's 32-bar Clean score.
-    // F3 melody makes G2 and Ab2 an unnecessarily muddy minor second;
-    // a rootless G7b9 (3/b7/b9 plus fifth) is an acceptable alternative.
-    const auto referenceContext = makeContext(g7b9, cMajor, 53,
-                                              TensionLevel::clean);
-    const auto noHistory = buildVoicing(53, VoicingType::closed, referenceContext);
-
-    VoiceLeadingState previous;
-    const auto earlier = buildVoicing(56, VoicingType::closed,
-        makeContext(g7b9, cMajor, 56, TensionLevel::clean));
-    previous.commit(earlier);
-    auto currentContext = referenceContext;
-    currentContext.voiceLeading = &previous;
-    const auto optimized = buildVoicing(53, VoicingType::closed, currentContext);
-
-    for (const auto& vertical : { noHistory, optimized })
+    for (const auto& g7b9 : { g7b9FourNotes, g7b9WithFifth })
     {
-        expect(vertical.voices[0].active && vertical.voices[0].midiNote == 53,
-               "low-register test keeps F3 performer melody");
-        bool third = false, seventh = false, flatNinth = false;
-        for (const auto& slot : vertical.voices)
+        expect(g7b9.hasTone(1) && g7b9.hasTone(4) && g7b9.hasTone(10),
+               "source Chord Track exposes b9, third and seventh");
+
+        const auto firstContext = makeContext(g7b9, cMajor, 56,
+                                              TensionLevel::clean);
+        const auto first = buildVoicing(56, VoicingType::closed, firstContext);
+        VoiceLeadingState previous;
+        previous.commit(first);
+
+        const auto secondContext = makeContext(g7b9, cMajor, 53,
+                                               TensionLevel::clean);
+        const auto noHistory = buildVoicing(53, VoicingType::closed, secondContext);
+        auto withHistoryContext = secondContext;
+        withHistoryContext.voiceLeading = &previous;
+        const auto withHistory = buildVoicing(53, VoicingType::closed,
+                                              withHistoryContext);
+
+        for (const auto& vertical : { noHistory, withHistory })
         {
-            if (! slot.active) continue;
-            third = third || slot.midiNote % 12 == 11; // B
-            seventh = seventh || slot.midiNote % 12 == 5; // F
-            flatNinth = flatNinth || slot.midiNote % 12 == 8; // Ab
+            expect(vertical.voices[0].active
+                       && vertical.voices[0].midiNote == 53,
+                   "G7b9 must keep F3 performer melody");
+            bool third = false, seventh = false, flatNinth = false;
+            for (const auto& slot : vertical.voices)
+            {
+                expect(slot.active, "four output voices remain active");
+                if (! slot.active)
+                    continue;
+                const auto pitch = slot.midiNote % 12;
+                third = third || pitch == 11; // B
+                seventh = seventh || pitch == 5; // F
+                flatNinth = flatNinth || pitch == 8; // Ab
+                if (! g7b9.hasTone(7))
+                    expect(pitch != 2, "no D invented when source lacks fifth");
+            }
+            expect(third && seventh && flatNinth,
+                   "G7b9 retains both guides and written flat ninth");
+
+            const auto& lowUpper = vertical.voices[2];
+            const auto& lowBass = vertical.voices[3];
+            if (lowUpper.active && lowBass.active)
+                expect(lowUpper.midiNote >= 48 || lowBass.midiNote >= 48
+                           || lowUpper.midiNote - lowBass.midiNote > 1,
+                       "prefer an alternative to Ab2-G2 low semitone");
         }
-        expect(third && seventh && flatNinth,
-               "G7b9 rootless alternative preserves 3, b7 and explicit b9");
-        const auto& upperLow = vertical.voices[2];
-        const auto& lowerLow = vertical.voices[3];
-        expect(upperLow.active && lowerLow.active,
-               "Closed must not drop a voice to escape low interval");
-        if (upperLow.active && lowerLow.active)
-            expect(upperLow.midiNote >= 48 || lowerLow.midiNote >= 48
-                       || upperLow.midiNote - lowerLow.midiNote > 1,
-                   "G7b9 should prefer an alternative to G2-Ab2 low semitone");
     }
 }
 
