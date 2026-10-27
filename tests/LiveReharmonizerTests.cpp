@@ -297,6 +297,68 @@ void testMelodyGateIgnoresUnrelatedNoteOff()
     expect(! decision.releaseVoicing, "unrelated note off does not release active melody");
     expect(gate.activeNote() == 67 && gate.keyDown(), "active melody survives unrelated note off");
 }
+void testHarmonyRefreshGuardBlocksRepeatedAudioBlocks()
+{
+    HarmonicContext context;
+    context.providerConnected = true;
+    context.positionAvailable = true;
+    context.playing = true;
+    context.harmonicRevision = 14;
+    context.transportRevision = 2;
+    context.chord = chord(0, 0, {{0, 1}, {3, 3}, {7, 5}});
+    context.chord.startPpq = 4.0;
+    context.key.available = true;
+    context.key.defined = true;
+    context.key.root = 0;
+    context.key.startPpq = 0.0;
+
+    MelodyHarmonyRefreshGuard guard;
+    expect(guard.needsRefresh(context, 7, 0), "first melody harmony must build");
+    guard.commit(context, 7, 0);
+
+    for (int block = 0; block < 256; ++block)
+    {
+        context.ppq = 4.0 + 0.002 * static_cast<double>(block);
+        expect(! guard.needsRefresh(context, 7, 0),
+               "same Cm and active melody cannot be rebuilt each audio block");
+    }
+
+    expect(guard.needsRefresh(context, 8, 0), "strategy keyswitch triggers rebuild");
+    expect(guard.needsRefresh(context, 7, 1), "tension change triggers rebuild");
+    ++context.harmonicRevision;
+    expect(guard.needsRefresh(context, 7, 0), "ARA edit revision triggers rebuild");
+    --context.harmonicRevision;
+    ++context.transportRevision;
+    expect(guard.needsRefresh(context, 7, 0), "transport seek triggers rebuild");
+    --context.transportRevision;
+
+    context.chord.startPpq = 8.0;
+    expect(guard.needsRefresh(context, 7, 0),
+           "new repeated Cm chord event is a valid reharmonization boundary");
+    guard.commit(context, 7, 0);
+
+    context.chord.intervals.values[3] = 0;
+    context.chord.intervals.values[4] = 3;
+    expect(guard.needsRefresh(context, 7, 0),
+           "different chord pitch classes must rebuild even without revision");
+    guard.reset();
+    expect(guard.needsRefresh(context, 7, 0), "stop resets cached context");
+}
+
+void testCoincidentMelodyChordBoundaryIsAtomic()
+{
+    const auto newPpq = chooseChordPpqAtMelodySample(
+        3.9999999998, 64, 4.0, 64);
+    expect(newPpq == 4.0,
+           "same-sample melody must choose new chord instead of old ARA PPQ");
+    expect(chooseChordPpqAtMelodySample(3.999, 64, 4.0, 65) == 3.999,
+           "future chord boundary must not be applied early");
+    expect(chooseChordPpqAtMelodySample(4.2, 64, 4.0, 63) == 4.2,
+           "past chord boundary must not override current melody timeline");
+    expect(chooseChordPpqAtMelodySample(-1.0, 0, 0.0, 0) == 0.0,
+           "boundary zero is valid when the playhead PPQ is unavailable");
+}
+
 }
 
 int main()
@@ -316,6 +378,8 @@ int main()
     testMelodyGateSustainKeepsVoicingUntilPedalUp();
     testMelodyGateNewNoteDuringSustainBecomesPhysicalOwner();
     testMelodyGateIgnoresUnrelatedNoteOff();
+    testHarmonyRefreshGuardBlocksRepeatedAudioBlocks();
+    testCoincidentMelodyChordBoundaryIsAtomic();
 
     if (failures != 0)
     {

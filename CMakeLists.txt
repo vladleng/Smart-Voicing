@@ -7,7 +7,7 @@ project(SmartVoicing
 
 # Single display version for Instrument and ARA editors. Bump alongside project()
 # VERSION (major.minor.letter -> major.minor.sequence) for each public build.
-set(SMART_VOICING_DISPLAY_VERSION "0.5b")
+set(SMART_VOICING_DISPLAY_VERSION "0.5b fix1")
 # Give every CI-produced VST3 package a visible build number. Multiple
 # development binaries share 0.5b/0.5.2 metadata while their music code differs.
 set(SMART_VOICING_BUILD_LABEL "${SMART_VOICING_DISPLAY_VERSION}")

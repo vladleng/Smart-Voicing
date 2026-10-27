@@ -465,7 +465,8 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
                                    &pendingTensionRefresh,
                                    &pendingVoicingRefresh,
                                    &pendingNoteOffs,
-                                   &resetMelodyGroup]
+                                   &resetMelodyGroup,
+                                   &boundaries, boundaryCount, &nextBoundary]
     {
         if (groupedSample < 0)
             return;
@@ -477,7 +478,21 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
         // before or after Note On at exactly the same timestamp.
         if (pendingNoteOn >= 0)
         {
-            startMelodyVoicing(pendingNoteOn, pendingVelocity, groupedSample);
+            // Prefer the exact ARA chord PPQ when melody and chord start
+            // share an output sample. Otherwise rounding can generate a
+            // short old-chord voice before the boundary refresh replaces it.
+            double coincidentChordPpq = -1.0;
+            for (int i = nextBoundary; i < boundaryCount; ++i)
+            {
+                const auto& boundary = boundaries[static_cast<std::size_t>(i)];
+                if (boundary.samplePosition > groupedSample)
+                    break;
+                coincidentChordPpq = smartvoicing::harmony::chooseChordPpqAtMelodySample(
+                    coincidentChordPpq, groupedSample,
+                    boundary.ppq, boundary.samplePosition);
+            }
+            startMelodyVoicing(pendingNoteOn, pendingVelocity, groupedSample,
+                               coincidentChordPpq);
         }
         else if (previouslyActiveNote >= 0
                  && pendingNoteOffs[static_cast<std::size_t>(previouslyActiveNote)])
@@ -635,7 +650,8 @@ void SmartVoicingInstrumentProcessor::processMelodyHarmonizeMidi(juce::MidiBuffe
 
 void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
                                                           int velocity,
-                                                          int samplePosition)
+                                                          int samplePosition,
+                                                          double exactChordBoundaryPpq)
 {
     if (melodyNote < 0 || melodyNote >= midiNoteCount)
         return;
@@ -643,7 +659,8 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     const auto hadActiveVoicing = activeMelodyInputNote >= 0
                                && activeMelodyVoicing.voices[0].active;
 
-    const auto ppq = ppqForSamplePosition(samplePosition);
+    const auto ppq = exactChordBoundaryPpq >= 0.0
+        ? exactChordBoundaryPpq : ppqForSamplePosition(samplePosition);
     const auto context = ppq >= 0.0
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
@@ -707,6 +724,9 @@ void SmartVoicingInstrumentProcessor::startMelodyVoicing(int melodyNote,
     activeMelodyVelocity = routedVelocity;
     activeMelodyVoicing = voicing;
     voiceLeadingState.commit(voicing);
+    melodyHarmonyRefreshGuard.commit(context,
+        static_cast<int>(activeVoicingType),
+        static_cast<int>(activeTensionLevel));
     heldDistinctNoteCount = 1;
     stableOwnership = getActiveVoiceCount() > 0;
     heldNoteCountForUi.store(1, std::memory_order_relaxed);
@@ -723,6 +743,15 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
     const auto context = ppq >= 0.0
         ? harmonicContextProvider.contextAt(ppq)
         : harmonicContextProvider.currentContext();
+    // The last accepted harmony already owns the output. Rebuilding it on
+    // every audio block with the latest Voice Leading state can produce
+    // back-and-forth single-block note-on/off "micro-notes" even though the
+    // chord has not changed.
+    if (! melodyHarmonyRefreshGuard.needsRefresh(
+            context, static_cast<int>(activeVoicingType),
+            static_cast<int>(activeTensionLevel)))
+        return;
+
     const auto chord = smartvoicing::harmony::normalizeChord(context.chord);
     auto voicingContext = buildVoicingContext(
         harmonicContextProvider, context, chord, ppq, activeMelodyInputNote);
@@ -733,7 +762,12 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
     const auto plan = smartvoicing::harmony::planLowerVoiceReharmonization(activeMelodyVoicing, desired);
 
     if (! plan.lowerVoicesChanged)
+    {
+        melodyHarmonyRefreshGuard.commit(context,
+            static_cast<int>(activeVoicingType),
+            static_cast<int>(activeTensionLevel));
         return;
+    }
 
     for (int voice = 1; voice < voiceCount; ++voice)
     {
@@ -757,6 +791,9 @@ void SmartVoicingInstrumentProcessor::refreshMelodyHarmonyAtPpq(double ppq,
 
     activeMelodyVoicing = desired;
     voiceLeadingState.commit(desired);
+    melodyHarmonyRefreshGuard.commit(context,
+        static_cast<int>(activeVoicingType),
+        static_cast<int>(activeTensionLevel));
     stableOwnership = getActiveVoiceCount() > 0;
     stableOwnershipForUi.store(stableOwnership, std::memory_order_relaxed);
     reharmonizationCountForUi.fetch_add(1, std::memory_order_relaxed);
@@ -821,6 +858,7 @@ void SmartVoicingInstrumentProcessor::stopMelodyVoicing(int samplePosition)
     activeMelodyInputNote = -1;
     activeMelodyVelocity = 0;
     activeMelodyVoicing.clear();
+    melodyHarmonyRefreshGuard.reset();
     heldDistinctNoteCount = 0;
     stableOwnership = false;
     chordFrameNotes.fill(-1);
@@ -1442,6 +1480,7 @@ void SmartVoicingInstrumentProcessor::clearHeldNotes() noexcept
     activeMelodyInputNote = -1;
     activeMelodyVelocity = 0;
     activeMelodyVoicing.clear();
+    melodyHarmonyRefreshGuard.reset();
     voiceLeadingState.reset();
     melodyGate.reset();
     sustainDown = false;

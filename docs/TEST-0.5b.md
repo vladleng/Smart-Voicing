@@ -161,3 +161,41 @@ fixed-size, host-neutral and allocation-free.
       slash Cmaj7/G, V1 and preserved written 3/7/9.
 - [ ] Windows CI for the above latest implementation.
 - [ ] User host MIDI score acceptance on all strategies and realtime load.
+
+## 0.5b fix1 — confirmed brief transition note in Spread / Cm
+
+Source: user's five 32-bar 0.5b #508 Clean PDFs. The user explicitly
+confirmed the extra note in bar 2 (Cm), Spread, V3 is a **micro-note
+during transition** rather than a valid fifth voice. Tracking issue #43.
+
+Static diagnosis found a plausible engine-level cause: while melody is held,
+`processMelodyHarmonizeMidi` calls `refreshMelodyHarmonyAtPpq` at every
+audio block start, even without a new chord, voicing type or Tension Level.
+Because candidate search depends on its own previous sounding voicing,
+repeated identical-context recalculations may alternate candidates,
+emitting brief unnecessary off/on pairs. A coincident melody-note and Chord
+Track boundary can additionally use a slightly earlier floating-point PPQ,
+creating an old-chord candidate followed immediately by a new-chord update.
+
+**Fix1 safeguards:**
+- Host-neutral `MelodyHarmonyRefreshGuard` suppresses recalculation while
+  chord/key context, ARA revision, transport revision and performance choices
+  are unchanged. It excludes the continuously moving playback PPQ.
+- First melody Note On commits its accepted context; applied chord/tension/
+  voicing changes commit even when the new vertical has identical notes.
+- Equal-sample note and chord boundary use the **exact scheduled chord PPQ**
+  when generating the new melody voicing, not the potentially under-rounded
+  `ppqForSamplePosition`; later boundary refresh sees the same context and
+  emits no intermediate old-chord notes.
+- Sustain/chord boundaries, key changes, ARA edits, mode/keyswitch changes,
+  transport revisions and stop/reset remain refresh triggers.
+- Tests exercise 256 consecutive steady Cm audio-block positions, event
+  changes, reset, coincident boundaries and floating-point underflow.
+
+**Status:** automated CI and real Studio Pro MIDI capture are still required.
+The analysis supplies a defensible cause and preventative fix, **not a
+confirmed event-level trace** of the original micro-note.
+- [ ] Windows Build `0.5b fix1` passes CTest and packages VST3.
+- [ ] Repeat Spread/Clean bar 2 in Studio Pro #fix1; V3 emits no transient.
+- [ ] Repeat with chord boundary coincident with new melody note,
+      legato/sustain, keyswitch and transport seek; no stuck notes.

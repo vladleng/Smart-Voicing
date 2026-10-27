@@ -124,7 +124,8 @@ private:
     void clearHeldNotes() noexcept;
 
     void processMelodyHarmonizeMidi(juce::MidiBuffer& midiMessages, int blockSamples);
-    void startMelodyVoicing(int melodyNote, int velocity, int samplePosition);
+    void startMelodyVoicing(int melodyNote, int velocity, int samplePosition,
+                            double exactChordBoundaryPpq = -1.0);
     void refreshMelodyHarmonyAtPpq(double ppq, int samplePosition);
     void stopMelodyVoicing(int samplePosition);
     double ppqForSamplePosition(int samplePosition) noexcept;
@@ -208,6 +209,7 @@ private:
     smartvoicing::harmony::TensionLevel activeTensionLevel = smartvoicing::harmony::TensionLevel::clean;
     smartvoicing::harmony::VoiceOutput activeMelodyVoicing {};
     smartvoicing::harmony::VoiceLeadingState voiceLeadingState;
+    smartvoicing::harmony::MelodyHarmonyRefreshGuard melodyHarmonyRefreshGuard;
     smartvoicing::harmony::MelodyGateState melodyGate;
 
     double currentSampleRate = 44100.0;

@@ -135,3 +135,11 @@ which test patch is loaded. The number comes from the build runner's
 `GITHUB_RUN_NUMBER` environment variable; locally configured builds
 display `0.5b` without a CI number. The build label is display-only and
 does not change bundle identifiers or VST3 metadata.
+
+## Development patch builds (from 0.5b fix1)
+
+Small corrective builds retain the same VST3 plugin identifiers and
+numeric semantic patch version (0.5.2) but change display and package
+labels, e.g. `0.5b fix1 #<GitHub Actions run number>`. Both Instrument
+and ARA windows read that label from the single CMake setting. GitHub
+artifact and inner package folder also use `0.5b fix1`.

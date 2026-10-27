@@ -24,6 +24,66 @@ int roundedSampleOffset(double exactSamples, int blockSamples) noexcept
 }
 }
 
+namespace
+{
+bool sameChord(const ChordContext& left, const ChordContext& right) noexcept
+{
+    return left.available == right.available && left.defined == right.defined
+        && left.startPpq == right.startPpq && left.root == right.root
+        && left.bass == right.bass
+        && left.intervals.values == right.intervals.values;
+}
+
+bool sameKey(const KeyContext& left, const KeyContext& right) noexcept
+{
+    return left.available == right.available && left.defined == right.defined
+        && left.startPpq == right.startPpq && left.root == right.root
+        && left.intervals.values == right.intervals.values;
+}
+}
+
+void MelodyHarmonyRefreshGuard::reset() noexcept
+{
+    initialized = false;
+    last = {};
+    appliedVoicingMode = -1;
+    appliedTensionLevel = -1;
+}
+
+bool MelodyHarmonyRefreshGuard::needsRefresh(
+    const HarmonicContext& context, int voicingMode, int tensionLevel) const noexcept
+{
+    if (! initialized)
+        return true;
+
+    // Intentionally exclude current position in PPQ and elapsed time.
+    return context.harmonicRevision != last.harmonicRevision
+        || context.transportRevision != last.transportRevision
+        || context.providerConnected != last.providerConnected
+        || context.positionAvailable != last.positionAvailable
+        || ! sameChord(context.chord, last.chord)
+        || ! sameKey(context.key, last.key)
+        || voicingMode != appliedVoicingMode
+        || tensionLevel != appliedTensionLevel;
+}
+
+void MelodyHarmonyRefreshGuard::commit(
+    const HarmonicContext& context, int voicingMode, int tensionLevel) noexcept
+{
+    last = context;
+    initialized = true;
+    appliedVoicingMode = voicingMode;
+    appliedTensionLevel = tensionLevel;
+}
+
+double chooseChordPpqAtMelodySample(double computedPpq, int samplePosition,
+                                   double boundaryPpq, int boundarySample) noexcept
+{
+    return boundaryPpq >= 0.0 && boundarySample >= 0
+               && boundarySample == samplePosition
+        ? boundaryPpq : computedPpq;
+}
+
 void MelodyGateState::reset() noexcept
 {
     currentNote = -1;
