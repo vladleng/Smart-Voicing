@@ -1,5 +1,6 @@
 #include "QuartalVoicing.h"
 #include "VoicingIdentity.h"
+#include "VoicingContinuitySelector.h"
 
 #include <array>
 #include <climits>
@@ -171,8 +172,8 @@ VoiceOutput buildQuartalVoicing(int melodyNote, const VoicingContext& context) n
     // The explicit slash bass owns V4. An ordinary quartal may be rootless.
     // Bound the search to a practical vertical; never fold out-of-range notes.
     const int floor = melodyNote > 30 ? melodyNote - 30 : 0;
-    int best = INT_MAX;
-    std::array<int, 4> chosen {};
+    StrategyContinuitySelector selector(context.chord, context.voiceLeading,
+                                      ContinuityStyle::quartal);
     for (int v4 = floor; v4 < melodyNote - 2; ++v4)
     {
         if (context.chord.slashBass
@@ -186,18 +187,13 @@ VoiceOutput buildQuartalVoicing(int melodyNote, const VoicingContext& context) n
             {
                 if (! candidate(v2, context)) continue;
                 const std::array<int, 4> notes { melodyNote, v2, v3, v4 };
-                const int cost = score(notes, context)
-                               + voiceLeadingAdjustment(notes, context.voiceLeading);
-                if (cost < best)
-                {
-                    best = cost;
-                    chosen = notes;
-                }
+                selector.consider(notes, score(notes, context));
             }
         }
     }
-    if (best == INT_MAX)
+    if (! selector.hasCandidate())
         return result;
+    const auto chosen = selector.selected();
     for (std::size_t voice = 1; voice < chosen.size(); ++voice)
         result.voices[voice] = { true, chosen[voice] };
     return result;

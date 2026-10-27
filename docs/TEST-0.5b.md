@@ -127,3 +127,37 @@ without demanding an artificial fifth.
 cannot distinguish builds #504 and #506 when replacing VST3 in Studio Pro.
 VST3 semantic version remains 0.5.2; IDs remain unchanged. Local CMake
 builds without GitHub Actions still display `0.5b`.
+
+## 0.5b safety correction — four-note G7b9 and family-specific motion
+
+The user's corrected Studio Pro Chord Track layout is **G3, B3, F4,
+G#4 (Ab4)**, with **no D**. ChordContext/NormalizedChord uses pitch
+classes plus interval-degree roles, so the octave of the written b9 does
+not change the chord candidate pool. With F3 melody and only G, Ab, B, F,
+a compact four-distinct-pitch-class Closed vertical may require the low
+G2-Ab2 semitone. This is a legitimate compromise, not a blanket bug.
+The regression NO LONGER mandates removing this second; it verifies
+all named pitch classes, V1 ownership, descending order, and no invented D.
+The *soft* low-register dissonance penalty remains useful when actual
+equivalent choices exist, but explicit harmony and Closed identity win.
+
+Spread, Quartal, UST and Cluster now use the **same bounded eight-candidate
+history shortlist** with style-specific weight and vertical-cost margin.
+This is a single vertical search, not a second exhaustive pass:
+- Spread: preserve open bass anchor and 8-score-point window;
+- Quartal: preserve fourth-oriented vertical and 6-point window;
+- UST: preserve upper-structure eligibility and 5-point window;
+- Cluster: preserve close upper density and 6-point window.
+
+The shortlist never overrides chord legality, V1, slash bass or previously
+represented guide/explicit altered tones; the Stage 5 static vertical remains
+a safe fallback. Other melodic-section textures are untouched. All runs are
+fixed-size, host-neutral and allocation-free.
+
+- [x] Correct four-tone G7b9 synthetic regression and remove universal veto
+      on an unavoidable low semitone.
+- [x] Add style-dependent motion ranking for four independent strategies.
+- [x] Add progression tests for these four styles including Cmaj9, G7b9,
+      slash Cmaj7/G, V1 and preserved written 3/7/9.
+- [ ] Windows CI for the above latest implementation.
+- [ ] User host MIDI score acceptance on all strategies and realtime load.

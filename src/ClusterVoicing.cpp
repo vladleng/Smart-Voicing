@@ -1,5 +1,6 @@
 #include "ClusterVoicing.h"
 #include "VoicingIdentity.h"
+#include "VoicingContinuitySelector.h"
 
 #include <array>
 #include <climits>
@@ -142,8 +143,8 @@ VoiceOutput buildClusterVoicing(int melodyNote, const VoicingContext& context) n
             || (useTensions && context.tension.isHarmonyCandidate(d, context.tensionLevel));
     }
     const int floor = melodyNote > 28 ? melodyNote - 28 : 0;
-    int best = INT_MAX;
-    std::array<int, 4> chosen {};
+    StrategyContinuitySelector selector(context.chord, context.voiceLeading,
+                                      ContinuityStyle::cluster);
     for (int v2 = melodyNote - 1; v2 >= floor + 2; --v2)
     {
         if (!legal[static_cast<std::size_t>(pc(v2))]) continue;
@@ -159,13 +160,12 @@ VoiceOutput buildClusterVoicing(int melodyNote, const VoicingContext& context) n
                 else if (!context.chord.hasTone(degree(v4, context.chord)))
                     continue;
                 const std::array<int, 4> notes {melodyNote, v2, v3, v4};
-                const int cost = score(notes, context)
-                               + voiceLeadingAdjustment(notes, context.voiceLeading);
-                if (cost < best) { best = cost; chosen = notes; }
+                selector.consider(notes, score(notes, context));
             }
         }
     }
-    if (best == INT_MAX) return result;
+    if (! selector.hasCandidate()) return result;
+    const auto chosen = selector.selected();
     for (std::size_t i = 1; i < chosen.size(); ++i)
         result.voices[i] = {true, chosen[i]};
     return result;

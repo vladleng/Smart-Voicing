@@ -1,5 +1,6 @@
 #include "SpreadVoicing.h"
 #include "VoicingIdentity.h"
+#include "VoicingContinuitySelector.h"
 
 #include <array>
 #include <climits>
@@ -206,8 +207,8 @@ VoiceOutput buildSpreadVoicing(int melodyNote, const VoicingContext& context) no
     if (bass < 0)
         return result; // no safe structural spread in this register
 
-    int best = INT_MAX;
-    std::array<int, 4> chosen {};
+    StrategyContinuitySelector selector(context.chord, context.voiceLeading,
+                                      ContinuityStyle::spread);
     // Bottom-up: fix structural bass, place V3 above it, then V2 below the
     // performer melody. Fixed bounded search; no allocation/locks/audio I/O.
     for (int v3 = bass + 1; v3 < melodyNote - 1; ++v3)
@@ -219,18 +220,13 @@ VoiceOutput buildSpreadVoicing(int melodyNote, const VoicingContext& context) no
             if (! candidate(v2, context))
                 continue;
             const std::array<int, 4> notes { melodyNote, v2, v3, bass };
-            const auto current = score(notes, context)
-                               + voiceLeadingAdjustment(notes, context.voiceLeading);
-            if (current < best) // first ascending candidate wins deterministic ties
-            {
-                best = current;
-                chosen = notes;
-            }
+            selector.consider(notes, score(notes, context));
         }
     }
 
-    if (best == INT_MAX)
+    if (! selector.hasCandidate())
         return result;
+    const auto chosen = selector.selected();
     for (std::size_t voice = 1; voice < chosen.size(); ++voice)
         result.voices[voice] = { true, chosen[voice] };
     return result;
